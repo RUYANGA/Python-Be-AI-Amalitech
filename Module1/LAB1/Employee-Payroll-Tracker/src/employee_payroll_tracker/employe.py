@@ -6,8 +6,8 @@ encapsulated attributes and property validation.
 
 from abc import ABC, abstractmethod
 
-from src.employee_payroll_tracker import get_logger
-from src.employee_payroll_tracker import (
+from src.employee_payroll_tracker.logger import get_logger
+from src.employee_payroll_tracker.util import (
     validate_non_negative_number,
     validate_positive_number,
 )
@@ -132,14 +132,16 @@ class ContractEmployee(Employee):
     @hours_worked.setter
     def hours_worked(self, value: float) -> None:
         """Set hours worked, capped at 744 (max in a 31-day month)."""
-        if value < 0:
+        try:
+            validate_non_negative_number(value, "Hours worked")
+        except ValueError:
             logger.warning(
                 "Rejected negative hours %.2f for %s (ID: %d)",
                 value,
                 self.name,
                 self.emp_id,
             )
-            raise ValueError("Hours worked cannot be negative.")
+            raise
         if value > 744:
             logger.warning(
                 "Rejected hours %.2f (exceeds 744) for %s (ID: %d)",

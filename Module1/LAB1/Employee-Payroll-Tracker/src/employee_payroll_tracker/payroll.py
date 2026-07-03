@@ -17,8 +17,8 @@ from src.employee_payroll_tracker.employe import (
     FullTimeEmployee,
     Intern,
 )
-from src.employee_payroll_tracker import get_logger
-from src.employee_payroll_tracker import validate_non_negative_number
+from src.employee_payroll_tracker.logger import get_logger
+from src.employee_payroll_tracker.util import validate_non_negative_number
 
 logger = get_logger(__name__)
 
