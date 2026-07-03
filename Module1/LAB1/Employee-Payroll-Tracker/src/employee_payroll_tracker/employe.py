@@ -56,3 +56,34 @@ class Employee(ABC):
     def employee_type(self)->str:
         """Return a human-readable label for the employee role."""
         ...
+    
+    def __str__(self)->str:
+        return f"{self.name} (ID: {self.emp_id})"
+    
+
+class FullTimeEmployee(Employee):
+
+    def __init__(self, emp_id:int, emp_name:str, base_salary:float,bonus:float)->None:
+        self.__bonus
+        super().__init__(emp_id, emp_name, base_salary)
+        self.bonus
+
+
+    @property
+    def bonus(self)->float:
+        return self._bonus
+    
+
+    @bonus.setter
+    def bonus(self,value)->None:
+        if value <0:
+            raise ValueError('Bonus must be positive ')
+        self.__salary=value
+
+    def calculate_salary(self)->float:
+        total=self.salary + self.bonus
+        return total
+    
+    def employee_type(self):
+        return "Full-Time"
+        
