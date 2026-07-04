@@ -55,8 +55,4 @@ poetry run python -m src.employee_payroll_tracker.main
 | `ContractEmployee` | `hourly_rate × hours_worked` | `emp_id`, `name`, `hourly_rate`, `hours_worked`          |
 | `Intern`           | `stipend` (fixed)          | `emp_id`, `name`, `stipend`                              |
 
-## Testing
 
-```bash
-poetry run pytest
-```
