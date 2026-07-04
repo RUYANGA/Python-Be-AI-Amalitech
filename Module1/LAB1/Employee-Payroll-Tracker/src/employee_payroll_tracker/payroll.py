@@ -159,7 +159,7 @@ def process_payroll(employees: List) -> List[str]:
         logger.warning("process_payroll called with empty employee list")
         return []
 
-    logger.info("Processing payroll for %d employee(s)", len(employees))
+   
     payslips = [generate_payslip(emp) for emp in employees]
     logger.info("Payroll complete — %d payslip(s) generated", len(payslips))
     return payslips

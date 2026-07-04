@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 LOG_DIR = Path(__file__).resolve().parent.parent.parent / "logs"
-LOG_FILE = LOG_DIR / "payroll.log"
+LOG_FILE = LOG_DIR / "app.log"
 
 _FORMAT = "%(asctime)s | %(name)s | %(levelname)-8s | %(message)s"
 _DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
