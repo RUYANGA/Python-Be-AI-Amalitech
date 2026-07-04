@@ -7,18 +7,20 @@ from .utils import (
 )
 
 
+MENU_OPTIONS = [
+    "Add Book", "Add Author", "Add Borrower", "Search Books",
+    "Borrow Book", "Return Book", "Show Available Books",
+    "Show Borrowed Books", "Show Books by Author", "Show All Books",
+    "Show All Authors", "Show All Borrowers", "Exit"
+]
+
+
 def _menu():
     """Display the main menu with all available options."""
     print("\n" + "=" * 50)
     print("          LIBRARY INVENTORY SYSTEM")
     print("=" * 50)
-    for index, label in enumerate([
-        "Add Book", "Add Author", "Add Borrower", "Search Books",
-        "Borrow Book", "Return Book", "Show Available Books",
-        "Show Borrowed Books", "Show Books by Author", "Show All Books",
-        "Show All Authors", "Show All Borrowers", "Exit"
-    ], 1):
-        print(f"  {index:2}.  {label}")
+    print("\n".join(f"  {i:2}.  {label}" for i, label in enumerate(MENU_OPTIONS, 1)))
     print("=" * 50)
 
 
@@ -33,8 +35,7 @@ def _show_authors():
     if not authors:
         print("No authors registered. Please add an author first.")
         return None
-    for author in authors:
-        print(f"  {author.id}: {author.name}")
+    print("\n".join(f"  {a.id}: {a.name}" for a in authors))
     return authors
 
 
@@ -44,8 +45,7 @@ def _show_borrowers():
     if not borrowers:
         print("No borrowers registered. Please add a borrower first.")
         return None
-    for borrower in borrowers:
-        print(f"  {borrower.id}: {borrower.name}")
+    print("\n".join(f"  {b.id}: {b.name}" for b in borrowers))
     return borrowers
 
 
@@ -97,9 +97,10 @@ def main():
             if not results:
                 print("No books found.")
             else:
-                for book in results:
-                    print(f"  {book.id}: {book.title} by {_author_name(book.author_id)} "
-                          f"({'Avail' if book.available else 'Brwd'})")
+                print("\n".join(
+                    f"  {b.id}: {b.title} by {_author_name(b.author_id)} "
+                    f"({'Avail' if b.available else 'Brwd'})" for b in results
+                ))
 
         elif choice == "5":
             if not _show_borrowers():

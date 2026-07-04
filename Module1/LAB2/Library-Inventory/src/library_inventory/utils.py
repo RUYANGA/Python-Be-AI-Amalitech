@@ -137,10 +137,12 @@ def return_book(book_id):
         return False, "Book was not borrowed."
     target_book["available"] = True
     target_book["borrower_id"] = None
-    for record in reversed(data["borrowing_history"]):
-        if record["book_id"] == book_id and record["return_date"] is None:
-            record["return_date"] = str(date.today())
-            break
+    unmatched = [
+        r for r in data["borrowing_history"]
+        if r["book_id"] == book_id and r["return_date"] is None
+    ]
+    if unmatched:
+        unmatched[-1]["return_date"] = str(date.today())
     _save(data)
     return True, f"Book '{target_book['title']}' returned successfully."
 
