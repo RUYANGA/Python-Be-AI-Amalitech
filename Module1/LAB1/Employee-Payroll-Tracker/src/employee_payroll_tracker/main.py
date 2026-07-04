@@ -40,13 +40,14 @@ def main() -> None:
 
     logger.info("Loaded %d employee(s) for processing", len(employees))
 
-    payslips = process_payroll(employees)
+    payroll_data = process_payroll(employees)
 
-    for payslip in payslips:
-        print(payslip)
+    for emp_id, data in payroll_data.items():
+        print(f"Employee ID: {emp_id} — {data['name']}")
+        print(data["payslip"])
         print()
 
-    summary = f"Processed {len(employees)} employee(s) successfully."
+    summary = f"Processed {len(payroll_data)} employee(s) successfully."
     print(summary)
     logger.info(summary)
     logger.info("Payroll Tracker finished")

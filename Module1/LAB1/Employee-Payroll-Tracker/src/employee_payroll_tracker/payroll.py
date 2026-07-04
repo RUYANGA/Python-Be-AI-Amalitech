@@ -10,7 +10,7 @@ Functions:
     process_payroll: Processes a list of employees and returns payslips.
 """
 
-from typing import List
+from typing import Dict, List
 
 from src.employee_payroll_tracker.employe import (
     ContractEmployee,
@@ -108,17 +108,24 @@ def apply_tax(gross_salary: float, tax_rate: float = TAX_RATE) -> float:
     return net
 
 
-def generate_payslip(employee) -> str:
+def generate_payslip(employee, gross: float = 0.0, net: float = 0.0) -> str:
     """Generate a formatted payslip string for an employee.
+
+    When ``gross`` and ``net`` are both provided (non-zero) they are
+    used directly; otherwise they are computed from the employee.
 
     Args:
         employee: An Employee instance.
+        gross: Pre-computed gross salary (optional).
+        net: Pre-computed net salary (optional).
 
     Returns:
         A multi-line string containing the complete payslip.
     """
-    gross = calculate_salary(employee)
-    net = apply_tax(gross)
+    if not gross or not net:
+        gross = calculate_salary(employee)
+        net = apply_tax(gross)
+
     tax_amount = round(gross - net, 2)
 
     logger.info(
@@ -146,20 +153,38 @@ def generate_payslip(employee) -> str:
     return "\n".join(lines)
 
 
-def process_payroll(employees: List) -> List[str]:
+def process_payroll(employees: List) -> Dict[int, dict]:
     """Process payroll for a list of employees.
+
+    Builds a dictionary mapping each employee ID to their computed
+    payroll data including gross salary, tax, net pay, and formatted
+    payslip.
 
     Args:
         employees: A list of Employee instances.
 
     Returns:
-        A list of formatted payslip strings, one per employee.
+        A dictionary of ``{emp_id: {"name": str, "gross": float,
+        "net": float, "payslip": str}}``.
     """
     if not employees:
         logger.warning("process_payroll called with empty employee list")
-        return []
+        return {}
 
-   
-    payslips = [generate_payslip(emp) for emp in employees]
-    logger.info("Payroll complete — %d payslip(s) generated", len(payslips))
-    return payslips
+    payroll_data: Dict[int, dict] = {}
+    i = 0
+    while i < len(employees):
+        emp = employees[i]
+        gross = calculate_salary(emp)
+        net = apply_tax(gross)
+        payslip = generate_payslip(emp, gross, net)
+        payroll_data[emp.emp_id] = {
+            "name": emp.name,
+            "gross": gross,
+            "net": net,
+            "payslip": payslip,
+        }
+        i += 1
+
+    logger.info("Payroll complete — %d employee(s) processed", len(payroll_data))
+    return payroll_data
