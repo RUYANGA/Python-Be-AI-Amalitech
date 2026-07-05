@@ -228,7 +228,8 @@ def report_borrowed_books():
     if not books:
         return "No borrowed books."
     lines = [
-        f"  {book.id}: {book.title} by {_author_name(book.author_id)} -> {_borrower_name(book.borrower_id)}"
+        f"  {book.id}: {book.title} by {_author_name(book.author_id)}"
+        f" -> {_borrower_name(book.borrower_id)}"
         for book in books
     ]
     return "Borrowed Books:\n" + "\n".join(lines)
@@ -253,7 +254,8 @@ def report_all_books():
     if not books:
         return "No books in the library."
     lines = [
-        f"  {book.id}: {book.title} by {_author_name(book.author_id)} ({'Avail' if book.available else 'Brwd'})"
+        f"  {book.id}: {book.title} by {_author_name(book.author_id)}"
+        f" ({'Avail' if book.available else 'Brwd'})"
         for book in books
     ]
     return "All Books:\n" + "\n".join(lines)
