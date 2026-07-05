@@ -1,17 +1,37 @@
 import sys
 from .utils import (
-    add_book, add_author, add_borrower, search_books, borrow_book,
-    return_book, get_all_authors, get_all_borrowers, _author_name,
-    report_available_books, report_borrowed_books, report_books_by_author,
-    report_all_books, report_all_authors, report_all_borrowers,
+    add_book,
+    add_author,
+    add_borrower,
+    search_books,
+    borrow_book,
+    return_book,
+    get_all_authors,
+    get_all_borrowers,
+    _author_name,
+    report_available_books,
+    report_borrowed_books,
+    report_books_by_author,
+    report_all_books,
+    report_all_authors,
+    report_all_borrowers,
 )
 
 
 MENU_OPTIONS = [
-    "Add Book", "Add Author", "Add Borrower", "Search Books",
-    "Borrow Book", "Return Book", "Show Available Books",
-    "Show Borrowed Books", "Show Books by Author", "Show All Books",
-    "Show All Authors", "Show All Borrowers", "Exit"
+    "Add Book",
+    "Add Author",
+    "Add Borrower",
+    "Search Books",
+    "Borrow Book",
+    "Return Book",
+    "Show Available Books",
+    "Show Borrowed Books",
+    "Show Books by Author",
+    "Show All Books",
+    "Show All Authors",
+    "Show All Borrowers",
+    "Exit",
 ]
 
 
@@ -69,15 +89,27 @@ def main():
             except ValueError:
                 print("Invalid year.")
                 continue
-            type_choice = _prompt("Book type: (1) Print  (2) EBook  (3) AudioBook\nChoice: ")
+            type_choice = _prompt(
+                "Book type: (1) Print  (2) EBook  (3) AudioBook\nChoice: "
+            )
             if type_choice == "2":
-                new_book = add_book(title, author_id, year, book_type="ebook",
-                                    file_format=_prompt("File format: "),
-                                    file_size=float(_prompt("File size (MB): ")))
+                new_book = add_book(
+                    title,
+                    author_id,
+                    year,
+                    book_type="ebook",
+                    file_format=_prompt("File format: "),
+                    file_size=float(_prompt("File size (MB): ")),
+                )
             elif type_choice == "3":
-                new_book = add_book(title, author_id, year, book_type="audiobook",
-                                    duration=float(_prompt("Duration (min): ")),
-                                    narrator=_prompt("Narrator: "))
+                new_book = add_book(
+                    title,
+                    author_id,
+                    year,
+                    book_type="audiobook",
+                    duration=float(_prompt("Duration (min): ")),
+                    narrator=_prompt("Narrator: "),
+                )
             else:
                 new_book = add_book(title, author_id, year)
             print(f"Added: {new_book}")
@@ -101,15 +133,20 @@ def main():
             if not results:
                 print("No books found.")
             else:
-                print("\n".join(
-                    f"  {b.id}: {b.title} by {_author_name(b.author_id)} "
-                    f"({'Avail' if b.available else 'Brwd'})" for b in results
-                ))
+                print(
+                    "\n".join(
+                        f"  {b.id}: {b.title} by {_author_name(b.author_id)} "
+                        f"({'Avail' if b.available else 'Brwd'})"
+                        for b in results
+                    )
+                )
 
         elif choice == "5":
             if not _show_borrowers():
                 continue
-            success, message = borrow_book(_prompt("Book ID: "), _prompt("Borrower ID: "))
+            success, message = borrow_book(
+                _prompt("Book ID: "), _prompt("Borrower ID: ")
+            )
             print(message)
 
         elif choice == "6":

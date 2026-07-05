@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 
-_FIELDS = ("id", "title", "author_id", "publication_year",
-           "available", "borrower_id")
+_FIELDS = ("id", "title", "author_id", "publication_year", "available", "borrower_id")
 
 
 class LibraryResource(ABC):
@@ -43,8 +42,9 @@ class LibraryResource(ABC):
 class Book(LibraryResource):
     """Represents a print book in the library."""
 
-    def __init__(self, id, title, author_id, publication_year,
-                 available=True, borrower_id=None):
+    def __init__(
+        self, id, title, author_id, publication_year, available=True, borrower_id=None
+    ):
         super().__init__(id, title)
         self._author_id = author_id
         self._publication_year = publication_year
@@ -105,10 +105,18 @@ class Book(LibraryResource):
 class EBook(Book):
     """Represents a digital ebook in the library."""
 
-    def __init__(self, id, title, author_id, publication_year,
-                 file_format, file_size, available=True, borrower_id=None):
-        super().__init__(id, title, author_id, publication_year,
-                         available, borrower_id)
+    def __init__(
+        self,
+        id,
+        title,
+        author_id,
+        publication_year,
+        file_format,
+        file_size,
+        available=True,
+        borrower_id=None,
+    ):
+        super().__init__(id, title, author_id, publication_year, available, borrower_id)
         self._file_format = file_format
         self._file_size = file_size
 
@@ -139,10 +147,16 @@ class EBook(Book):
     @staticmethod
     def from_dict(data):
         """Create an EBook instance from a dictionary."""
-        return EBook(data["id"], data["title"], data["author_id"],
-                     data["publication_year"], data["file_format"],
-                     data["file_size"], data.get("available", True),
-                     data.get("borrower_id"))
+        return EBook(
+            data["id"],
+            data["title"],
+            data["author_id"],
+            data["publication_year"],
+            data["file_format"],
+            data["file_size"],
+            data.get("available", True),
+            data.get("borrower_id"),
+        )
 
     def __repr__(self):
         return f"EBook({self._id}, '{self._title}', {self._file_format})"
@@ -151,10 +165,18 @@ class EBook(Book):
 class AudioBook(Book):
     """Represents an audiobook in the library."""
 
-    def __init__(self, id, title, author_id, publication_year,
-                 duration, narrator, available=True, borrower_id=None):
-        super().__init__(id, title, author_id, publication_year,
-                         available, borrower_id)
+    def __init__(
+        self,
+        id,
+        title,
+        author_id,
+        publication_year,
+        duration,
+        narrator,
+        available=True,
+        borrower_id=None,
+    ):
+        super().__init__(id, title, author_id, publication_year, available, borrower_id)
         self._duration = duration
         self._narrator = narrator
 
@@ -185,10 +207,16 @@ class AudioBook(Book):
     @staticmethod
     def from_dict(data):
         """Create an AudioBook instance from a dictionary."""
-        return AudioBook(data["id"], data["title"], data["author_id"],
-                         data["publication_year"], data["duration"],
-                         data["narrator"], data.get("available", True),
-                         data.get("borrower_id"))
+        return AudioBook(
+            data["id"],
+            data["title"],
+            data["author_id"],
+            data["publication_year"],
+            data["duration"],
+            data["narrator"],
+            data.get("available", True),
+            data.get("borrower_id"),
+        )
 
     def __repr__(self):
         return f"AudioBook({self._id}, '{self._title}', {self._narrator})"
