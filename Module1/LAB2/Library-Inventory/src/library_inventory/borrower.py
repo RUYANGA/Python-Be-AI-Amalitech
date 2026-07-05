@@ -1,8 +1,8 @@
 class Borrower:
     """Represents a library patron who can borrow books."""
 
-    def __init__(self, id, name, email):
-        self._id = id
+    def __init__(self, id_, name, email):
+        self._id = id_
         self._name = name
         self._email = email
 

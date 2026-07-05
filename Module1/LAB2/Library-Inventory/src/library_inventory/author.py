@@ -1,8 +1,8 @@
 class Author:
     """Represents a book author."""
 
-    def __init__(self, id, name, biography=""):
-        self._id = id
+    def __init__(self, id_, name, biography=""):
+        self._id = id_
         self._name = name
         self._biography = biography
 

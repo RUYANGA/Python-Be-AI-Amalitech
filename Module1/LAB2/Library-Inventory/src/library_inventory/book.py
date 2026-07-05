@@ -6,8 +6,8 @@ _FIELDS = ("id", "title", "author_id", "publication_year", "available", "borrowe
 class LibraryResource(ABC):
     """Abstract base class for all library resources."""
 
-    def __init__(self, id, title):
-        self._id = id
+    def __init__(self, id_, title):
+        self._id = id_
         self._title = title
 
     @property
@@ -43,9 +43,9 @@ class Book(LibraryResource):
     """Represents a print book in the library."""
 
     def __init__(
-        self, id, title, author_id, publication_year, available=True, borrower_id=None
+        self, id_, title, author_id, publication_year, available=True, borrower_id=None
     ):
-        super().__init__(id, title)
+        super().__init__(id_, title)
         self._author_id = author_id
         self._publication_year = publication_year
         self._available = available
@@ -93,7 +93,14 @@ class Book(LibraryResource):
     @staticmethod
     def from_dict(data):
         """Create a Book instance from a dictionary."""
-        return Book(**{field: data.get(field) for field in _FIELDS})
+        return Book(
+            data["id"],
+            data["title"],
+            data["author_id"],
+            data["publication_year"],
+            data.get("available", True),
+            data.get("borrower_id"),
+        )
 
     def __repr__(self):
         return f"Book({self._id}, '{self._title}', avail={self._available})"
@@ -107,7 +114,7 @@ class EBook(Book):
 
     def __init__(
         self,
-        id,
+        id_,
         title,
         author_id,
         publication_year,
@@ -116,7 +123,9 @@ class EBook(Book):
         available=True,
         borrower_id=None,
     ):
-        super().__init__(id, title, author_id, publication_year, available, borrower_id)
+        super().__init__(
+            id_, title, author_id, publication_year, available, borrower_id
+        )
         self._file_format = file_format
         self._file_size = file_size
 
@@ -167,7 +176,7 @@ class AudioBook(Book):
 
     def __init__(
         self,
-        id,
+        id_,
         title,
         author_id,
         publication_year,
@@ -176,7 +185,9 @@ class AudioBook(Book):
         available=True,
         borrower_id=None,
     ):
-        super().__init__(id, title, author_id, publication_year, available, borrower_id)
+        super().__init__(
+            id_, title, author_id, publication_year, available, borrower_id
+        )
         self._duration = duration
         self._narrator = narrator
 
