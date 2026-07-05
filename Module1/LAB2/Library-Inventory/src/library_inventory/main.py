@@ -59,14 +59,16 @@ def main():
         if choice == "1":
             title = _prompt("Title: ")
             if not title:
-                print("Title cannot be empty."); continue
+                print("Title cannot be empty.")
+                continue
             if not _show_authors():
                 continue
             author_id = _prompt("Author ID: ")
             try:
                 year = int(_prompt("Publication Year: "))
             except ValueError:
-                print("Invalid year."); continue
+                print("Invalid year.")
+                continue
             type_choice = _prompt("Book type: (1) Print  (2) EBook  (3) AudioBook\nChoice: ")
             if type_choice == "2":
                 new_book = add_book(title, author_id, year, book_type="ebook",
@@ -83,13 +85,15 @@ def main():
         elif choice == "2":
             name = _prompt("Author name: ")
             if not name:
-                print("Name cannot be empty."); continue
+                print("Name cannot be empty.")
+                continue
             print(f"Added: {add_author(name, _prompt('Biography (optional): '))}")
 
         elif choice == "3":
             name = _prompt("Borrower name: ")
             if not name:
-                print("Name cannot be empty."); continue
+                print("Name cannot be empty.")
+                continue
             print(f"Added: {add_borrower(name, _prompt('Email: '))}")
 
         elif choice == "4":
