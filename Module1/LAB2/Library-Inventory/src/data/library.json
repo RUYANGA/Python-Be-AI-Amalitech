@@ -1,0 +1,59 @@
+{
+    "books": [
+        {
+            "id": "B001",
+            "title": "1984",
+            "author_id": "A001",
+            "publication_year": 1949,
+            "available": false,
+            "borrower_id": "BR001"
+        },
+        {
+            "id": "B002",
+            "title": "Harry Potter",
+            "author_id": "A002",
+            "publication_year": 1997,
+            "available": true,
+            "borrower_id": null,
+            "file_format": "EPUB",
+            "file_size": 5.5
+        }
+    ],
+    "authors": [
+        {
+            "id": "A001",
+            "name": "Jane Austen",
+            "biography": "Author of Pride and Prejudice"
+        },
+        {
+            "id": "A002",
+            "name": "George Orwell",
+            "biography": "1984 author"
+        },
+        {
+            "id": "A003",
+            "name": "George Orwell",
+            "biography": "Author of 1984"
+        },
+        {
+            "id": "A004",
+            "name": "J.K. Rowling",
+            "biography": "Harry Potter author"
+        }
+    ],
+    "borrowers": [
+        {
+            "id": "BR001",
+            "name": "Alice",
+            "email": "alice@email.com"
+        }
+    ],
+    "borrowing_history": [
+        {
+            "book_id": "B001",
+            "borrower_id": "BR001",
+            "borrow_date": "2026-07-04",
+            "return_date": null
+        }
+    ]
+}
