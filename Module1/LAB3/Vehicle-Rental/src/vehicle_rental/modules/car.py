@@ -1,6 +1,6 @@
 """Car model with type-based pricing multipliers."""
 
-from src.vehicle_rental.core import Vehicle
+from vehicle_rental.core import Vehicle
 
 
 class Car(Vehicle):

@@ -1,6 +1,6 @@
 """Pricing utilities for calculating rental costs and late fees."""
 
-from src.vehicle_rental.core import Vehicle
+from vehicle_rental.core import Vehicle
 
 
 def calculate_rental_cost(vehicle: Vehicle, days: int) -> float:

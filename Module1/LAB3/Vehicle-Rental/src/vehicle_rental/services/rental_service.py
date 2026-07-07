@@ -1,8 +1,8 @@
 """Core rental service managing vehicle registration, rentals, and returns."""
 
 from typing import Optional
-from src.vehicle_rental.core import Vehicle
-from src.vehicle_rental.services import calculate_rental_cost, calculate_late_fee
+from vehicle_rental.core import Vehicle
+from vehicle_rental.services.princing import calculate_rental_cost, calculate_late_fee
 
 
 class RentalRecord:
