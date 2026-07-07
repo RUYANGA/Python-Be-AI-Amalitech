@@ -26,7 +26,6 @@ class Vehicle(ABC):
         self._year = year
         self._daily_rate = daily_rate
         self._is_available = True
-        self._late_fee_multiplier = 1.0
 
     @property
     def vehicle_id(self) -> str:

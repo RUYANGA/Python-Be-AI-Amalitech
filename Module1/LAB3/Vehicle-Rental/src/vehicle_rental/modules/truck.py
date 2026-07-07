@@ -14,7 +14,7 @@ class Truck(Vehicle):
     """
 
     def __init__(self, vehicle_id: str, make: str, model: str, year: int,
-                 daily_rate: float, cargo_capacity_kg: float = 1000):
+                 daily_rate: float, capacity_kg: float = 1000):
         """Initialise a truck.
 
         Args:
@@ -23,15 +23,15 @@ class Truck(Vehicle):
             model: Model name.
             year: Manufacturing year.
             daily_rate: Base daily rental rate.
-            cargo_capacity_kg: Maximum cargo capacity in kilograms.
+            capacity_kg: Maximum cargo capacity in kilograms.
 
         Raises:
-            ValueError: If cargo_capacity_kg is not positive.
+            ValueError: If capacity_kg is not positive.
         """
         super().__init__(vehicle_id, make, model, year, daily_rate)
-        if cargo_capacity_kg <= 0:
+        if capacity_kg <= 0:
             raise ValueError("Cargo capacity must be positive")
-        self._cargo_capacity_kg = float(cargo_capacity_kg)
+        self._cargo_capacity_kg = float(capacity_kg)
 
     @property
     def cargo_capacity_kg(self) -> float:

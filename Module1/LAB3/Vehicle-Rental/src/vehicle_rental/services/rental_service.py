@@ -2,7 +2,7 @@
 
 from typing import Optional
 from vehicle_rental.core import Vehicle
-from vehicle_rental.services.princing import calculate_rental_cost, calculate_late_fee
+from vehicle_rental.services.pricing import calculate_rental_cost, calculate_late_fee
 
 
 class RentalRecord:

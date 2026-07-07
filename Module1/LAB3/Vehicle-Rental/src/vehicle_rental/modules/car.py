@@ -10,6 +10,7 @@ class Car(Vehicle):
     """
 
     VALID_TYPES = ("standard", "suv", "luxury")
+    TYPE_MULTIPLIERS: dict[str, float] = {"standard": 1.0, "suv": 1.3, "luxury": 1.8}
 
     def __init__(self, vehicle_id: str, make: str, model: str, year: int,
                  daily_rate: float, car_type: str = "standard"):
@@ -38,8 +39,7 @@ class Car(Vehicle):
 
     def _type_multiplier(self) -> float:
         """Return the pricing multiplier for the current car type."""
-        multipliers = {"standard": 1.0, "suv": 1.3, "luxury": 1.8}
-        return multipliers[self._car_type]
+        return self.TYPE_MULTIPLIERS[self._car_type]
 
     def calculate_rental_cost(self, days: int) -> float:
         """Calculate rental cost as daily_rate × days × type multiplier.

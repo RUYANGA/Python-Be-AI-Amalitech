@@ -12,8 +12,8 @@ def _seed_data(service: RentalService) -> None:
         Car("C003", "Mercedes", "S-Class", 2025, 120.0, "luxury"),
         Bike("B001", "Schwinn", "Cruiser", 2023, 15.0, "standard"),
         Bike("B002", "Trek", "Mountain", 2024, 25.0, "electric"),
-        Truck("T001", "Ford", "F-150", 2023, 70.0, cargo_capacity_kg=1500),
-        Truck("T002", "Volvo", "VNL", 2025, 120.0, cargo_capacity_kg=12000),
+        Truck("T001", "Ford", "F-150", 2023, 70.0, capacity_kg=1500),
+        Truck("T002", "Volvo", "VNL", 2025, 120.0, capacity_kg=12000),
     ]
     for v in vehicles:
         service.register_vehicle(v)
