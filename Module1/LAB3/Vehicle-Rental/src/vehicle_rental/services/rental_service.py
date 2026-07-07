@@ -62,7 +62,7 @@ class RentalService:
 
     def get_available_vehicles(self) -> list[Vehicle]:
         """Return a list of vehicles currently available for rent."""
-        return [v for v in self._vehicles.values() if v.is_available]
+        return [vehicle for vehicle in self._vehicles.values() if vehicle.is_available]
 
     def rent_vehicle(self, vehicle_id: str, days: int) -> RentalRecord:
         """Rent a vehicle for a specified number of days.
