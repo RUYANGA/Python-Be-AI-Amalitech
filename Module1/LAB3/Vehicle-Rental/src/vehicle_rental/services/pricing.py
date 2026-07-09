@@ -16,7 +16,9 @@ def calculate_rental_cost(vehicle: Vehicle, days: int) -> float:
     return vehicle.calculate_rental_cost(days)
 
 
-def calculate_late_fee(vehicle: Vehicle, overdue_days: int, late_multiplier: float = 1.5) -> float:
+def calculate_late_fee(
+    vehicle: Vehicle, overdue_days: int, late_multiplier: float = 1.5
+) -> float:
     """Calculate a late fee for overdue returns.
 
     Fee = daily_rate × overdue_days × late_multiplier.

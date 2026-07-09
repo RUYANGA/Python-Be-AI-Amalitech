@@ -21,7 +21,9 @@ class RentalRecord:
         self.cost = cost
 
     def __repr__(self) -> str:
-        return f"RentalRecord({self.vehicle.vehicle_id}, {self.days}d, ${self.cost:.2f})"
+        return (
+            f"RentalRecord({self.vehicle.vehicle_id}, {self.days}d, ${self.cost:.2f})"
+        )
 
 
 class RentalService:

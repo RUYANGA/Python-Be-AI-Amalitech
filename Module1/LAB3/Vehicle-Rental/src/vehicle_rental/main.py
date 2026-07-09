@@ -55,7 +55,9 @@ def main() -> None:
                 continue
             try:
                 record = service.rent_vehicle(vehicle_id, int(days_input))
-                print(f"Rented {record.vehicle.get_description()} for {record.days} days.")
+                print(
+                    f"Rented {record.vehicle.get_description()} for {record.days} days."
+                )
                 print(f"Total cost: ${record.cost:.2f}")
             except ValueError as e:
                 print(f"Error: {e}")

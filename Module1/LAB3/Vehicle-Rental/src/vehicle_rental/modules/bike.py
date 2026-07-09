@@ -12,8 +12,15 @@ class Bike(Vehicle):
     VALID_TYPES = ("standard", "electric")
     TYPE_MULTIPLIERS: dict[str, float] = {"standard": 1.0, "electric": 1.4}
 
-    def __init__(self, vehicle_id: str, make: str, model: str, year: int,
-                 daily_rate: float, bike_type: str = "standard"):
+    def __init__(
+        self,
+        vehicle_id: str,
+        make: str,
+        model: str,
+        year: int,
+        daily_rate: float,
+        bike_type: str = "standard",
+    ):
         """Initialise a bike.
 
         Args:
@@ -29,7 +36,9 @@ class Bike(Vehicle):
         """
         super().__init__(vehicle_id, make, model, year, daily_rate)
         if bike_type.lower() not in self.VALID_TYPES:
-            raise ValueError(f"Invalid bike type: {bike_type}. Valid: {self.VALID_TYPES}")
+            raise ValueError(
+                f"Invalid bike type: {bike_type}. Valid: {self.VALID_TYPES}"
+            )
         self._bike_type = bike_type.lower()
 
     @property
@@ -60,6 +69,4 @@ class Bike(Vehicle):
 
     def get_description(self) -> str:
         """Return a formatted description e.g. 'Electric Bike — 2024 Trek Mountain'."""
-        return (
-            f"{self._bike_type.capitalize()} Bike — {self._year} {self._make} {self._model}"
-        )
+        return f"{self._bike_type.capitalize()} Bike — {self._year} {self._make} {self._model}"

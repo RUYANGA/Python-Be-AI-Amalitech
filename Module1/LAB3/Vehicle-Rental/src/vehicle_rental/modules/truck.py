@@ -13,8 +13,15 @@ class Truck(Vehicle):
         - >10000 kg  → ×2.0
     """
 
-    def __init__(self, vehicle_id: str, make: str, model: str, year: int,
-                 daily_rate: float, capacity_kg: float = 1000):
+    def __init__(
+        self,
+        vehicle_id: str,
+        make: str,
+        model: str,
+        year: int,
+        daily_rate: float,
+        capacity_kg: float = 1000,
+    ):
         """Initialise a truck.
 
         Args:

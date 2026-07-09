@@ -10,7 +10,9 @@ class Vehicle(ABC):
     and availability state. Subclasses must implement pricing and description.
     """
 
-    def __init__(self, vehicle_id: str, make: str, model: str, year: int, daily_rate: float):
+    def __init__(
+        self, vehicle_id: str, make: str, model: str, year: int, daily_rate: float
+    ):
         """Initialise a vehicle.
 
         Args:

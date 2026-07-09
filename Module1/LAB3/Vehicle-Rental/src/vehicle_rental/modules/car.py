@@ -12,8 +12,15 @@ class Car(Vehicle):
     VALID_TYPES = ("standard", "suv", "luxury")
     TYPE_MULTIPLIERS: dict[str, float] = {"standard": 1.0, "suv": 1.3, "luxury": 1.8}
 
-    def __init__(self, vehicle_id: str, make: str, model: str, year: int,
-                 daily_rate: float, car_type: str = "standard"):
+    def __init__(
+        self,
+        vehicle_id: str,
+        make: str,
+        model: str,
+        year: int,
+        daily_rate: float,
+        car_type: str = "standard",
+    ):
         """Initialise a car.
 
         Args:
@@ -60,6 +67,4 @@ class Car(Vehicle):
 
     def get_description(self) -> str:
         """Return a formatted description e.g. 'Suv Car — 2024 Honda CR-V'."""
-        return (
-            f"{self._car_type.capitalize()} Car — {self._year} {self._make} {self._model}"
-        )
+        return f"{self._car_type.capitalize()} Car — {self._year} {self._make} {self._model}"
