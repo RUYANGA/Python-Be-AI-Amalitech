@@ -4,7 +4,8 @@ Exception Hierarchy:
     WeatherServiceError (base)
     ├── CityNotFoundError
     ├── WeatherProviderError
-    └── InvalidDataError
+    ├── InvalidDataError
+    └── InvalidAPIKeyError
 """
 
 from __future__ import annotations
@@ -43,3 +44,15 @@ class WeatherProviderError(WeatherServiceError):
 
 class InvalidDataError(WeatherServiceError):
     """Raised when weather data is invalid or malformed."""
+
+
+class InvalidAPIKeyError(WeatherServiceError):
+    """Raised when the API key is missing or invalid."""
+
+    def __init__(self, message: str = "Invalid or missing API key") -> None:
+        """Initialize the exception.
+
+        Args:
+            message: Error message describing the API key problem.
+        """
+        super().__init__(message)

@@ -5,17 +5,16 @@ validating weather data. It follows SOLID principles and uses
 dependency injection for the weather provider.
 """
 
-import logging
-
 from app.exceptions import (
     CityNotFoundError,
     InvalidDataError,
     WeatherProviderError,
 )
+from app.logger import get_logger
 from app.models import WeatherData
 from app.providers import WeatherProvider
 
-logger = logging.getLogger("weather_service")
+logger = get_logger("weather_service")
 
 
 class WeatherService:
@@ -51,18 +50,43 @@ class WeatherService:
             raise InvalidDataError("City name cannot be empty")
 
         try:
-            logger.info(f"Fetching weather for {city}")
+            logger.info("Fetching weather for %s", city)
             data = self._provider.get_weather(city)
             self._validate(data)
-            logger.info(f"Weather fetched: {city} - {data.temperature}°C")
+            logger.info(
+                "Weather fetched: %s - %.1f°C",
+                city,
+                data.temperature,
+            )
             return data
         except CityNotFoundError:
             raise
         except InvalidDataError:
             raise
         except Exception as e:
-            logger.error(f"Provider error: {e}")
+            logger.error("Provider error: %s", e)
             raise WeatherProviderError(f"Provider failed for {city}") from e
+
+    def get_forecast(self, city: str) -> WeatherData:
+        """Fetch forecast data for a specific city.
+
+        This method delegates to get_weather to retrieve forecast data.
+        It serves as the primary forecast interface as specified in the
+        service requirements.
+
+        Args:
+            city: Name of the city to fetch forecast data for.
+
+        Returns:
+            WeatherData object containing the forecast information.
+
+        Raises:
+            InvalidDataError: If the city name is empty or invalid.
+            CityNotFoundError: If the city cannot be found.
+            WeatherProviderError: If there is an error with the provider.
+        """
+        logger.info("Forecast requested for %s", city)
+        return self.get_weather(city)
 
     def _validate(self, data: WeatherData) -> None:
         """Validate weather data response.
