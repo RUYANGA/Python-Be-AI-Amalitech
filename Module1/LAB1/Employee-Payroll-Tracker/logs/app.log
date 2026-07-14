@@ -1,0 +1,230 @@
+2026-07-03 19:58:58 | __main__ | INFO     | ========================================
+2026-07-03 19:58:58 | __main__ | INFO     | Payroll Tracker started
+2026-07-03 19:58:58 | __main__ | INFO     | ========================================
+2026-07-03 19:58:58 | src.employee_payroll_tracker.employe | INFO     | Created Full-Time employee: Alice Johnson (ID: 101)
+2026-07-03 19:58:58 | src.employee_payroll_tracker.employe | INFO     | Created Full-Time employee: Bob Smith (ID: 102)
+2026-07-03 19:58:58 | src.employee_payroll_tracker.employe | INFO     | Created Contract employee: Carol Davis (ID: 201)
+2026-07-03 19:58:58 | src.employee_payroll_tracker.employe | INFO     | Created Contract employee: David Lee (ID: 202)
+2026-07-03 19:58:58 | src.employee_payroll_tracker.employe | INFO     | Created Intern employee: Eve Martin (ID: 301)
+2026-07-03 19:58:58 | src.employee_payroll_tracker.employe | INFO     | Created Intern employee: Frank Wilson (ID: 302)
+2026-07-03 19:58:58 | __main__ | INFO     | Loaded 6 employee(s) for processing
+2026-07-03 19:58:58 | src.employee_payroll_tracker.payroll | INFO     | Processing payroll for 6 employee(s)
+2026-07-03 19:58:58 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Alice Johnson (ID: 101): base=5000.00 + bonus=500.00 = 5500.00
+2026-07-03 19:58:58 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=5500.00, tax=1100.00 (20%), net=4400.00
+2026-07-03 19:58:58 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Alice Johnson (ID: 101) — gross=5500.00, net=4400.00
+2026-07-03 19:58:58 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Bob Smith (ID: 102): base=4200.00 + bonus=300.00 = 4500.00
+2026-07-03 19:58:58 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=4500.00, tax=900.00 (20%), net=3600.00
+2026-07-03 19:58:58 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Bob Smith (ID: 102) — gross=4500.00, net=3600.00
+2026-07-03 19:58:58 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Carol Davis (ID: 201): rate=45.00 x hours=120.00 = 5400.00
+2026-07-03 19:58:58 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=5400.00, tax=1080.00 (20%), net=4320.00
+2026-07-03 19:58:58 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Carol Davis (ID: 201) — gross=5400.00, net=4320.00
+2026-07-03 19:58:58 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for David Lee (ID: 202): rate=50.00 x hours=88.00 = 4400.00
+2026-07-03 19:58:58 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=4400.00, tax=880.00 (20%), net=3520.00
+2026-07-03 19:58:58 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for David Lee (ID: 202) — gross=4400.00, net=3520.00
+2026-07-03 19:58:58 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Eve Martin (ID: 301): stipend=1200.00
+2026-07-03 19:58:58 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=1200.00, tax=240.00 (20%), net=960.00
+2026-07-03 19:58:58 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Eve Martin (ID: 301) — gross=1200.00, net=960.00
+2026-07-03 19:58:58 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Frank Wilson (ID: 302): stipend=1000.00
+2026-07-03 19:58:58 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=1000.00, tax=200.00 (20%), net=800.00
+2026-07-03 19:58:58 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Frank Wilson (ID: 302) — gross=1000.00, net=800.00
+2026-07-03 19:58:58 | src.employee_payroll_tracker.payroll | INFO     | Payroll complete — 6 payslip(s) generated
+2026-07-03 19:58:58 | __main__ | INFO     | Processed 6 employee(s) successfully.
+2026-07-03 19:58:58 | __main__ | INFO     | Payroll Tracker finished
+2026-07-04 15:57:21 | __main__ | INFO     | ========================================
+2026-07-04 15:57:21 | __main__ | INFO     | Payroll Tracker started
+2026-07-04 15:57:21 | __main__ | INFO     | ========================================
+2026-07-04 15:57:21 | src.employee_payroll_tracker.employe | INFO     | Created Full-Time employee: Alice Johnson (ID: 101)
+2026-07-04 15:57:21 | src.employee_payroll_tracker.employe | INFO     | Created Full-Time employee: Bob Smith (ID: 102)
+2026-07-04 15:57:21 | src.employee_payroll_tracker.employe | INFO     | Created Contract employee: Carol Davis (ID: 201)
+2026-07-04 15:57:21 | src.employee_payroll_tracker.employe | INFO     | Created Contract employee: David Lee (ID: 202)
+2026-07-04 15:57:21 | src.employee_payroll_tracker.employe | INFO     | Created Intern employee: Eve Martin (ID: 301)
+2026-07-04 15:57:21 | src.employee_payroll_tracker.employe | INFO     | Created Intern employee: Frank Wilson (ID: 302)
+2026-07-04 15:57:21 | __main__ | INFO     | Loaded 6 employee(s) for processing
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Alice Johnson (ID: 101): base=5000.00 + bonus=500.00 = 5500.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=5500.00, tax=1100.00 (20%), net=4400.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Alice Johnson (ID: 101): base=5000.00 + bonus=500.00 = 5500.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=5500.00, tax=1100.00 (20%), net=4400.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Alice Johnson (ID: 101) — gross=5500.00, net=4400.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Bob Smith (ID: 102): base=4200.00 + bonus=300.00 = 4500.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=4500.00, tax=900.00 (20%), net=3600.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Bob Smith (ID: 102): base=4200.00 + bonus=300.00 = 4500.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=4500.00, tax=900.00 (20%), net=3600.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Bob Smith (ID: 102) — gross=4500.00, net=3600.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Carol Davis (ID: 201): rate=45.00 x hours=120.00 = 5400.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=5400.00, tax=1080.00 (20%), net=4320.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Carol Davis (ID: 201): rate=45.00 x hours=120.00 = 5400.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=5400.00, tax=1080.00 (20%), net=4320.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Carol Davis (ID: 201) — gross=5400.00, net=4320.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for David Lee (ID: 202): rate=50.00 x hours=88.00 = 4400.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=4400.00, tax=880.00 (20%), net=3520.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for David Lee (ID: 202): rate=50.00 x hours=88.00 = 4400.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=4400.00, tax=880.00 (20%), net=3520.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for David Lee (ID: 202) — gross=4400.00, net=3520.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Eve Martin (ID: 301): stipend=1200.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=1200.00, tax=240.00 (20%), net=960.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Eve Martin (ID: 301): stipend=1200.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=1200.00, tax=240.00 (20%), net=960.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Eve Martin (ID: 301) — gross=1200.00, net=960.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Frank Wilson (ID: 302): stipend=1000.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=1000.00, tax=200.00 (20%), net=800.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Frank Wilson (ID: 302): stipend=1000.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=1000.00, tax=200.00 (20%), net=800.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Frank Wilson (ID: 302) — gross=1000.00, net=800.00
+2026-07-04 15:57:21 | src.employee_payroll_tracker.payroll | INFO     | Payroll complete — 6 employee(s) processed
+2026-07-04 15:57:21 | __main__ | INFO     | Processed 6 employee(s) successfully.
+2026-07-04 15:57:21 | __main__ | INFO     | Payroll Tracker finished
+2026-07-04 15:57:47 | __main__ | INFO     | ========================================
+2026-07-04 15:57:47 | __main__ | INFO     | Payroll Tracker started
+2026-07-04 15:57:47 | __main__ | INFO     | ========================================
+2026-07-04 15:57:47 | src.employee_payroll_tracker.employe | INFO     | Created Full-Time employee: Alice Johnson (ID: 101)
+2026-07-04 15:57:47 | src.employee_payroll_tracker.employe | INFO     | Created Full-Time employee: Bob Smith (ID: 102)
+2026-07-04 15:57:47 | src.employee_payroll_tracker.employe | INFO     | Created Contract employee: Carol Davis (ID: 201)
+2026-07-04 15:57:47 | src.employee_payroll_tracker.employe | INFO     | Created Contract employee: David Lee (ID: 202)
+2026-07-04 15:57:47 | src.employee_payroll_tracker.employe | INFO     | Created Intern employee: Eve Martin (ID: 301)
+2026-07-04 15:57:47 | src.employee_payroll_tracker.employe | INFO     | Created Intern employee: Frank Wilson (ID: 302)
+2026-07-04 15:57:47 | __main__ | INFO     | Loaded 6 employee(s) for processing
+2026-07-04 15:57:47 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Alice Johnson (ID: 101): base=5000.00 + bonus=500.00 = 5500.00
+2026-07-04 15:57:47 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=5500.00, tax=1100.00 (20%), net=4400.00
+2026-07-04 15:57:47 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Alice Johnson (ID: 101) — gross=5500.00, net=4400.00
+2026-07-04 15:57:47 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Bob Smith (ID: 102): base=4200.00 + bonus=300.00 = 4500.00
+2026-07-04 15:57:47 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=4500.00, tax=900.00 (20%), net=3600.00
+2026-07-04 15:57:47 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Bob Smith (ID: 102) — gross=4500.00, net=3600.00
+2026-07-04 15:57:47 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Carol Davis (ID: 201): rate=45.00 x hours=120.00 = 5400.00
+2026-07-04 15:57:47 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=5400.00, tax=1080.00 (20%), net=4320.00
+2026-07-04 15:57:47 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Carol Davis (ID: 201) — gross=5400.00, net=4320.00
+2026-07-04 15:57:47 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for David Lee (ID: 202): rate=50.00 x hours=88.00 = 4400.00
+2026-07-04 15:57:47 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=4400.00, tax=880.00 (20%), net=3520.00
+2026-07-04 15:57:47 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for David Lee (ID: 202) — gross=4400.00, net=3520.00
+2026-07-04 15:57:47 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Eve Martin (ID: 301): stipend=1200.00
+2026-07-04 15:57:47 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=1200.00, tax=240.00 (20%), net=960.00
+2026-07-04 15:57:47 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Eve Martin (ID: 301) — gross=1200.00, net=960.00
+2026-07-04 15:57:47 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Frank Wilson (ID: 302): stipend=1000.00
+2026-07-04 15:57:47 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=1000.00, tax=200.00 (20%), net=800.00
+2026-07-04 15:57:47 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Frank Wilson (ID: 302) — gross=1000.00, net=800.00
+2026-07-04 15:57:47 | src.employee_payroll_tracker.payroll | INFO     | Payroll complete — 6 employee(s) processed
+2026-07-04 15:57:47 | __main__ | INFO     | Processed 6 employee(s) successfully.
+2026-07-04 15:57:47 | __main__ | INFO     | Payroll Tracker finished
+2026-07-04 15:58:12 | __main__ | INFO     | ========================================
+2026-07-04 15:58:12 | __main__ | INFO     | Payroll Tracker started
+2026-07-04 15:58:12 | __main__ | INFO     | ========================================
+2026-07-04 15:58:12 | src.employee_payroll_tracker.employe | INFO     | Created Full-Time employee: Alice Johnson (ID: 101)
+2026-07-04 15:58:12 | src.employee_payroll_tracker.employe | INFO     | Created Full-Time employee: Bob Smith (ID: 102)
+2026-07-04 15:58:12 | src.employee_payroll_tracker.employe | INFO     | Created Contract employee: Carol Davis (ID: 201)
+2026-07-04 15:58:12 | src.employee_payroll_tracker.employe | INFO     | Created Contract employee: David Lee (ID: 202)
+2026-07-04 15:58:12 | src.employee_payroll_tracker.employe | INFO     | Created Intern employee: Eve Martin (ID: 301)
+2026-07-04 15:58:12 | src.employee_payroll_tracker.employe | INFO     | Created Intern employee: Frank Wilson (ID: 302)
+2026-07-04 15:58:12 | __main__ | INFO     | Loaded 6 employee(s) for processing
+2026-07-04 15:58:12 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Alice Johnson (ID: 101): base=5000.00 + bonus=500.00 = 5500.00
+2026-07-04 15:58:12 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=5500.00, tax=1100.00 (20%), net=4400.00
+2026-07-04 15:58:12 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Alice Johnson (ID: 101) — gross=5500.00, net=4400.00
+2026-07-04 15:58:12 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Bob Smith (ID: 102): base=4200.00 + bonus=300.00 = 4500.00
+2026-07-04 15:58:12 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=4500.00, tax=900.00 (20%), net=3600.00
+2026-07-04 15:58:12 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Bob Smith (ID: 102) — gross=4500.00, net=3600.00
+2026-07-04 15:58:12 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Carol Davis (ID: 201): rate=45.00 x hours=120.00 = 5400.00
+2026-07-04 15:58:12 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=5400.00, tax=1080.00 (20%), net=4320.00
+2026-07-04 15:58:12 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Carol Davis (ID: 201) — gross=5400.00, net=4320.00
+2026-07-04 15:58:12 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for David Lee (ID: 202): rate=50.00 x hours=88.00 = 4400.00
+2026-07-04 15:58:12 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=4400.00, tax=880.00 (20%), net=3520.00
+2026-07-04 15:58:12 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for David Lee (ID: 202) — gross=4400.00, net=3520.00
+2026-07-04 15:58:12 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Eve Martin (ID: 301): stipend=1200.00
+2026-07-04 15:58:12 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=1200.00, tax=240.00 (20%), net=960.00
+2026-07-04 15:58:12 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Eve Martin (ID: 301) — gross=1200.00, net=960.00
+2026-07-04 15:58:12 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Frank Wilson (ID: 302): stipend=1000.00
+2026-07-04 15:58:12 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=1000.00, tax=200.00 (20%), net=800.00
+2026-07-04 15:58:12 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Frank Wilson (ID: 302) — gross=1000.00, net=800.00
+2026-07-04 15:58:12 | src.employee_payroll_tracker.payroll | INFO     | Payroll complete — 6 employee(s) processed
+2026-07-04 15:58:12 | __main__ | INFO     | Processed 6 employee(s) successfully.
+2026-07-04 15:58:12 | __main__ | INFO     | Payroll Tracker finished
+2026-07-04 16:01:59 | __main__ | INFO     | ========================================
+2026-07-04 16:01:59 | __main__ | INFO     | Payroll Tracker started
+2026-07-04 16:01:59 | __main__ | INFO     | ========================================
+2026-07-04 16:01:59 | src.employee_payroll_tracker.employe | INFO     | Created Full-Time employee: Alice Johnson (ID: 101)
+2026-07-04 16:01:59 | src.employee_payroll_tracker.employe | INFO     | Created Full-Time employee: Bob Smith (ID: 102)
+2026-07-04 16:01:59 | src.employee_payroll_tracker.employe | INFO     | Created Contract employee: Carol Davis (ID: 201)
+2026-07-04 16:01:59 | src.employee_payroll_tracker.employe | INFO     | Created Contract employee: David Lee (ID: 202)
+2026-07-04 16:01:59 | src.employee_payroll_tracker.employe | INFO     | Created Intern employee: Eve Martin (ID: 301)
+2026-07-04 16:01:59 | src.employee_payroll_tracker.employe | INFO     | Created Intern employee: Frank Wilson (ID: 302)
+2026-07-04 16:01:59 | __main__ | INFO     | Loaded 6 employee(s) for processing
+2026-07-04 16:01:59 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Alice Johnson (ID: 101): base=5000.00 + bonus=500.00 = 5500.00
+2026-07-04 16:01:59 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=5500.00, tax=1100.00 (20%), net=4400.00
+2026-07-04 16:01:59 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Alice Johnson (ID: 101) — gross=5500.00, net=4400.00
+2026-07-04 16:01:59 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Bob Smith (ID: 102): base=4200.00 + bonus=300.00 = 4500.00
+2026-07-04 16:01:59 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=4500.00, tax=900.00 (20%), net=3600.00
+2026-07-04 16:01:59 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Bob Smith (ID: 102) — gross=4500.00, net=3600.00
+2026-07-04 16:01:59 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Carol Davis (ID: 201): rate=45.00 x hours=120.00 = 5400.00
+2026-07-04 16:01:59 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=5400.00, tax=1080.00 (20%), net=4320.00
+2026-07-04 16:01:59 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Carol Davis (ID: 201) — gross=5400.00, net=4320.00
+2026-07-04 16:01:59 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for David Lee (ID: 202): rate=50.00 x hours=88.00 = 4400.00
+2026-07-04 16:01:59 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=4400.00, tax=880.00 (20%), net=3520.00
+2026-07-04 16:01:59 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for David Lee (ID: 202) — gross=4400.00, net=3520.00
+2026-07-04 16:01:59 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Eve Martin (ID: 301): stipend=1200.00
+2026-07-04 16:01:59 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=1200.00, tax=240.00 (20%), net=960.00
+2026-07-04 16:01:59 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Eve Martin (ID: 301) — gross=1200.00, net=960.00
+2026-07-04 16:01:59 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Frank Wilson (ID: 302): stipend=1000.00
+2026-07-04 16:01:59 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=1000.00, tax=200.00 (20%), net=800.00
+2026-07-04 16:01:59 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Frank Wilson (ID: 302) — gross=1000.00, net=800.00
+2026-07-04 16:01:59 | src.employee_payroll_tracker.payroll | INFO     | Payroll complete — 6 employee(s) processed
+2026-07-04 16:01:59 | __main__ | INFO     | Processed 6 employee(s) successfully.
+2026-07-04 16:01:59 | __main__ | INFO     | Payroll Tracker finished
+2026-07-04 16:20:51 | __main__ | INFO     | ========================================
+2026-07-04 16:20:51 | __main__ | INFO     | Payroll Tracker started
+2026-07-04 16:20:51 | __main__ | INFO     | ========================================
+2026-07-04 16:20:51 | src.employee_payroll_tracker.employe | INFO     | Created Full-Time employee: Alice Johnson (ID: 101)
+2026-07-04 16:20:51 | src.employee_payroll_tracker.employe | INFO     | Created Full-Time employee: Bob Smith (ID: 102)
+2026-07-04 16:20:51 | src.employee_payroll_tracker.employe | INFO     | Created Contract employee: Carol Davis (ID: 201)
+2026-07-04 16:20:51 | src.employee_payroll_tracker.employe | INFO     | Created Contract employee: David Lee (ID: 202)
+2026-07-04 16:20:51 | src.employee_payroll_tracker.employe | INFO     | Created Intern employee: Eve Martin (ID: 301)
+2026-07-04 16:20:51 | src.employee_payroll_tracker.employe | INFO     | Created Intern employee: Frank Wilson (ID: 302)
+2026-07-04 16:20:51 | __main__ | INFO     | Loaded 6 employee(s) for processing
+2026-07-04 16:20:51 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Alice Johnson (ID: 101): base=5000.00 + bonus=500.00 = 5500.00
+2026-07-04 16:20:51 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=5500.00, tax=1100.00 (20%), net=4400.00
+2026-07-04 16:20:51 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Alice Johnson (ID: 101) — gross=5500.00, net=4400.00
+2026-07-04 16:20:51 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Bob Smith (ID: 102): base=4200.00 + bonus=300.00 = 4500.00
+2026-07-04 16:20:51 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=4500.00, tax=900.00 (20%), net=3600.00
+2026-07-04 16:20:51 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Bob Smith (ID: 102) — gross=4500.00, net=3600.00
+2026-07-04 16:20:51 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Carol Davis (ID: 201): rate=45.00 x hours=120.00 = 5400.00
+2026-07-04 16:20:51 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=5400.00, tax=1080.00 (20%), net=4320.00
+2026-07-04 16:20:51 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Carol Davis (ID: 201) — gross=5400.00, net=4320.00
+2026-07-04 16:20:51 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for David Lee (ID: 202): rate=50.00 x hours=88.00 = 4400.00
+2026-07-04 16:20:51 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=4400.00, tax=880.00 (20%), net=3520.00
+2026-07-04 16:20:51 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for David Lee (ID: 202) — gross=4400.00, net=3520.00
+2026-07-04 16:20:51 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Eve Martin (ID: 301): stipend=1200.00
+2026-07-04 16:20:51 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=1200.00, tax=240.00 (20%), net=960.00
+2026-07-04 16:20:51 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Eve Martin (ID: 301) — gross=1200.00, net=960.00
+2026-07-04 16:20:51 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Frank Wilson (ID: 302): stipend=1000.00
+2026-07-04 16:20:51 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=1000.00, tax=200.00 (20%), net=800.00
+2026-07-04 16:20:51 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Frank Wilson (ID: 302) — gross=1000.00, net=800.00
+2026-07-04 16:20:51 | src.employee_payroll_tracker.payroll | INFO     | Payroll complete — 6 employee(s) processed
+2026-07-04 16:20:51 | __main__ | INFO     | Processed 6 employee(s) successfully.
+2026-07-04 16:20:51 | __main__ | INFO     | Payroll Tracker finished
+2026-07-07 19:48:02 | __main__ | INFO     | ========================================
+2026-07-07 19:48:02 | __main__ | INFO     | Payroll Tracker started
+2026-07-07 19:48:02 | __main__ | INFO     | ========================================
+2026-07-07 19:48:02 | src.employee_payroll_tracker.employe | INFO     | Created Full-Time employee: Alice Johnson (ID: 101)
+2026-07-07 19:48:02 | src.employee_payroll_tracker.employe | INFO     | Created Full-Time employee: Bob Smith (ID: 102)
+2026-07-07 19:48:02 | src.employee_payroll_tracker.employe | INFO     | Created Contract employee: Carol Davis (ID: 201)
+2026-07-07 19:48:02 | src.employee_payroll_tracker.employe | INFO     | Created Contract employee: David Lee (ID: 202)
+2026-07-07 19:48:02 | src.employee_payroll_tracker.employe | INFO     | Created Intern employee: Eve Martin (ID: 301)
+2026-07-07 19:48:02 | src.employee_payroll_tracker.employe | INFO     | Created Intern employee: Frank Wilson (ID: 302)
+2026-07-07 19:48:02 | __main__ | INFO     | Loaded 6 employee(s) for processing
+2026-07-07 19:48:02 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Alice Johnson (ID: 101): base=5000.00 + bonus=500.00 = 5500.00
+2026-07-07 19:48:02 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=5500.00, tax=1100.00 (20%), net=4400.00
+2026-07-07 19:48:02 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Alice Johnson (ID: 101) — gross=5500.00, net=4400.00
+2026-07-07 19:48:02 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Bob Smith (ID: 102): base=4200.00 + bonus=300.00 = 4500.00
+2026-07-07 19:48:02 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=4500.00, tax=900.00 (20%), net=3600.00
+2026-07-07 19:48:02 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Bob Smith (ID: 102) — gross=4500.00, net=3600.00
+2026-07-07 19:48:02 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Carol Davis (ID: 201): rate=45.00 x hours=120.00 = 5400.00
+2026-07-07 19:48:02 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=5400.00, tax=1080.00 (20%), net=4320.00
+2026-07-07 19:48:02 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Carol Davis (ID: 201) — gross=5400.00, net=4320.00
+2026-07-07 19:48:02 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for David Lee (ID: 202): rate=50.00 x hours=88.00 = 4400.00
+2026-07-07 19:48:02 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=4400.00, tax=880.00 (20%), net=3520.00
+2026-07-07 19:48:02 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for David Lee (ID: 202) — gross=4400.00, net=3520.00
+2026-07-07 19:48:02 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Eve Martin (ID: 301): stipend=1200.00
+2026-07-07 19:48:02 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=1200.00, tax=240.00 (20%), net=960.00
+2026-07-07 19:48:02 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Eve Martin (ID: 301) — gross=1200.00, net=960.00
+2026-07-07 19:48:02 | src.employee_payroll_tracker.payroll | DEBUG    | Calculated salary for Frank Wilson (ID: 302): stipend=1000.00
+2026-07-07 19:48:02 | src.employee_payroll_tracker.payroll | INFO     | Applied tax: gross=1000.00, tax=200.00 (20%), net=800.00
+2026-07-07 19:48:02 | src.employee_payroll_tracker.payroll | INFO     | Generated payslip for Frank Wilson (ID: 302) — gross=1000.00, net=800.00
+2026-07-07 19:48:02 | src.employee_payroll_tracker.payroll | INFO     | Payroll complete — 6 employee(s) processed
+2026-07-07 19:48:02 | __main__ | INFO     | Processed 6 employee(s) successfully.
+2026-07-07 19:48:02 | __main__ | INFO     | Payroll Tracker finished
