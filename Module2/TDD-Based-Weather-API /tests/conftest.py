@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.mock_provider import MockWeatherProvider
+from app.models import WeatherData
 from app.providers import WeatherProvider
 from app.service import WeatherService
 
@@ -17,7 +18,7 @@ def mock_provider() -> MockWeatherProvider:
 @pytest.fixture
 def mock_provider_interface() -> MagicMock:
     provider = MagicMock(spec=WeatherProvider)
-    provider.get_weather.return_value = MagicMock(
+    provider.get_weather.return_value = WeatherData(
         temperature=25.0, humidity=60, description="Sunny", city="TestCity"
     )
     return provider

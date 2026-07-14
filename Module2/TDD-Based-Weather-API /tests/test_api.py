@@ -1,12 +1,10 @@
 """Tests for FastAPI endpoints."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock
 
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.exceptions import InvalidDataError, WeatherProviderError
-from app.main import app, get_weather
+from app.main import app, get_service
 
 client = TestClient(app)
 
@@ -49,22 +47,26 @@ def test_response_has_all_fields() -> None:
 
 
 def test_invalid_data_returns_400() -> None:
-    with patch("app.main._service") as mock:
-        mock.get_weather.side_effect = InvalidDataError("Invalid data")
-        with patch("app.main.get_service", return_value=mock):
-            test_app = FastAPI()
-            test_app.get("/weather/{city}")(get_weather)
-            test_client = TestClient(test_app)
-            response = test_client.get("/weather/Test")
-            assert response.status_code == 400
+    from app.exceptions import InvalidDataError
+
+    mock_service = MagicMock()
+    mock_service.get_weather.side_effect = InvalidDataError("Invalid data")
+    app.dependency_overrides[get_service] = lambda: mock_service
+    try:
+        response = client.get("/weather/Test")
+        assert response.status_code == 400
+    finally:
+        app.dependency_overrides.pop(get_service, None)
 
 
 def test_provider_error_returns_502() -> None:
-    with patch("app.main._service") as mock:
-        mock.get_weather.side_effect = WeatherProviderError("Provider failed")
-        with patch("app.main.get_service", return_value=mock):
-            test_app = FastAPI()
-            test_app.get("/weather/{city}")(get_weather)
-            test_client = TestClient(test_app)
-            response = test_client.get("/weather/Test")
-            assert response.status_code == 502
+    from app.exceptions import WeatherProviderError
+
+    mock_service = MagicMock()
+    mock_service.get_weather.side_effect = WeatherProviderError("Provider failed")
+    app.dependency_overrides[get_service] = lambda: mock_service
+    try:
+        response = client.get("/weather/Test")
+        assert response.status_code == 502
+    finally:
+        app.dependency_overrides.pop(get_service, None)
