@@ -46,7 +46,7 @@ async def health() -> dict[str, str]:
 @app.get("/weather/{city}")
 async def get_weather(
     city: str,
-    service: WeatherService = Depends(get_service),
+    service: WeatherService = Depends(get_service),  # noqa: B008
 ) -> dict[str, object]:
     """Fetch weather data for a specific city.
 
@@ -76,7 +76,7 @@ async def get_weather(
 @app.get("/forecast/{city}")
 async def get_forecast(
     city: str,
-    service: WeatherService = Depends(get_service),
+    service: WeatherService = Depends(get_service),  # noqa: B008
 ) -> dict[str, object]:
     """Fetch forecast data for a specific city.
 

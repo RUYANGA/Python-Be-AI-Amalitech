@@ -8,7 +8,6 @@ import pytest
 from app.exceptions import (
     CityNotFoundError,
     InvalidDataError,
-    InvalidAPIKeyError,
     WeatherProviderError,
 )
 from app.models import WeatherData
