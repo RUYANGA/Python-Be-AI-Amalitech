@@ -3,24 +3,27 @@ repos:
     rev: 23.7.0
     hooks:
       - id: black
+        args: [Module2/secure-auth-service]
+        always_run: true
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.1.0
     hooks:
       - id: ruff
-        args: [--fix]
-
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.5.0
-    hooks:
-      - id: mypy
-        additional_dependencies: [types-bcrypt]
+        args: [--fix, Module2/secure-auth-service]
+        always_run: true
 
   - repo: local
     hooks:
+      - id: mypy
+        name: mypy
+        entry: bash -c 'cd Module2/secure-auth-service && venv/bin/python -m mypy app/'
+        language: system
+        pass_filenames: false
+        always_run: true
       - id: pytest
         name: pytest
-        entry: python -m pytest tests/ -v --tb=short
+        entry: bash -c 'cd Module2/secure-auth-service && venv/bin/python -m pytest tests/ -v --tb=short'
         language: system
         pass_filenames: false
         always_run: true

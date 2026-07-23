@@ -72,7 +72,7 @@ class UserService:
             logger.warning("Registration attempt for existing user: %s", username)
             raise UserAlreadyExistsError(username)
 
-        password_hash = self._hasher.hash(password)
+        password_hash = self._hasher.hash_password(password)
         user = User(username=username, password_hash=password_hash)
         self._repository.save(user)
         logger.info("User registered successfully: %s", username)

@@ -14,7 +14,7 @@ def service() -> UserService:
     repo = MagicMock()
     repo.find.return_value = None
     hasher = MagicMock()
-    hasher.hash.return_value = "hashed"
+    hasher.hash_password.return_value = "hashed"
     return UserService(repository=repo, hasher=hasher)
 
 
@@ -49,7 +49,7 @@ class TestPasswordPolicy:
     def test_valid_password_accepted(self, service: UserService) -> None:
         """A password meeting all criteria should be accepted."""
         service.register("user", "Valid1!abc")
-        service.hasher.hash.assert_called_once()
+        service.hasher.hash_password.assert_called_once()
 
     def test_empty_password_rejected(self, service: UserService) -> None:
         """An empty password should be rejected."""
@@ -59,7 +59,7 @@ class TestPasswordPolicy:
     def test_exactly_8_chars_valid(self, service: UserService) -> None:
         """Password of exactly 8 chars meeting all rules should work."""
         service.register("user", "Abcdef1!")
-        service.hasher.hash.assert_called_once()
+        service.hasher.hash_password.assert_called_once()
 
     def test_symbols_include_common_chars(self, service: UserService) -> None:
         """Various common symbols should be accepted."""

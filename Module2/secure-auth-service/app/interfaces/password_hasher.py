@@ -10,7 +10,7 @@ class PasswordHasher(Protocol):
     Any hasher (Bcrypt, Argon2, etc.) must implement these methods.
     """
 
-    def hash(self, password: str) -> str:
+    def hash_password(self, password: str) -> str:
         """Hash a plaintext password.
 
         Args:

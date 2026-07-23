@@ -16,10 +16,9 @@ def _seed_data(service: RentalService) -> None:
         Truck("T002", "Volvo", "VNL", 2025, 120.0, capacity_kg=12000),
     ]
     for vehicle in vehicles:
-        #print(vehicle._Vechile__model)
-        #print(vehicle)
+        # print(vehicle._Vechile__model)
+        # print(vehicle)
         service.register_vehicle(vehicle)
-
 
 
 def main() -> None:

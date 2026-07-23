@@ -22,7 +22,7 @@ class TestBcryptPasswordHasher:
 
     def test_hash_returns_string(self, fast_hasher: BcryptPasswordHasher) -> None:
         """hash() should return a string."""
-        result = fast_hasher.hash("password")
+        result = fast_hasher.hash_password("password")
 
         assert isinstance(result, str)
 
@@ -30,19 +30,19 @@ class TestBcryptPasswordHasher:
         self, fast_hasher: BcryptPasswordHasher
     ) -> None:
         """Hash should start with the bcrypt identifier."""
-        result = fast_hasher.hash("password")
+        result = fast_hasher.hash_password("password")
 
         assert result.startswith("$2b$")
 
     def test_verify_correct_password(self, fast_hasher: BcryptPasswordHasher) -> None:
         """verify() should return True for matching password."""
-        hashed = fast_hasher.hash("mypassword")
+        hashed = fast_hasher.hash_password("mypassword")
 
         assert fast_hasher.verify("mypassword", hashed) is True
 
     def test_verify_wrong_password(self, fast_hasher: BcryptPasswordHasher) -> None:
         """verify() should return False for wrong password."""
-        hashed = fast_hasher.hash("mypassword")
+        hashed = fast_hasher.hash_password("mypassword")
 
         assert fast_hasher.verify("wrongpassword", hashed) is False
 
@@ -50,8 +50,8 @@ class TestBcryptPasswordHasher:
         self, fast_hasher: BcryptPasswordHasher
     ) -> None:
         """Each hash should produce a different salt."""
-        hash1 = fast_hasher.hash("password")
-        hash2 = fast_hasher.hash("password")
+        hash1 = fast_hasher.hash_password("password")
+        hash2 = fast_hasher.hash_password("password")
 
         # Same password, different salts → different hashes
         assert hash1 != hash2
@@ -66,7 +66,7 @@ class TestBcryptPasswordHasher:
 
     def test_hash_empty_password(self, fast_hasher: BcryptPasswordHasher) -> None:
         """Should be able to hash an empty string (bcrypt allows it)."""
-        result = fast_hasher.hash("")
+        result = fast_hasher.hash_password("")
 
         assert isinstance(result, str)
         assert fast_hasher.verify("", result) is True

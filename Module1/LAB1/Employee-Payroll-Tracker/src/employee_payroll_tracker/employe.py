@@ -19,7 +19,7 @@ class Employee(ABC):
     """Abstract base class for all employee types.
 
     Provides common attributes (emp_id, name, salary) with property
-    validation 
+    validation
     """
 
     def __init__(self, emp_id: int, name: str, salary: float) -> None:

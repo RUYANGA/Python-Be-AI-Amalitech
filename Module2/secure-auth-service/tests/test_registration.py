@@ -24,7 +24,7 @@ def mock_repository() -> MagicMock:
 def mock_hasher() -> MagicMock:
     """Create a mock PasswordHasher."""
     hasher = MagicMock()
-    hasher.hash.return_value = "$2b$12$hashedpassword"
+    hasher.hash_password.return_value = "$2b$12$hashedpassword"
     hasher.verify.return_value = True
     return hasher
 
@@ -47,7 +47,7 @@ class TestRegistration:
         """Test successful registration of a new user."""
         service.register("alice", "Password1!")
 
-        mock_hasher.hash.assert_called_once_with("Password1!")
+        mock_hasher.hash_password.assert_called_once_with("Password1!")
         mock_repository.save.assert_called_once_with(
             User(username="alice", password_hash="$2b$12$hashedpassword")
         )

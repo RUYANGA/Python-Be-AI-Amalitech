@@ -18,7 +18,7 @@ class BcryptPasswordHasher:
         """
         self._rounds = rounds
 
-    def hash(self, password: str) -> str:
+    def hash_password(self, password: str) -> str:
         """Hash a plaintext password using bcrypt.
 
         Args:

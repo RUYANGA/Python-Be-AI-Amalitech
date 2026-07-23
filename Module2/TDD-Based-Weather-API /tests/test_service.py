@@ -173,18 +173,12 @@ class TestMocking:
 
 
 class TestAPIKeyValidation:
-    def test_default_api_key(
-        self, mock_provider: MockWeatherProvider
-    ) -> None:
+    def test_default_api_key(self, mock_provider: MockWeatherProvider) -> None:
         service = WeatherService(provider=mock_provider)
         assert service._api_key == "default-key"
 
-    def test_custom_api_key(
-        self, mock_provider: MockWeatherProvider
-    ) -> None:
-        service = WeatherService(
-            provider=mock_provider, api_key="my-secret-key"
-        )
+    def test_custom_api_key(self, mock_provider: MockWeatherProvider) -> None:
+        service = WeatherService(provider=mock_provider, api_key="my-secret-key")
         result = service.get_weather("Kigali")
         assert result.city == "Kigali"
         assert service._api_key == "my-secret-key"
