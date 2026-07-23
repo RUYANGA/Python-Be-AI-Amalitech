@@ -4,12 +4,14 @@ This module provides the REST API endpoints for fetching weather data.
 It uses FastAPI with dependency injection for the weather service.
 """
 
+import os
 from dataclasses import asdict
 
 from fastapi import Depends, FastAPI, HTTPException
 
 from app.exceptions import (
     CityNotFoundError,
+    InvalidAPIKeyError,
     InvalidDataError,
     WeatherProviderError,
 )
@@ -21,7 +23,8 @@ logger = get_logger("weather_api")
 
 app = FastAPI(title="Weather API", version="0.1.0")
 
-_service = WeatherService(provider=MockWeatherProvider())
+_api_key = os.environ.get("WEATHER_API_KEY", "test-api-key-123")
+_service = WeatherService(provider=MockWeatherProvider(), api_key=_api_key)
 
 
 def get_service() -> WeatherService:
@@ -65,6 +68,8 @@ async def get_weather(
         logger.info("GET /weather/%s", city)
         data = service.get_weather(city)
         return asdict(data)
+    except InvalidAPIKeyError as e:
+        raise HTTPException(401, str(e)) from e
     except InvalidDataError as e:
         raise HTTPException(400, str(e)) from e
     except CityNotFoundError as e:
@@ -88,13 +93,15 @@ async def get_forecast(
         Forecast data for the requested city.
 
     Raises:
-        HTTPException: 400 for invalid input, 404 for city not found,
-                      502 for provider errors.
+        HTTPException: 400 for invalid input, 401 for invalid API key,
+                      404 for city not found, 502 for provider errors.
     """
     try:
         logger.info("GET /forecast/%s", city)
         data = service.get_forecast(city)
         return asdict(data)
+    except InvalidAPIKeyError as e:
+        raise HTTPException(401, str(e)) from e
     except InvalidDataError as e:
         raise HTTPException(400, str(e)) from e
     except CityNotFoundError as e:

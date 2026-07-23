@@ -90,6 +90,19 @@ def test_provider_error_returns_502() -> None:
         app.dependency_overrides.pop(get_service, None)
 
 
+def test_invalid_api_key_returns_401() -> None:
+    from app.exceptions import InvalidAPIKeyError
+
+    mock_service = MagicMock()
+    mock_service.get_weather.side_effect = InvalidAPIKeyError()
+    app.dependency_overrides[get_service] = lambda: mock_service
+    try:
+        response = client.get("/weather/Test")
+        assert response.status_code == 401
+    finally:
+        app.dependency_overrides.pop(get_service, None)
+
+
 class TestForecastEndpoint:
     def test_get_forecast_kigali(self) -> None:
         response = client.get("/forecast/Kigali")

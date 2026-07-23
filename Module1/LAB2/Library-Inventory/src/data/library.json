@@ -5,8 +5,8 @@
             "title": "1984",
             "author_id": "A001",
             "publication_year": 1949,
-            "available": false,
-            "borrower_id": "BR001"
+            "available": true,
+            "borrower_id": null
         },
         {
             "id": "B002",
@@ -17,6 +17,16 @@
             "borrower_id": null,
             "file_format": "EPUB",
             "file_size": 5.5
+        },
+        {
+            "id": "B003",
+            "title": "Python",
+            "author_id": "A001",
+            "publication_year": 2000,
+            "available": true,
+            "borrower_id": null,
+            "duration": 4.0,
+            "narrator": "4"
         }
     ],
     "authors": [
@@ -53,7 +63,7 @@
             "book_id": "B001",
             "borrower_id": "BR001",
             "borrow_date": "2026-07-04",
-            "return_date": null
+            "return_date": "2026-07-17"
         }
     ]
 }

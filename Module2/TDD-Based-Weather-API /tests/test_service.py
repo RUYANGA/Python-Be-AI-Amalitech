@@ -10,6 +10,7 @@ from app.exceptions import (
     InvalidDataError,
     WeatherProviderError,
 )
+from app.mock_provider import MockWeatherProvider
 from app.models import WeatherData
 from app.service import WeatherService
 
@@ -105,7 +106,7 @@ class TestMocking:
         self, mock_provider_interface: MagicMock
     ) -> None:
         mock_provider_interface.get_weather.side_effect = Exception("API Error")
-        service = WeatherService(provider=mock_provider_interface)
+        service = WeatherService(provider=mock_provider_interface, api_key="valid-key")
         with pytest.raises(WeatherProviderError):
             service.get_weather("TestCity")
 
@@ -113,7 +114,7 @@ class TestMocking:
         self, mock_provider_interface: MagicMock
     ) -> None:
         mock_provider_interface.get_weather.side_effect = CityNotFoundError("TestCity")
-        service = WeatherService(provider=mock_provider_interface)
+        service = WeatherService(provider=mock_provider_interface, api_key="valid-key")
         with pytest.raises(CityNotFoundError):
             service.get_weather("TestCity")
 
@@ -136,7 +137,7 @@ class TestMocking:
         mock_provider_interface.get_weather.return_value = WeatherData(
             temp, humidity, desc, city
         )
-        service = WeatherService(provider=mock_provider_interface)
+        service = WeatherService(provider=mock_provider_interface, api_key="valid-key")
         with pytest.raises(InvalidDataError):
             service.get_weather(city)
 
@@ -146,7 +147,7 @@ class TestMocking:
         mock_provider_interface.get_weather.return_value = WeatherData(
             -300.0, 50, "Freezing", "Invalid"
         )
-        service = WeatherService(provider=mock_provider_interface)
+        service = WeatherService(provider=mock_provider_interface, api_key="valid-key")
         with pytest.raises(InvalidDataError):
             service.get_weather("Invalid")
 
@@ -156,7 +157,7 @@ class TestMocking:
         mock_provider_interface.get_weather.return_value = WeatherData(
             25.0, 150, "Humid", "Invalid"
         )
-        service = WeatherService(provider=mock_provider_interface)
+        service = WeatherService(provider=mock_provider_interface, api_key="valid-key")
         with pytest.raises(InvalidDataError):
             service.get_weather("Invalid")
 
@@ -166,6 +167,24 @@ class TestMocking:
         mock_provider_interface.get_weather.return_value = WeatherData(
             25.0, 50, "", "TestCity"
         )
-        service = WeatherService(provider=mock_provider_interface)
+        service = WeatherService(provider=mock_provider_interface, api_key="valid-key")
         with pytest.raises(InvalidDataError):
             service.get_weather("TestCity")
+
+
+class TestAPIKeyValidation:
+    def test_default_api_key(
+        self, mock_provider: MockWeatherProvider
+    ) -> None:
+        service = WeatherService(provider=mock_provider)
+        assert service._api_key == "default-key"
+
+    def test_custom_api_key(
+        self, mock_provider: MockWeatherProvider
+    ) -> None:
+        service = WeatherService(
+            provider=mock_provider, api_key="my-secret-key"
+        )
+        result = service.get_weather("Kigali")
+        assert result.city == "Kigali"
+        assert service._api_key == "my-secret-key"

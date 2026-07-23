@@ -9,6 +9,8 @@ from app.models import WeatherData
 from app.providers import WeatherProvider
 from app.service import WeatherService
 
+TEST_API_KEY = "test-api-key-123"
+
 
 @pytest.fixture
 def mock_provider() -> MockWeatherProvider:
@@ -26,9 +28,9 @@ def mock_provider_interface() -> MagicMock:
 
 @pytest.fixture
 def weather_service(mock_provider: MockWeatherProvider) -> WeatherService:
-    return WeatherService(provider=mock_provider)
+    return WeatherService(provider=mock_provider, api_key=TEST_API_KEY)
 
 
 @pytest.fixture
 def weather_service_with_mock(mock_provider_interface: MagicMock) -> WeatherService:
-    return WeatherService(provider=mock_provider_interface)
+    return WeatherService(provider=mock_provider_interface, api_key=TEST_API_KEY)

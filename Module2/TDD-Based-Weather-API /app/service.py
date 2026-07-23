@@ -24,13 +24,15 @@ class WeatherService:
     on the WeatherProvider interface, enabling easy swapping of providers.
     """
 
-    def __init__(self, provider: WeatherProvider) -> None:
+    def __init__(self, provider: WeatherProvider, api_key: str = "default-key") -> None:
         """Initialize the weather service.
 
         Args:
             provider: Weather provider implementation to use.
+            api_key: API key for authenticating with the weather provider.
         """
         self._provider = provider
+        self._api_key = api_key
 
     def get_weather(self, city: str) -> WeatherData:
         """Fetch weather data for a specific city.

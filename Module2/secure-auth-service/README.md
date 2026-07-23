@@ -67,6 +67,12 @@ pip install -r requirements.txt
 pip install -e ".[dev]"
 ```
 
+## Run the App
+
+```bash
+python main.py
+```
+
 ## Usage
 
 ```python
