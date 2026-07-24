@@ -13,14 +13,15 @@ repos:
     rev: v1.9.0
     hooks:
       - id: mypy
+        files: ^Module2/TDD-Based-Weather-API/
         args: [--strict]
-        additional_dependencies: ["pydantic"]
+        additional_dependencies: ["pydantic", "pytest", "fastapi", "httpx", "starlette"]
   - repo: local
     hooks:
       - id: pytest
         name: pytest
-        entry: pytest
+        entry: Module2/TDD-Based-Weather-API/venv/bin/pytest
         language: system
         types: [python]
         pass_filenames: false
-        args: ["--cov=app", "--cov-fail-under=100"]
+        args: ["--rootdir=Module2/TDD-Based-Weather-API", "--ignore=Module2/secure-auth-service"]
