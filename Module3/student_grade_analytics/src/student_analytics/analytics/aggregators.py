@@ -84,9 +84,7 @@ class StudentGroupAggregator:
 class OrderedReportAggregator:
     """Assemble a stable, ordered ranking of top-performing students."""
 
-    def top_performers(
-        self, students: list[Student], limit: int = 5
-    ) -> OrderedDict[str, float]:
+    def top_performers(self, students: list[Student], limit: int = 5) -> OrderedDict[str, float]:
         """Return an :class:`OrderedDict` of the top ``limit`` students by GPA.
 
         The dictionary preserves descending GPA order. Ties are broken by

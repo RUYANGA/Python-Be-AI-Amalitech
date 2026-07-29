@@ -104,18 +104,14 @@ class StudentGradeAnalyzer:
         distribution = self._distribution_aggregator.aggregate(students)
         by_major = self._group_aggregator.group_by_major(students)
         by_year = self._group_aggregator.group_by_year(students)
-        top = self._ordered_aggregator.top_performers(
-            students, limit=self._top_performer_limit
-        )
+        top = self._ordered_aggregator.top_performers(students, limit=self._top_performer_limit)
         statistics = self._statistics.compute_summary(students)
         rolling = self._rolling_averages(students)
 
         payload: ReportPayload = {
             "generated_at": datetime.now(tz=UTC).isoformat(),
             "total_students": len(students),
-            "grade_distribution": {
-                letter.value: distribution[letter] for letter in distribution
-            },
+            "grade_distribution": {letter.value: distribution[letter] for letter in distribution},
             "students_by_major": OrderedDict(
                 (major, sorted(student.student_id for student in group))
                 for major, group in sorted(by_major.items())

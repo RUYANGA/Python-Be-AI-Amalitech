@@ -32,9 +32,7 @@ class RollingAverageCalculator:
             ValueError: If ``window_size`` is not a positive integer.
         """
         if window_size <= 0:
-            raise ValueError(
-                f"window_size must be a positive integer; got {window_size!r}."
-            )
+            raise ValueError(f"window_size must be a positive integer; got {window_size!r}.")
         self._window_size: Final[int] = window_size
         self._samples: Final[deque[float]] = deque(maxlen=window_size)
         _logger.debug("RollingAverageCalculator created (window=%d)", window_size)
@@ -61,7 +59,7 @@ class RollingAverageCalculator:
         Raises:
             InvalidGradeError: If ``value`` is not a finite number.
         """
-        if not isinstance(value, (int, float)) or isinstance(value, bool):
+        if not isinstance(value, int | float) or isinstance(value, bool):
             raise InvalidGradeError(f"value must be numeric; got {value!r}.")
         self._samples.append(float(value))
         return self.current_average

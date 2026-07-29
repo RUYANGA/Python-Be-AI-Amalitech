@@ -1,0 +1,30 @@
+repos:
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+        args: [Module3/student_grade_analytics]
+        always_run: true
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.0
+    hooks:
+      - id: ruff
+        args: [--fix, Module3/student_grade_analytics]
+        always_run: true
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: bash -c 'cd Module3/student_grade_analytics && python3 -m mypy src/student_analytics/'
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: pytest
+        name: pytest
+        entry: bash -c 'cd Module3/student_grade_analytics && python3 -m pytest tests/ -v --tb=short'
+        language: system
+        pass_filenames: false
+        always_run: true

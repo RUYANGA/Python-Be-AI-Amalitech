@@ -15,9 +15,9 @@ import sys
 from pathlib import Path
 from typing import Final
 
-_DEFAULT_FORMAT: Final[
-    str
-] = "%(asctime)s | %(levelname)-8s | %(name)s | %(funcName)s:%(lineno)d | %(message)s"
+_DEFAULT_FORMAT: Final[str] = (
+    "%(asctime)s | %(levelname)-8s | %(name)s | %(funcName)s:%(lineno)d | %(message)s"
+)
 _DEFAULT_DATE_FORMAT: Final[str] = "%Y-%m-%dT%H:%M:%S%z"
 
 _LOG_DIR: Final[Path] = Path(__file__).resolve().parent.parent.parent / "logs"
@@ -50,9 +50,7 @@ def configure_logging(level: int = logging.INFO) -> None:
     _LOG_DIR.mkdir(parents=True, exist_ok=True)
     file_handler = logging.FileHandler(_LOG_FILE, mode="a", encoding="utf-8")
     file_handler.setLevel(level)
-    file_handler.setFormatter(
-        logging.Formatter(fmt=_DEFAULT_FORMAT, datefmt=_DEFAULT_DATE_FORMAT)
-    )
+    file_handler.setFormatter(logging.Formatter(fmt=_DEFAULT_FORMAT, datefmt=_DEFAULT_DATE_FORMAT))
     logger.addHandler(file_handler)
 
     logger.propagate = False
