@@ -19,17 +19,18 @@ class BcryptPasswordHasher:
         self._rounds = rounds
 
     def hash_password(self, password: str) -> str:
-        """Hash a plaintext password using bcrypt.
+        """Hash a password using bcrypt.
 
         Args:
             password: The plaintext password.
 
         Returns:
-            The bcrypt hash as a UTF-8 string.
+            A bcrypt hash string.
         """
-        salt = bcrypt.gensalt(rounds=self._rounds)
-        hashed = bcrypt.hashpw(password.encode("utf-8"), salt)
-        return hashed.decode("utf-8")
+        return bcrypt.hashpw(
+            password.encode("utf-8"),
+            bcrypt.gensalt(rounds=self._rounds),
+        ).decode("utf-8")
 
     def verify(self, password: str, hashed_password: str) -> bool:
         """Verify a password against a bcrypt hash.

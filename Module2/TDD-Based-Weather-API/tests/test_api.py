@@ -122,6 +122,18 @@ class TestForecastEndpoint:
             k in data for k in ["city", "temperature", "humidity", "description"]
         )
 
+    def test_get_forecast_invalid_api_key_returns_401(self) -> None:
+        from app.exceptions import InvalidAPIKeyError
+
+        mock_service = MagicMock()
+        mock_service.get_forecast.side_effect = InvalidAPIKeyError("Invalid key")
+        app.dependency_overrides[get_service] = lambda: mock_service
+        try:
+            response = client.get("/forecast/Test")
+            assert response.status_code == 401
+        finally:
+            app.dependency_overrides.pop(get_service, None)
+
     def test_get_forecast_invalid_data_returns_400(self) -> None:
         from app.exceptions import InvalidDataError
 

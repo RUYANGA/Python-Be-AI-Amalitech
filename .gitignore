@@ -66,3 +66,16 @@ coverage.xml
 
 # pyright
 pyrightconfig.json
+
+
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+htmlcov/
+.coverage
+.coverage.*
+dist/
+build/
+logs/*.log
