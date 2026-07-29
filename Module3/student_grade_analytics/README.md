@@ -194,20 +194,20 @@ S001,John,Doe,CS,2,CS201,Data Structures,3,Spring2024,92.0
 ```
 ========================================================================
    STUDENT GRADE ANALYTICS REPORT
-   Generated: 2026-07-29 11:14:39
+   Generated: 2026-07-29 11:20:36
    Source:    sample_students.csv
 ========================================================================
 
 ========================================================================
   OVERVIEW
 ========================================================================
-  Total students                    7
-  Total grades                     21
-  Unique majors                     3
-  Year groups                       4
-  Average GPA (all)             82.05
-  Highest GPA                    92.17
-  Lowest GPA                     65.67
+  Total students                          7
+  Total grades                           21
+  Unique majors                           3
+  Year groups                             4
+  Average GPA (all)                   82.05
+  Highest GPA                         92.17
+  Lowest GPA                          65.67
 
 ========================================================================
   TOP PERFORMERS
@@ -260,6 +260,32 @@ S001,John,Doe,CS,2,CS201,Data Structures,3,Spring2024,92.0
   Sophomore    ( 2)  John Doe (S001), Carol Brown (S005)
   Junior       ( 2)  Jane Smith (S002), David Miller (S006)
   Senior       ( 1)  Bob Williams (S004)
+
+========================================================================
+  ROLLING AVERAGES (window=3)
+========================================================================
+  S001     John Doe                  85.5 → 81.8 → 85.2 → 86.0
+  S002     Jane Smith                95.0 → 92.0 → 91.8
+  S003     Alice Johnson             65.0 → 68.5 → 72.3
+  S004     Bob Williams              55.0 → 61.5 → 65.7
+  S005     Carol Brown               90.0 → 88.5 → 86.5
+  S006     David Miller              95.5 → 91.8 → 92.2
+  S007     Eve Davis                 78.0 → 80.0
+
+========================================================================
+  PER-STUDENT BREAKDOWN
+========================================================================
+  Alice Johnson            S003     CS     Yr1   GPA: 72.33   |  CS101:65, MA101:72, EN101:80
+  Bob Williams             S004     PHYS   Yr4   GPA: 65.67   |  PH401:55, PH402:68, MA301:74
+  Carol Brown              S005     MATH   Yr2   GPA: 86.50   |  MA201:90, MA202:87, CS201:82
+  David Miller             S006     CS     Yr3   GPA: 92.17   |  CS301:96, CS302:88, CS303:93
+  Eve Davis                S007     PHYS   Yr1   GPA: 80.00   |  PH101:78, MA101:82
+  Jane Smith               S002     MATH   Yr3   GPA: 91.83   |  MA301:95, MA302:89, CS101:92
+  John Doe                 S001     CS     Yr2   GPA: 85.88   |  CS101:86, MA201:78, CS201:92, EN101:88
+
+========================================================================
+   Report complete — 7 students, 21 grades processed.
+========================================================================
 ```
 
 ### Output — `reports/report.json`
