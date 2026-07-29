@@ -1,0 +1,22 @@
+student_id,first_name,last_name,major,year,course_code,course_name,credits,semester,score
+S001,John,Doe,CS,2,CS101,Intro to CS,3,Fall2023,85.5
+S001,John,Doe,CS,2,MA201,Calculus II,4,Fall2023,78.0
+S001,John,Doe,CS,2,CS201,Data Structures,3,Spring2024,92.0
+S001,John,Doe,CS,2,EN101,English Composition,3,Spring2024,88.0
+S002,Jane,Smith,MATH,3,MA301,Linear Algebra,3,Fall2023,95.0
+S002,Jane,Smith,MATH,3,MA302,Real Analysis,3,Fall2023,89.0
+S002,Jane,Smith,MATH,3,CS101,Intro to CS,3,Spring2024,91.5
+S003,Alice,Johnson,CS,1,CS101,Intro to CS,3,Fall2023,65.0
+S003,Alice,Johnson,CS,1,MA101,Calculus I,4,Fall2023,72.0
+S003,Alice,Johnson,CS,1,EN101,English Composition,3,Spring2024,80.0
+S004,Bob,Williams,PHYS,4,PH401,Quantum Mechanics,3,Fall2023,55.0
+S004,Bob,Williams,PHYS,4,PH402,Thermodynamics,3,Fall2023,68.0
+S004,Bob,Williams,PHYS,4,MA301,Linear Algebra,3,Spring2024,74.0
+S005,Carol,Brown,MATH,2,MA201,Calculus II,4,Fall2023,90.0
+S005,Carol,Brown,MATH,2,MA202,Discrete Math,3,Fall2023,87.0
+S005,Carol,Brown,MATH,2,CS201,Data Structures,3,Spring2024,82.5
+S006,David,Miller,CS,3,CS301,Algorithms,3,Fall2023,95.5
+S006,David,Miller,CS,3,CS302,Operating Systems,3,Fall2023,88.0
+S006,David,Miller,CS,3,CS303,Databases,3,Spring2024,93.0
+S007,Eve,Davis,PHYS,1,PH101,Intro Physics,4,Fall2023,78.0
+S007,Eve,Davis,PHYS,1,MA101,Calculus I,4,Fall2023,82.0
