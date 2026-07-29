@@ -1,7 +1,5 @@
 """Tests for :mod:`student_analytics.statistics`."""
 
-from __future__ import annotations
-
 import pytest
 
 from student_analytics.analytics.statistics import GradeStatistics
@@ -30,21 +28,31 @@ class TestGradeStatistics:
 
     def test_percentile_single_value(self) -> None:
         grade_statistics = GradeStatistics()
-        assert grade_statistics.percentile([85.0], percentile=50.0) == pytest.approx(85.0)
+        assert grade_statistics.percentile([85.0], percentile=50.0) == pytest.approx(
+            85.0
+        )
 
     def test_percentile_boundaries(self) -> None:
         grade_statistics = GradeStatistics()
         scores = [10.0, 20.0, 30.0, 40.0, 50.0]
-        assert grade_statistics.percentile(scores, percentile=0.0) == pytest.approx(10.0)
-        assert grade_statistics.percentile(scores, percentile=100.0) == pytest.approx(50.0)
-        assert grade_statistics.percentile(scores, percentile=50.0) == pytest.approx(30.0)
+        assert grade_statistics.percentile(scores, percentile=0.0) == pytest.approx(
+            10.0
+        )
+        assert grade_statistics.percentile(scores, percentile=100.0) == pytest.approx(
+            50.0
+        )
+        assert grade_statistics.percentile(scores, percentile=50.0) == pytest.approx(
+            30.0
+        )
 
     @pytest.mark.parametrize("bad_percentile", [-1.0, 100.5])
     def test_percentile_rejects_out_of_range(self, bad_percentile: float) -> None:
         with pytest.raises(ValueError, match="percentile must be in"):
             GradeStatistics().percentile([1.0, 2.0], percentile=bad_percentile)
 
-    def test_compute_summary_with_students(self, sample_students: list[Student]) -> None:
+    def test_compute_summary_with_students(
+        self, sample_students: list[Student]
+    ) -> None:
         summary = GradeStatistics().compute_summary(sample_students)
         # Scores: 85, 95, 72, 68, 55
         assert summary["highest"] == pytest.approx(95.0)

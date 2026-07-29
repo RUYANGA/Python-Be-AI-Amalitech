@@ -1,6 +1,6 @@
 """Command-line interface for the Vehicle Rental System."""
 
-from vehicle_rental.modules import Car, Bike, Truck
+from vehicle_rental.modules import Bike, Car, Truck
 from vehicle_rental.services.rental_service import RentalService
 
 

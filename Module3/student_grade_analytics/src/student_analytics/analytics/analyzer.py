@@ -8,11 +8,9 @@ That structure makes every collaborator easy to replace in tests and keeps
 this class focused on flow control.
 """
 
-from __future__ import annotations
-
 from collections import OrderedDict
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Final
+from typing import Final
 
 from student_analytics.analytics.aggregators import (
     GradeDistributionAggregator,
@@ -22,10 +20,8 @@ from student_analytics.analytics.aggregators import (
 from student_analytics.analytics.rolling_average import RollingAverageCalculator
 from student_analytics.analytics.statistics import GradeStatistics
 from student_analytics.logger import get_logger
-
-if TYPE_CHECKING:
-    from student_analytics.models import ReportPayload, Student
-    from student_analytics.models.protocols import ReportWriter, StudentReader
+from student_analytics.models import ReportPayload, Student
+from student_analytics.models.protocols import ReportWriter, StudentReader
 
 _logger = get_logger("analyzer")
 
@@ -113,7 +109,9 @@ class StudentGradeAnalyzer:
         payload: ReportPayload = {
             "generated_at": datetime.now(tz=UTC).isoformat(),
             "total_students": len(students),
-            "grade_distribution": {letter.value: distribution[letter] for letter in distribution},
+            "grade_distribution": {
+                letter.value: distribution[letter] for letter in distribution
+            },
             "students_by_major": OrderedDict(
                 (major, sorted(student.student_id for student in group))
                 for major, group in sorted(by_major.items())

@@ -1,16 +1,9 @@
 """Tests for :mod:`student_analytics.analyzer`."""
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
-
 import pytest
 
 from student_analytics.analytics.analyzer import StudentGradeAnalyzer
-from student_analytics.models import ReportPayload
-
-if TYPE_CHECKING:
-    from student_analytics.models import Student
+from student_analytics.models import ReportPayload, Student
 
 
 class InMemoryReader:
@@ -34,7 +27,9 @@ class InMemoryWriter:
 
 
 class TestStudentGradeAnalyzer:
-    def test_pipeline_produces_expected_payload(self, sample_students: list[Student]) -> None:
+    def test_pipeline_produces_expected_payload(
+        self, sample_students: list[Student]
+    ) -> None:
         reader = InMemoryReader(sample_students)
         writer = InMemoryWriter()
         analyzer = StudentGradeAnalyzer(
@@ -78,10 +73,14 @@ class TestStudentGradeAnalyzer:
         assert "T" in payload["generated_at"]
         assert payload["generated_at"].endswith("+00:00")
 
-    def test_rolling_averages_ordered_by_semester(self, sample_students: list[Student]) -> None:
+    def test_rolling_averages_ordered_by_semester(
+        self, sample_students: list[Student]
+    ) -> None:
         reader = InMemoryReader(sample_students)
         writer = InMemoryWriter()
-        analyzer = StudentGradeAnalyzer(reader=reader, writer=writer, rolling_window_size=2)
+        analyzer = StudentGradeAnalyzer(
+            reader=reader, writer=writer, rolling_window_size=2
+        )
         payload = analyzer.run()
         # S001: Fall2023=85, Spring2024=95 -> rolling: [85.0, 90.0]
         assert payload["rolling_averages"]["S001"] == pytest.approx([85.0, 90.0])

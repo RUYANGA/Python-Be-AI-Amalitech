@@ -1,22 +1,22 @@
 import sys
+
 from .utils import (
-    add_book,
+    _author_name,
     add_author,
+    add_book,
     add_borrower,
-    search_books,
     borrow_book,
-    return_book,
     get_all_authors,
     get_all_borrowers,
-    _author_name,
-    report_available_books,
-    report_borrowed_books,
-    report_books_by_author,
-    report_all_books,
     report_all_authors,
+    report_all_books,
     report_all_borrowers,
+    report_available_books,
+    report_books_by_author,
+    report_borrowed_books,
+    return_book,
+    search_books,
 )
-
 
 MENU_OPTIONS = [
     "Add Book",

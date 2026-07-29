@@ -1,7 +1,5 @@
 """Tests for :mod:`student_analytics.rolling_average`."""
 
-from __future__ import annotations
-
 import pytest
 
 from student_analytics.analytics.rolling_average import RollingAverageCalculator

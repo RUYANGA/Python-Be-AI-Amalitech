@@ -8,16 +8,10 @@ standard-library collection:
 * :class:`OrderedReportAggregator`     — :class:`collections.OrderedDict`
 """
 
-from __future__ import annotations
-
 from collections import Counter, OrderedDict, defaultdict
-from typing import TYPE_CHECKING
 
 from student_analytics.logger import get_logger
-from student_analytics.models import GradeLetter
-
-if TYPE_CHECKING:
-    from student_analytics.models import Student
+from student_analytics.models import GradeLetter, Student
 
 _logger = get_logger("aggregators")
 
@@ -84,7 +78,9 @@ class StudentGroupAggregator:
 class OrderedReportAggregator:
     """Assemble a stable, ordered ranking of top-performing students."""
 
-    def top_performers(self, students: list[Student], limit: int = 5) -> OrderedDict[str, float]:
+    def top_performers(
+        self, students: list[Student], limit: int = 5
+    ) -> OrderedDict[str, float]:
         """Return an :class:`OrderedDict` of the top ``limit`` students by GPA.
 
         The dictionary preserves descending GPA order. Ties are broken by

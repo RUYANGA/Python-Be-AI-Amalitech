@@ -1,7 +1,5 @@
 """Tests for :mod:`student_analytics.readers`."""
 
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -71,7 +69,9 @@ class TestCSVStudentReader:
         ):
             reader.read()
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="chmod semantics differ on Windows")
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="chmod semantics differ on Windows"
+    )
     def test_os_error_is_translated(self, tmp_path: Path) -> None:
         target = tmp_path / "students.csv"
         target.write_text("dummy", encoding="utf-8")

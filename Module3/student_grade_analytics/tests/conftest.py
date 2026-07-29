@@ -1,7 +1,5 @@
 """Shared pytest fixtures for the student analytics test suite."""
 
-from __future__ import annotations
-
 from pathlib import Path
 
 import pytest

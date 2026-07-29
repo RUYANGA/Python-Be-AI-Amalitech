@@ -8,8 +8,6 @@ Exception Hierarchy:
     └── InvalidAPIKeyError
 """
 
-from __future__ import annotations
-
 
 class WeatherServiceError(Exception):
     """Base exception for all weather service errors."""

@@ -5,16 +5,12 @@ eviction of the oldest sample, giving us a memory-bounded windowed mean in
 just a few lines of code.
 """
 
-from __future__ import annotations
-
 from collections import deque
-from typing import TYPE_CHECKING, Final
+from collections.abc import Iterable
+from typing import Final
 
 from student_analytics.exceptions import InvalidGradeError
 from student_analytics.logger import get_logger
-
-if TYPE_CHECKING:
-    from collections.abc import Iterable
 
 _logger = get_logger("rolling_average")
 
@@ -32,7 +28,9 @@ class RollingAverageCalculator:
             ValueError: If ``window_size`` is not a positive integer.
         """
         if window_size <= 0:
-            raise ValueError(f"window_size must be a positive integer; got {window_size!r}.")
+            raise ValueError(
+                f"window_size must be a positive integer; got {window_size!r}."
+            )
         self._window_size: Final[int] = window_size
         self._samples: Final[deque[float]] = deque(maxlen=window_size)
         _logger.debug("RollingAverageCalculator created (window=%d)", window_size)

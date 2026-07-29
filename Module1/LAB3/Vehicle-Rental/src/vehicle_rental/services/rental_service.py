@@ -1,8 +1,7 @@
 """Core rental service managing vehicle registration, rentals, and returns."""
 
-from typing import Optional
 from vehicle_rental.core import Vehicle
-from vehicle_rental.services.pricing import calculate_rental_cost, calculate_late_fee
+from vehicle_rental.services.pricing import calculate_late_fee, calculate_rental_cost
 
 
 class RentalRecord:
@@ -47,7 +46,7 @@ class RentalService:
             raise ValueError(f"Vehicle {vehicle.vehicle_id} already registered")
         self._vehicles[vehicle.vehicle_id] = vehicle
 
-    def get_vehicle(self, vehicle_id: str) -> Optional[Vehicle]:
+    def get_vehicle(self, vehicle_id: str) -> Vehicle | None:
         """Look up a vehicle by its ID.
 
         Args:

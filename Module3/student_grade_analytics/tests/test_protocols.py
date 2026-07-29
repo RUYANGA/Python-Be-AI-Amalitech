@@ -1,7 +1,5 @@
 """Tests for :mod:`student_analytics.models.protocols`."""
 
-from __future__ import annotations
-
 from student_analytics.models import ReportPayload, Student
 from student_analytics.models.protocols import ReportWriter, StudentReader
 

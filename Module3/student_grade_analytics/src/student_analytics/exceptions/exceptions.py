@@ -5,8 +5,6 @@ distinguish between IO failures, validation failures, and unrecoverable
 analytics errors without matching on messages.
 """
 
-from __future__ import annotations
-
 
 class AnalyticsError(Exception):
     """Base class for every error raised by the analytics package."""

@@ -7,18 +7,14 @@ uses a generator internally so that peak memory scales with the number of
 distinct students rather than the number of rows.
 """
 
-from __future__ import annotations
-
 import csv
+from collections.abc import Iterator
 from pathlib import Path
-from typing import TYPE_CHECKING, Final
+from typing import Final
 
 from student_analytics.exceptions import InvalidGradeError, StudentDataError
 from student_analytics.logger import get_logger
 from student_analytics.models import Course, Grade, Student
-
-if TYPE_CHECKING:
-    from collections.abc import Iterator
 
 _logger = get_logger("readers")
 
@@ -82,7 +78,9 @@ class CSVStudentReader:
             raise StudentDataError(f"CSV file not found: {self.path}") from error
         except PermissionError as error:
             _logger.error("Permission denied when reading %s", self.path)
-            raise StudentDataError(f"Permission denied when reading {self.path}") from error
+            raise StudentDataError(
+                f"Permission denied when reading {self.path}"
+            ) from error
         except OSError as error:
             _logger.error("Unable to read %s: %s", self.path, error)
             raise StudentDataError(f"Unable to read {self.path}: {error}") from error
@@ -105,7 +103,9 @@ class CSVStudentReader:
             missing = REQUIRED_COLUMNS - set(fieldnames)
             if missing:
                 sorted_missing = ", ".join(sorted(missing))
-                raise StudentDataError(f"CSV is missing required columns: {sorted_missing}")
+                raise StudentDataError(
+                    f"CSV is missing required columns: {sorted_missing}"
+                )
             # start=2 accounts for the header row occupying line 1.
             yield from enumerate(reader, start=2)
 
@@ -131,7 +131,9 @@ class CSVStudentReader:
             credits_value = int(row["credits"])
             score = float(row["score"])
         except (ValueError, KeyError, AttributeError) as error:
-            raise StudentDataError(f"Malformed row {row_index} in {self.path}: {error}") from error
+            raise StudentDataError(
+                f"Malformed row {row_index} in {self.path}: {error}"
+            ) from error
 
         student = students.get(student_id)
         if student is None:
@@ -153,5 +155,7 @@ class CSVStudentReader:
         try:
             grade = Grade(course=course, semester=row["semester"].strip(), score=score)
         except InvalidGradeError as error:
-            raise StudentDataError(f"Invalid grade on row {row_index}: {error}") from error
+            raise StudentDataError(
+                f"Invalid grade on row {row_index}: {error}"
+            ) from error
         student.add_grade(grade)

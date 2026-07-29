@@ -13,8 +13,6 @@ they satisfy the Single-Responsibility Principle and can be safely reused
 from tests and other modules.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import NamedTuple, TypedDict
@@ -32,7 +30,7 @@ class GradeLetter(StrEnum):
     F = "F"
 
     @classmethod
-    def from_score(cls, score: float) -> GradeLetter:
+    def from_score(cls, score: float) -> "GradeLetter":
         """Convert a numeric score in ``[0.0, 100.0]`` to a letter grade.
 
         Args:
@@ -45,7 +43,9 @@ class GradeLetter(StrEnum):
             InvalidGradeError: If ``score`` falls outside ``[0.0, 100.0]``.
         """
         if not 0.0 <= score <= 100.0:
-            raise InvalidGradeError(f"Score must be within [0.0, 100.0]; got {score!r}.")
+            raise InvalidGradeError(
+                f"Score must be within [0.0, 100.0]; got {score!r}."
+            )
         if score >= 90.0:
             return cls.A
         if score >= 80.0:

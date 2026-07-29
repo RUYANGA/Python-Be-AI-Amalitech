@@ -7,8 +7,6 @@ convention ``0`` for success, ``1`` for application errors, and ``2`` for
 argument-parsing failures.
 """
 
-from __future__ import annotations
-
 import argparse
 import logging
 import sys
@@ -31,7 +29,9 @@ def build_parser() -> argparse.ArgumentParser:
     """Build and return the top-level :class:`argparse.ArgumentParser`."""
     parser = argparse.ArgumentParser(
         prog="student-analytics",
-        description=("Process student grades from a CSV file and produce a JSON analytics report."),
+        description=(
+            "Process student grades from a CSV file and produce a JSON analytics report."
+        ),
     )
     parser.add_argument(
         "--input",

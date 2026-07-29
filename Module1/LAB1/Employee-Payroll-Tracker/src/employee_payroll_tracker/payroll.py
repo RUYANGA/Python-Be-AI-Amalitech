@@ -10,8 +10,6 @@ Functions:
     process_payroll: Processes a list of employees and returns payslips.
 """
 
-from typing import Dict, List
-
 from src.employee_payroll_tracker.employe import (
     ContractEmployee,
     FullTimeEmployee,
@@ -153,7 +151,7 @@ def generate_payslip(employee, gross: float = 0.0, net: float = 0.0) -> str:
     return "\n".join(lines)
 
 
-def process_payroll(employees: List) -> Dict[int, dict]:
+def process_payroll(employees: list) -> dict[int, dict]:
     """Process payroll for a list of employees.
 
     Builds a dictionary mapping each employee ID to their computed
@@ -171,7 +169,7 @@ def process_payroll(employees: List) -> Dict[int, dict]:
         logger.warning("process_payroll called with empty employee list")
         return {}
 
-    payroll_data: Dict[int, dict] = {}
+    payroll_data: dict[int, dict] = {}
     i = 0
     while i < len(employees):
         emp = employees[i]

@@ -4,16 +4,11 @@ The class is stateless — every method takes its inputs explicitly — which
 keeps it trivial to test in isolation and to reuse from other modules.
 """
 
-from __future__ import annotations
-
 from collections import Counter
 from statistics import mean, median
-from typing import TYPE_CHECKING
 
 from student_analytics.logger import get_logger
-
-if TYPE_CHECKING:
-    from student_analytics.models import Student
+from student_analytics.models import Student
 
 _logger = get_logger("statistics")
 
@@ -49,7 +44,9 @@ class GradeStatistics:
             return 0.0
         counter = Counter(scores)
         highest_frequency = max(counter.values())
-        candidates = [score for score, count in counter.items() if count == highest_frequency]
+        candidates = [
+            score for score, count in counter.items() if count == highest_frequency
+        ]
         return float(min(candidates))
 
     def percentile(self, scores: list[float], percentile: float) -> float:
@@ -77,7 +74,8 @@ class GradeStatistics:
         upper_index = min(lower_index + 1, len(ordered) - 1)
         fraction = rank - lower_index
         return float(
-            ordered[lower_index] + (ordered[upper_index] - ordered[lower_index]) * fraction
+            ordered[lower_index]
+            + (ordered[upper_index] - ordered[lower_index]) * fraction
         )
 
     def compute_summary(self, students: list[Student]) -> dict[str, float]:

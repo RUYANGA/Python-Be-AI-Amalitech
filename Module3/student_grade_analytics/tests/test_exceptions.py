@@ -1,7 +1,5 @@
 """Tests for :mod:`student_analytics.exceptions`."""
 
-from __future__ import annotations
-
 from student_analytics.exceptions import (
     AnalyticsError,
     InvalidGradeError,
