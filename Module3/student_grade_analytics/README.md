@@ -124,10 +124,6 @@ pip install -e ".[dev]"              # installs runtime + dev tools
 
 ## Usage
 
-```bash
-python scripts/run_demo.py
-```
-
 ### Terminal report
 
 Print a formatted analytics report directly to the console:
@@ -345,10 +341,4 @@ ruff check src tests            # linting + import sorting + docstyle
 black --check src tests         # formatting
 mypy src                        # strict static typing
 pytest                          # tests + 100% branch coverage
-```
-
-### Run everything through the demo script
-
-```bash
-python scripts/run_demo.py
 ```
