@@ -35,6 +35,7 @@ by **`ruff`**, **`black`**, **`mypy --strict`**, and **`pytest`** with
 - **Rolling averages** — a `deque(maxlen=N)` supplies O(1) windowed means.
 - **Professional logging** — a single call to `configure_logging` produces timestamped, level-tagged, source-attributed logs to both stderr and a file in `logs/`.
 - **CLI** — `student-analytics --input students.csv --output report.json`.
+- **Terminal report** — `python scripts/run_report.py` prints a professional formatted report directly to the console with tables, histograms, and per-student breakdowns.
 - **100% test coverage** — every branch is exercised by `pytest`.
 
 ---
@@ -51,7 +52,8 @@ student_grade_analytics/
 ├── reports/
 │   └── report.json                   # Generated JSON analytics report
 ├── scripts/
-│   └── run_demo.py                   # End-to-end demo runner
+│   ├── run_demo.py                   # End-to-end demo runner
+│   └── run_report.py                 # Professional CLI report display
 ├── src/
 │   └── student_analytics/
 │       ├── __init__.py               # Public API exports
@@ -139,6 +141,20 @@ Or run the demo script:
 python scripts/run_demo.py
 ```
 
+### Terminal report
+
+Print a formatted analytics report directly to the console:
+
+```bash
+python scripts/run_report.py
+```
+
+With a custom input file:
+
+```bash
+python scripts/run_report.py --input path/to/students.csv
+```
+
 ### As a library
 
 ```python
@@ -171,6 +187,79 @@ student_id,first_name,last_name,major,year,course_code,course_name,credits,semes
 S001,John,Doe,CS,2,CS101,Intro to CS,3,Fall2023,85.5
 S001,John,Doe,CS,2,CS201,Data Structures,3,Spring2024,92.0
 ...
+```
+
+### Terminal output — `python scripts/run_report.py`
+
+```
+========================================================================
+   STUDENT GRADE ANALYTICS REPORT
+   Generated: 2026-07-29 11:14:39
+   Source:    sample_students.csv
+========================================================================
+
+========================================================================
+  OVERVIEW
+========================================================================
+  Total students                    7
+  Total grades                     21
+  Unique majors                     3
+  Year groups                       4
+  Average GPA (all)             82.05
+  Highest GPA                    92.17
+  Lowest GPA                     65.67
+
+========================================================================
+  TOP PERFORMERS
+========================================================================
+  Rank   ID       Name                     Major    GPA
+------------------------------------------------------------------------
+  1      S006     David Miller             CS       92.17
+  2      S002     Jane Smith               MATH     91.83
+  3      S005     Carol Brown              MATH     86.50
+  4      S001     John Doe                 CS       85.88
+  5      S007     Eve Davis                PHYS     80.00
+  6      S003     Alice Johnson            CS       72.33
+  7      S004     Bob Williams             PHYS     65.67
+
+========================================================================
+  GRADE DISTRIBUTION
+========================================================================
+  Letter   Count    %         Distribution
+------------------------------------------------------------------------
+  A        6          28.6%  ████████░░░░░░░░░░░░░░░░░░░░░░
+  B        8          38.1%  ███████████░░░░░░░░░░░░░░░░░░░
+  C        4          19.0%  █████░░░░░░░░░░░░░░░░░░░░░░░░░
+  D        2           9.5%  ██░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+  F        1           4.8%  █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+------------------------------------------------------------------------
+  TOTAL    21       100.0%
+
+========================================================================
+  STATISTICS
+========================================================================
+  Mean                                82.33
+  Median                              85.50
+  Mode                                78.00
+  25th Percentile                     78.00
+  75th Percentile                     90.00
+  Highest Score                       95.50
+  Lowest Score                        55.00
+
+========================================================================
+  STUDENTS BY MAJOR
+========================================================================
+  CS       ( 3)  John Doe (S001), Alice Johnson (S003), David Miller (S006)
+  MATH     ( 2)  Jane Smith (S002), Carol Brown (S005)
+  PHYS     ( 2)  Bob Williams (S004), Eve Davis (S007)
+
+========================================================================
+  STUDENTS BY YEAR
+========================================================================
+  Freshman     ( 2)  Alice Johnson (S003), Eve Davis (S007)
+  Sophomore    ( 2)  John Doe (S001), Carol Brown (S005)
+  Junior       ( 2)  Jane Smith (S002), David Miller (S006)
+  Senior       ( 1)  Bob Williams (S004)
 ```
 
 ### Output — `reports/report.json`
