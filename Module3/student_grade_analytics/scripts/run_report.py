@@ -26,113 +26,126 @@ from student_analytics.exceptions import AnalyticsError
 from student_analytics.io.readers import CSVStudentReader
 from student_analytics.models import GradeLetter, Student
 
-W = 72
+TERMINAL_LINE_WIDTH = 72
 
 
-def sep(char: str = "=") -> None:
+def print_separator_line(character: str = "=") -> None:
     """Print a horizontal separator line."""
-    print(char * W)
+    print(character * TERMINAL_LINE_WIDTH)
 
 
-def heading(text: str) -> None:
+def print_section_heading(title: str) -> None:
     """Print a section heading with separators."""
-    sep()
-    print(f"  {text}")
-    sep()
+    print_separator_line()
+    print(f"  {title}")
+    print_separator_line()
 
 
-def bar(value: int, total: int, width: int = 30) -> str:
+def build_progress_bar(value: int, total: int, width: int = 30) -> str:
     """Return an ASCII bar representing ``value/total``."""
     filled = int(width * value / total) if total else 0
     return "█" * filled + "░" * (width - filled)
 
 
-def fmt(name: str, value: object, suffix: str = "") -> None:
+def print_formatted_field(name: str, value: object, suffix: str = "") -> None:
     """Print a formatted key-value pair."""
     print(f"  {name:<30} {value!s:>10}{suffix}")
 
 
-def show_overview(students: list[Student]) -> None:
+def display_overview_section(all_students: list[Student]) -> None:
     """Print total student / grade counts and GPA extremes."""
-    heading("OVERVIEW")
-    total_grades = sum(len(s.grades) for s in students)
-    fmt("Total students", len(students))
-    fmt("Total grades", total_grades)
-    majors = Counter(s.major for s in students)
-    fmt("Unique majors", len(majors))
-    years = Counter(s.year for s in students)
-    fmt("Year groups", len(years))
-    avg_gpa = sum(s.gpa for s in students) / len(students) if students else 0.0
-    fmt("Average GPA (all)", f"{avg_gpa:.2f}")
-    high = max(s.gpa for s in students) if students else 0.0
-    low = min(s.gpa for s in students) if students else 0.0
-    fmt("Highest GPA", f"{high:.2f}")
-    fmt("Lowest GPA", f"{low:.2f}")
+    print_section_heading("OVERVIEW")
+    total_grades = sum(len(student.grades) for student in all_students)
+    print_formatted_field("Total students", len(all_students))
+    print_formatted_field("Total grades", total_grades)
+    major_counts = Counter(student.major for student in all_students)
+    print_formatted_field("Unique majors", len(major_counts))
+    year_counts = Counter(student.year for student in all_students)
+    print_formatted_field("Year groups", len(year_counts))
+    average_gpa = (
+        sum(student.gpa for student in all_students) / len(all_students) if all_students else 0.0
+    )
+    print_formatted_field("Average GPA (all)", f"{average_gpa:.2f}")
+    highest_gpa = max(student.gpa for student in all_students) if all_students else 0.0
+    lowest_gpa = min(student.gpa for student in all_students) if all_students else 0.0
+    print_formatted_field("Highest GPA", f"{highest_gpa:.2f}")
+    print_formatted_field("Lowest GPA", f"{lowest_gpa:.2f}")
     print()
 
 
-def show_grade_distribution(students: list[Student]) -> None:
+def display_grade_distribution_section(all_students: list[Student]) -> None:
     """Print a letter-grade histogram with counts and percentages."""
-    heading("GRADE DISTRIBUTION")
-    agg = GradeDistributionAggregator()
-    distro = agg.aggregate(students)
-    total = sum(distro.values())
+    print_section_heading("GRADE DISTRIBUTION")
+    distribution_aggregator = GradeDistributionAggregator()
+    grade_distribution = distribution_aggregator.aggregate(all_students)
+    total_grades = sum(grade_distribution.values())
     print(f"  {'Letter':<8} {'Count':<8} {'%':<8}  Distribution")
-    sep("-")
-    for letter in GradeLetter:
-        count = distro[letter]
-        pct = 100.0 * count / total if total else 0.0
-        print(f"  {letter.value:<8} {count:<8} {pct:>6.1f}%  {bar(count, total)}")
-    sep("-")
-    print(f"  {'TOTAL':<8} {total:<8} {'100.0%':<8}")
+    print_separator_line("-")
+    for grade_letter in GradeLetter:
+        letter_count = grade_distribution[grade_letter]
+        letter_percentage = 100.0 * letter_count / total_grades if total_grades else 0.0
+        histogram_bar = build_progress_bar(letter_count, total_grades)
+        print(
+            f"  {grade_letter.value:<8} {letter_count:<8} "
+            f"{letter_percentage:>6.1f}%  {histogram_bar}"
+        )
+    print_separator_line("-")
+    print(f"  {'TOTAL':<8} {total_grades:<8} {'100.0%':<8}")
     print()
 
 
-def show_top_performers(students: list[Student]) -> None:
+def display_top_performers_section(all_students: list[Student]) -> None:
     """Print a ranked table of students ordered by GPA."""
-    heading("TOP PERFORMERS")
-    agg = OrderedReportAggregator()
-    top = agg.top_performers(students, limit=10)
-    student_map = {s.student_id: s for s in students}
+    print_section_heading("TOP PERFORMERS")
+    ranking_aggregator = OrderedReportAggregator()
+    top_performers = ranking_aggregator.top_performers(all_students, limit=10)
+    student_lookup_map = {student.student_id: student for student in all_students}
     print(f"  {'Rank':<6} {'ID':<8} {'Name':<24} {'Major':<8} {'GPA':<8}")
-    sep("-")
-    for rank, (sid, gpa) in enumerate(top.items(), 1):
-        s = student_map[sid]
-        print(f"  {rank:<6} {sid:<8} {s.full_name:<24} {s.major:<8} {gpa:<8.2f}")
+    print_separator_line("-")
+    for rank, (student_id, gpa_score) in enumerate(top_performers.items(), 1):
+        current_student = student_lookup_map[student_id]
+        print(
+            f"  {rank:<6} {student_id:<8} {current_student.full_name:<24} "
+            f"{current_student.major:<8} {gpa_score:<8.2f}"
+        )
     print()
 
 
-def show_students_by_major(students: list[Student]) -> None:
+def display_students_by_major_section(all_students: list[Student]) -> None:
     """Print students grouped by declared major."""
-    heading("STUDENTS BY MAJOR")
-    agg = StudentGroupAggregator()
-    by_major = agg.group_by_major(students)
-    for major in sorted(by_major):
-        group = sorted(by_major[major], key=lambda s: s.student_id)
-        names = ", ".join(f"{s.full_name} ({s.student_id})" for s in group)
-        print(f"  {major:<8} ({len(group):>2})  {names}")
+    print_section_heading("STUDENTS BY MAJOR")
+    grouping_aggregator = StudentGroupAggregator()
+    students_by_major = grouping_aggregator.group_by_major(all_students)
+    for major in sorted(students_by_major):
+        major_students = sorted(students_by_major[major], key=lambda student: student.student_id)
+        student_list = ", ".join(
+            f"{student.full_name} ({student.student_id})" for student in major_students
+        )
+        print(f"  {major:<8} ({len(major_students):>2})  {student_list}")
     print()
 
 
-def show_students_by_year(students: list[Student]) -> None:
+def display_students_by_year_section(all_students: list[Student]) -> None:
     """Print students grouped by academic year."""
-    heading("STUDENTS BY YEAR")
+    print_section_heading("STUDENTS BY YEAR")
     year_labels = {1: "Freshman", 2: "Sophomore", 3: "Junior", 4: "Senior"}
-    agg = StudentGroupAggregator()
-    by_year = agg.group_by_year(students)
-    for year in sorted(by_year):
-        group = sorted(by_year[year], key=lambda s: s.student_id)
-        label = year_labels.get(year, f"Year {year}")
-        names = ", ".join(f"{s.full_name} ({s.student_id})" for s in group)
-        print(f"  {label:<12} ({len(group):>2})  {names}")
+    grouping_aggregator = StudentGroupAggregator()
+    students_by_year = grouping_aggregator.group_by_year(all_students)
+    for year in sorted(students_by_year):
+        year_students = sorted(students_by_year[year], key=lambda student: student.student_id)
+        year_label = year_labels.get(year, f"Year {year}")
+        student_list = ", ".join(
+            f"{student.full_name} ({student.student_id})" for student in year_students
+        )
+        print(f"  {year_label:<12} ({len(year_students):>2})  {student_list}")
     print()
 
 
-def show_statistics(students: list[Student]) -> None:
+def display_statistics_section(all_students: list[Student]) -> None:
     """Print mean, median, mode, percentiles, and extremes."""
-    heading("STATISTICS")
-    stats = GradeStatistics()
-    summary = stats.compute_summary(students)
+    print_section_heading("STATISTICS")
+    grade_statistics = GradeStatistics()
+    statistics_summary = grade_statistics.compute_summary(all_students)
     for key, label in [
         ("mean", "Mean"),
         ("median", "Median"),
@@ -142,31 +155,36 @@ def show_statistics(students: list[Student]) -> None:
         ("highest", "Highest Score"),
         ("lowest", "Lowest Score"),
     ]:
-        fmt(label, f"{summary[key]:.2f}")
+        print_formatted_field(label, f"{statistics_summary[key]:.2f}")
     print()
 
 
-def show_rolling_averages(students: list[Student]) -> None:
+def display_rolling_averages_section(all_students: list[Student]) -> None:
     """Print per-student rolling averages over semesters."""
-    heading("ROLLING AVERAGES (window=3)")
-    for student in sorted(students, key=lambda s: s.student_id):
-        calc = RollingAverageCalculator(window_size=3)
-        ordered = sorted(student.grades, key=lambda g: g.semester)
-        avgs = [f"{v:.1f}" for v in calc.extend(g.score for g in ordered)]
-        print(f"  {student.student_id:<8} {student.full_name:<24}  {' → '.join(avgs)}")
+    print_section_heading("ROLLING AVERAGES (window=3)")
+    for student in sorted(all_students, key=lambda student: student.student_id):
+        rolling_calculator = RollingAverageCalculator(window_size=3)
+        ordered_grades = sorted(student.grades, key=lambda grade: grade.semester)
+        semester_averages = [
+            f"{average:.1f}"
+            for average in rolling_calculator.extend(grade.score for grade in ordered_grades)
+        ]
+        print(f"  {student.student_id:<8} {student.full_name:<24}  {' → '.join(semester_averages)}")
     print()
 
 
-def show_per_student(students: list[Student]) -> None:
+def display_per_student_breakdown_section(all_students: list[Student]) -> None:
     """Print a line per student with grades and GPA."""
-    heading("PER-STUDENT BREAKDOWN")
-    for student in sorted(students, key=lambda s: s.full_name):
-        semester_grades = sorted(student.grades, key=lambda g: g.semester)
-        grades_str = ", ".join(f"{g.course.code}:{g.score:.0f}" for g in semester_grades)
+    print_section_heading("PER-STUDENT BREAKDOWN")
+    for student in sorted(all_students, key=lambda student: student.full_name):
+        grades_by_semester = sorted(student.grades, key=lambda grade: grade.semester)
+        grade_details = ", ".join(
+            f"{grade.course.code}:{grade.score:.0f}" for grade in grades_by_semester
+        )
         print(
             f"  {student.full_name:<24} {student.student_id:<8} "
             f"{student.major:<6} Yr{student.year:<3} "
-            f"GPA: {student.gpa:<6.2f}  |  {grades_str}"
+            f"GPA: {student.gpa:<6.2f}  |  {grade_details}"
         )
     print()
 
@@ -184,41 +202,41 @@ def main() -> int:
         default=Path(__file__).resolve().parent.parent / "data" / "sample_students.csv",
         help="Path to the input CSV file.",
     )
-    args = parser.parse_args()
+    parsed_arguments = parser.parse_args()
 
     try:
-        reader = CSVStudentReader(path=args.input)
-        students = reader.read()
-    except AnalyticsError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        csv_reader = CSVStudentReader(path=parsed_arguments.input)
+        all_students = csv_reader.read()
+    except AnalyticsError as error:
+        print(f"Error: {error}", file=sys.stderr)
         return 1
 
-    if not students:
+    if not all_students:
         print("No student records found.", file=sys.stderr)
         return 1
 
-    sep("=")
+    print_separator_line("=")
     print("   STUDENT GRADE ANALYTICS REPORT")
     print(f"   Generated: {__import__('datetime').datetime.now():%Y-%m-%d %H:%M:%S}")
-    print(f"   Source:    {args.input.name}")
-    sep("=")
+    print(f"   Source:    {parsed_arguments.input.name}")
+    print_separator_line("=")
     print()
 
-    show_overview(students)
-    show_top_performers(students)
-    show_grade_distribution(students)
-    show_statistics(students)
-    show_students_by_major(students)
-    show_students_by_year(students)
-    show_rolling_averages(students)
-    show_per_student(students)
+    display_overview_section(all_students)
+    display_top_performers_section(all_students)
+    display_grade_distribution_section(all_students)
+    display_statistics_section(all_students)
+    display_students_by_major_section(all_students)
+    display_students_by_year_section(all_students)
+    display_rolling_averages_section(all_students)
+    display_per_student_breakdown_section(all_students)
 
-    sep("=")
+    print_separator_line("=")
     print(
-        f"   Report complete — {len(students)} students, "
-        f"{sum(len(s.grades) for s in students)} grades processed."
+        f"   Report complete — {len(all_students)} students, "
+        f"{sum(len(student.grades) for student in all_students)} grades processed."
     )
-    sep("=")
+    print_separator_line("=")
     return 0
 
 

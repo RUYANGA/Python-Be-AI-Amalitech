@@ -11,8 +11,8 @@ from student_analytics.exceptions import (
 
 
 def test_all_exceptions_inherit_from_analytics_error() -> None:
-    for exc_cls in (StudentDataError, InvalidGradeError, ReportWriteError):
-        assert issubclass(exc_cls, AnalyticsError)
+    for exception_class in (StudentDataError, InvalidGradeError, ReportWriteError):
+        assert issubclass(exception_class, AnalyticsError)
 
 
 def test_analytics_error_is_an_exception() -> None:

@@ -48,8 +48,8 @@ class JSONReportWriter:
         _logger.info("Writing JSON report to %s", self.path)
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            with self.path.open(mode="w", encoding=self.encoding) as handle:
-                json.dump(payload, handle, indent=self.indent, sort_keys=False)
+            with self.path.open(mode="w", encoding=self.encoding) as json_file:
+                json.dump(payload, json_file, indent=self.indent, sort_keys=False)
         except PermissionError as error:
             _logger.error("Permission denied when writing %s", self.path)
             raise ReportWriteError(f"Permission denied when writing {self.path}") from error

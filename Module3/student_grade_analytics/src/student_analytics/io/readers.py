@@ -99,8 +99,8 @@ class CSVStudentReader:
         Raises:
             StudentDataError: If required columns are missing.
         """
-        with self.path.open(mode="r", encoding=self.encoding, newline="") as handle:
-            reader = csv.DictReader(handle)
+        with self.path.open(mode="r", encoding=self.encoding, newline="") as csv_file:
+            reader = csv.DictReader(csv_file)
             fieldnames = reader.fieldnames or []
             missing = REQUIRED_COLUMNS - set(fieldnames)
             if missing:

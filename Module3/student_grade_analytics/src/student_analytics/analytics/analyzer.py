@@ -104,9 +104,11 @@ class StudentGradeAnalyzer:
         distribution = self._distribution_aggregator.aggregate(students)
         by_major = self._group_aggregator.group_by_major(students)
         by_year = self._group_aggregator.group_by_year(students)
-        top = self._ordered_aggregator.top_performers(students, limit=self._top_performer_limit)
+        top_performers = self._ordered_aggregator.top_performers(
+            students, limit=self._top_performer_limit
+        )
         statistics = self._statistics.compute_summary(students)
-        rolling = self._rolling_averages(students)
+        rolling_averages = self._rolling_averages(students)
 
         payload: ReportPayload = {
             "generated_at": datetime.now(tz=UTC).isoformat(),
@@ -125,10 +127,10 @@ class StudentGradeAnalyzer:
                     "student_id": student_id,
                     "gpa": round(gpa, 2),
                 }
-                for student_id, gpa in top.items()
+                for student_id, gpa in top_performers.items()
             ],
             "statistics": {key: round(value, 2) for key, value in statistics.items()},
-            "rolling_averages": rolling,
+            "rolling_averages": rolling_averages,
         }
         return payload
 
@@ -142,10 +144,10 @@ class StudentGradeAnalyzer:
             A dictionary mapping ``student_id`` to the list of rolling averages
             observed after each recorded grade.
         """
-        rolling: dict[str, list[float]] = {}
+        rolling_averages: dict[str, list[float]] = {}
         for student in students:
             calculator = RollingAverageCalculator(window_size=self._rolling_window_size)
             ordered_grades = sorted(student.grades, key=lambda grade: grade.semester)
             values = calculator.extend(grade.score for grade in ordered_grades)
-            rolling[student.student_id] = [round(value, 2) for value in values]
-        return rolling
+            rolling_averages[student.student_id] = [round(value, 2) for value in values]
+        return rolling_averages

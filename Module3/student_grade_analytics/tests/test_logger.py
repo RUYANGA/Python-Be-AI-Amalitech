@@ -39,7 +39,7 @@ def test_child_logger_emits_to_package_handler() -> None:
     assert package_logger.propagate is False
     # One handler is a StreamHandler, the other is a FileHandler.
     assert len(package_logger.handlers) == 2
-    handler_types = {type(h) for h in package_logger.handlers}
+    handler_types = {type(handler) for handler in package_logger.handlers}
     assert logging.StreamHandler in handler_types
     assert logging.FileHandler in handler_types
 
@@ -48,7 +48,9 @@ def test_file_handler_writes_to_log_dir() -> None:
     """The file handler targets the ``logs/`` directory."""
     configure_logging(level=logging.DEBUG)
     logger = logging.getLogger("student_analytics")
-    file_handlers = [h for h in logger.handlers if isinstance(h, logging.FileHandler)]
+    file_handlers = [
+        handler for handler in logger.handlers if isinstance(handler, logging.FileHandler)
+    ]
     assert len(file_handlers) == 1
     handler = file_handlers[0]
     assert "logs" in handler.baseFilename

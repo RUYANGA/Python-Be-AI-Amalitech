@@ -49,21 +49,21 @@ class TestStudentGroupAggregator:
 
 class TestOrderedReportAggregator:
     def test_returns_top_n_in_descending_gpa_order(self, sample_students: list[Student]) -> None:
-        top = OrderedReportAggregator().top_performers(sample_students, limit=2)
-        ordered_ids = list(top.keys())
+        top_performers = OrderedReportAggregator().top_performers(sample_students, limit=2)
+        ordered_ids = list(top_performers.keys())
         assert ordered_ids == ["S001", "S002"]
-        assert top["S001"] == pytest.approx(90.0)
+        assert top_performers["S001"] == pytest.approx(90.0)
 
     def test_limit_larger_than_population_returns_all(self, sample_students: list[Student]) -> None:
-        top = OrderedReportAggregator().top_performers(sample_students, limit=99)
-        assert len(top) == 3
+        top_performers = OrderedReportAggregator().top_performers(sample_students, limit=99)
+        assert len(top_performers) == 3
 
     def test_tie_broken_by_student_id(self) -> None:
         course = Course(code="CS101", name="Intro to CS", credits=3)
 
-        def student(sid: str, score: float) -> Student:
+        def build_student(student_id: str, score: float) -> Student:
             return Student(
-                student_id=sid,
+                student_id=student_id,
                 first_name="F",
                 last_name="L",
                 major="CS",
@@ -72,9 +72,13 @@ class TestOrderedReportAggregator:
             )
 
         # All three tie at GPA 90. Order should follow sorted student_ids.
-        students = [student("S003", 90.0), student("S001", 90.0), student("S002", 90.0)]
-        top = OrderedReportAggregator().top_performers(students, limit=3)
-        assert list(top.keys()) == ["S001", "S002", "S003"]
+        students = [
+            build_student("S003", 90.0),
+            build_student("S001", 90.0),
+            build_student("S002", 90.0),
+        ]
+        top_performers = OrderedReportAggregator().top_performers(students, limit=3)
+        assert list(top_performers.keys()) == ["S001", "S002", "S003"]
 
     @pytest.mark.parametrize("bad_limit", [0, -1, -100])
     def test_non_positive_limit_raises(self, bad_limit: int) -> None:

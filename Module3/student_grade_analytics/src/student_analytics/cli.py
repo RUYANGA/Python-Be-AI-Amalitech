@@ -80,16 +80,16 @@ def main(argv: list[str] | None = None) -> int:
         ``2`` when argument parsing fails.
     """
     parser = build_parser()
-    args = parser.parse_args(argv)
-    configure_logging(level=logging.DEBUG if args.verbose else logging.INFO)
+    parsed_arguments = parser.parse_args(argv)
+    configure_logging(level=logging.DEBUG if parsed_arguments.verbose else logging.INFO)
 
-    reader = CSVStudentReader(path=args.input)
-    writer = JSONReportWriter(path=args.output)
+    student_reader = CSVStudentReader(path=parsed_arguments.input)
+    report_writer = JSONReportWriter(path=parsed_arguments.output)
     analyzer = StudentGradeAnalyzer(
-        reader=reader,
-        writer=writer,
-        top_performer_limit=args.top,
-        rolling_window_size=args.window,
+        reader=student_reader,
+        writer=report_writer,
+        top_performer_limit=parsed_arguments.top,
+        rolling_window_size=parsed_arguments.window,
     )
     try:
         payload = analyzer.run()
@@ -99,7 +99,7 @@ def main(argv: list[str] | None = None) -> int:
     _logger.info(
         "Report generated for %d students -> %s",
         payload["total_students"],
-        args.output,
+        parsed_arguments.output,
     )
     return 0
 

@@ -1,7 +1,7 @@
 """End-to-end demo script for the student analytics tool.
 
-Reads ``data/sample_students.csv`` and writes ``reports/report.json`` using
-the default pipeline configuration.
+Reads the sample CSV file and writes a JSON report using the default
+pipeline configuration.
 """
 
 from __future__ import annotations
@@ -16,22 +16,22 @@ from student_analytics import (
 )
 from student_analytics.logger import configure_logging
 
-ROOT = Path(__file__).resolve().parent.parent
-INPUT_PATH = ROOT / "data" / "sample_students.csv"
-OUTPUT_PATH = ROOT / "reports" / "report.json"
+PROJECT_ROOT_DIRECTORY = Path(__file__).resolve().parent.parent
+SOURCE_CSV_FILE_PATH = PROJECT_ROOT_DIRECTORY / "data" / "sample_students.csv"
+DESTINATION_JSON_FILE_PATH = PROJECT_ROOT_DIRECTORY / "reports" / "report.json"
 
 
 def main() -> None:
     """Run the demo pipeline and print a summary line."""
     configure_logging(level=logging.INFO)
-    analyzer = StudentGradeAnalyzer(
-        reader=CSVStudentReader(INPUT_PATH),
-        writer=JSONReportWriter(OUTPUT_PATH),
+    pipeline_analyzer = StudentGradeAnalyzer(
+        reader=CSVStudentReader(SOURCE_CSV_FILE_PATH),
+        writer=JSONReportWriter(DESTINATION_JSON_FILE_PATH),
     )
-    report = analyzer.run()
+    report_payload = pipeline_analyzer.run()
     print(
-        f"Generated analytics report for {report['total_students']} students "
-        f"-> {OUTPUT_PATH.relative_to(ROOT)}"
+        f"Generated analytics report for {report_payload['total_students']} students "
+        f"-> {DESTINATION_JSON_FILE_PATH.relative_to(PROJECT_ROOT_DIRECTORY)}"
     )
 
 
