@@ -124,19 +124,6 @@ pip install -e ".[dev]"              # installs runtime + dev tools
 
 ## Usage
 
-### As a CLI
-
-```bash
-student-analytics \
-    --input data/sample_students.csv \
-    --output reports/report.json \
-    --top 5 \
-    --window 3 \
-    --verbose
-```
-
-Or run the demo script:
-
 ```bash
 python scripts/run_demo.py
 ```
