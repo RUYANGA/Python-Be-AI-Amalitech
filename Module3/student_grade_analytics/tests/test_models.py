@@ -51,14 +51,8 @@ class TestGrade:
 
     def test_grade_letter_property(self) -> None:
         course = Course(code="CS101", name="Intro to CS", credits=3)
-        assert (
-            Grade(course=course, semester="Fall2023", score=91.0).letter
-            is GradeLetter.A
-        )
-        assert (
-            Grade(course=course, semester="Fall2023", score=45.0).letter
-            is GradeLetter.F
-        )
+        assert Grade(course=course, semester="Fall2023", score=91.0).letter is GradeLetter.A
+        assert Grade(course=course, semester="Fall2023", score=45.0).letter is GradeLetter.F
 
     @pytest.mark.parametrize("bad_score", [-1.0, 100.5, 150.0])
     def test_grade_rejects_bad_scores(self, bad_score: float) -> None:
