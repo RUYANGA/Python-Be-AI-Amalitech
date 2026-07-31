@@ -29,7 +29,9 @@ def build_parser() -> argparse.ArgumentParser:
     """Build and return the top-level :class:`argparse.ArgumentParser`."""
     parser = argparse.ArgumentParser(
         prog="student-analytics",
-        description=("Process student grades from a CSV file and produce a JSON analytics report."),
+        description=(
+            "Process student grades from a CSV file and produce a JSON analytics report."
+        ),
     )
     parser.add_argument(
         "--input",

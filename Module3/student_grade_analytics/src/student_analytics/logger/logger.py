@@ -48,7 +48,9 @@ def configure_logging(level: int = logging.INFO) -> None:
     _LOG_DIR.mkdir(parents=True, exist_ok=True)
     file_handler = logging.FileHandler(_LOG_FILE, mode="a", encoding="utf-8")
     file_handler.setLevel(level)
-    file_handler.setFormatter(logging.Formatter(fmt=_DEFAULT_FORMAT, datefmt=_DEFAULT_DATE_FORMAT))
+    file_handler.setFormatter(
+        logging.Formatter(fmt=_DEFAULT_FORMAT, datefmt=_DEFAULT_DATE_FORMAT)
+    )
     logger.addHandler(file_handler)
 
     logger.propagate = False

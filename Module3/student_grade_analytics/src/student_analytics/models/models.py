@@ -43,7 +43,9 @@ class GradeLetter(StrEnum):
             InvalidGradeError: If ``score`` falls outside ``[0.0, 100.0]``.
         """
         if not 0.0 <= score <= 100.0:
-            raise InvalidGradeError(f"Score must be within [0.0, 100.0]; got {score!r}.")
+            raise InvalidGradeError(
+                f"Score must be within [0.0, 100.0]; got {score!r}."
+            )
         if score >= 90.0:
             return cls.A
         if score >= 80.0:

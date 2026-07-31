@@ -46,14 +46,22 @@ class TestStudentGroupAggregator:
 
 
 class TestOrderedReportAggregator:
-    def test_returns_top_n_in_descending_gpa_order(self, sample_students: list[Student]) -> None:
-        top_performers = OrderedReportAggregator().top_performers(sample_students, limit=2)
+    def test_returns_top_n_in_descending_gpa_order(
+        self, sample_students: list[Student]
+    ) -> None:
+        top_performers = OrderedReportAggregator().top_performers(
+            sample_students, limit=2
+        )
         ordered_ids = list(top_performers.keys())
         assert ordered_ids == ["S001", "S002"]
         assert top_performers["S001"] == pytest.approx(90.0)
 
-    def test_limit_larger_than_population_returns_all(self, sample_students: list[Student]) -> None:
-        top_performers = OrderedReportAggregator().top_performers(sample_students, limit=99)
+    def test_limit_larger_than_population_returns_all(
+        self, sample_students: list[Student]
+    ) -> None:
+        top_performers = OrderedReportAggregator().top_performers(
+            sample_students, limit=99
+        )
         assert len(top_performers) == 3
 
     def test_tie_broken_by_student_id(self) -> None:
