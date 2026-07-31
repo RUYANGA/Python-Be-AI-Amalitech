@@ -1,0 +1,98 @@
+name: social-media
+
+# Infra only — PostgreSQL (primary store), MongoDB (activity logs), Redis
+# (timeline cache). The Python app runs on the host (venv) and connects via
+# the published ports below, using the same .env this file reads variables
+# from — one source of truth for both.
+#
+# Usage:
+#   cp .env.example .env   # then set PG_PASSWORD at minimum
+#   docker compose up -d
+#   docker compose ps      # wait for all three to report "healthy"
+#
+# Overriding ports via a second compose file (-f docker-compose.yml -f
+# override.yml)? Compose merges `ports:` lists by CONCATENATION, not
+# replacement — an override that just adds a new host port leaves the
+# original one (e.g. 5432) in the merged list too, which silently fails if
+# that port is already taken and the container ends up with no published
+# port at all. Use the `!override` merge tag to replace the list instead:
+#   services:
+#     postgres:
+#       ports: !override
+#         - "15432:5432"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: social_media_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PG_DB:-social_media}
+      POSTGRES_USER: ${PG_USER:-postgres}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:?Set PG_PASSWORD in .env before starting}
+    ports:
+      - "${PG_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-postgres} -d ${PG_DB:-social_media}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - social_media_net
+
+  mongodb:
+    image: mongo:7
+    container_name: social_media_mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: ${MONGO_DB_NAME:-social_media}
+      # Empty username/password (the default) leaves auth disabled, matching
+      # MONGO_USERNAME/MONGO_PASSWORD left blank in .env.example. Set both to
+      # enable auth — the app already supports it via MONGO_AUTH_SOURCE.
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME:-}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-}
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - social_media_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: social_media_redis
+    restart: unless-stopped
+    # Empty REDIS_PASSWORD (the default) is equivalent to --requirepass
+    # unset — auth stays disabled, matching REDIS_PASSWORD left blank in
+    # .env.example.
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-}", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    networks:
+      - social_media_net
+
+networks:
+  social_media_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  mongodb_data:
+  redis_data:

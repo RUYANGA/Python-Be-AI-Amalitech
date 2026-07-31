@@ -1,0 +1,31 @@
+# Version control
+.git/
+.gitignore
+
+# Secrets — never send these into a build context
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Editors
+.vscode/
+.idea/
+
+# Logs / local artifacts
+logs/
+*.log
+
+# Docs and non-runtime assets not needed inside a container
+docs/
+README.md
