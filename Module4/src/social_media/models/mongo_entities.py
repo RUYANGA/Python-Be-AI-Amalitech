@@ -8,11 +8,14 @@ from typing import Any
 
 
 def _utcnow() -> datetime:
+    """Return the current UTC timestamp."""
     return datetime.now(UTC)
 
 
 @dataclass
 class ActivityLog:
+    """An audit-trail entry persisted to the activity_logs collection."""
+
     user_id: Any
     action: str
     target_type: str
@@ -22,6 +25,7 @@ class ActivityLog:
     _id: Any | None = None
 
     def to_doc(self) -> dict:
+        """Return the entity as a dict, dropping _id when unsaved."""
         d = asdict(self)
         if d["_id"] is None:
             d.pop("_id")

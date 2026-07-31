@@ -19,6 +19,7 @@ from social_media.database.postgres_connection import PostgresConnection  # noqa
 
 
 def seed(users: int, posts: int, follows: int) -> None:
+    """Insert synthetic users, posts, and follow edges via bulk SQL."""
     pg = PostgresConnection(settings)
     with pg.cursor() as cur:
         print(f"Seeding {users} users...")

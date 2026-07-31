@@ -16,6 +16,8 @@ log = get_logger(__name__)
 
 
 class UserService:
+    """Registration and authentication for users."""
+
     def __init__(
         self,
         user_repo: IUserRepository,
@@ -27,6 +29,7 @@ class UserService:
         self._password_validator = password_validator or PasswordValidator()
 
     def register(self, email: str, password: str, full_name: str | None = None) -> dict:
+        """Create a new user after validating the email and password strength."""
         try:
             email = validate_email(email, check_deliverability=False).normalized
         except EmailNotValidError as exc:
@@ -49,6 +52,7 @@ class UserService:
         return user
 
     def authenticate(self, email: str, password: str) -> dict:
+        """Return the user doc if the email/password pair is valid."""
         user = self._user_repo.find_by_email(email)
         if not user or not self._hasher.verify(password, user["password_hash"]):
             raise InvalidCredentialsError()

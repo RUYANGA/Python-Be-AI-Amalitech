@@ -25,25 +25,32 @@ class MongoRepository(IRepository):
         self._collection = collection
 
     def insert(self, document: dict) -> Any:
+        """Insert a document and return its generated _id."""
         return self._collection.insert_one(document).inserted_id
 
     def find_by_id(self, _id: Any) -> dict | None:
+        """Return the document matching the given _id, or None."""
         return self._collection.find_one({"_id": _id})
 
     def find(self, query: dict, limit: int = 0) -> Iterable[dict]:
+        """Return documents matching the query, optionally capped by limit."""
         cursor = self._collection.find(query)
         if limit:
             cursor = cursor.limit(limit)
         return list(cursor)
 
     def update(self, _id: Any, changes: dict) -> int:
+        """Apply changes to a document; returns the number modified."""
         return self._collection.update_one({"_id": _id}, {"$set": changes}).modified_count
 
     def delete(self, _id: Any) -> int:
+        """Delete a document; returns the number deleted."""
         return self._collection.delete_one({"_id": _id}).deleted_count
 
 
 class ActivityLogRepository(MongoRepository, IActivityLogRepository):
+    """Mongo-backed audit-log collection with supporting indexes."""
+
     COLLECTION = "activity_logs"
 
     def __init__(self, db: Database):
@@ -59,6 +66,7 @@ class ActivityLogRepository(MongoRepository, IActivityLogRepository):
         target_id: Any | None = None,
         metadata: dict | None = None,
     ) -> Any:
+        """Persist an activity entry and return its generated _id."""
         doc = ActivityLog(
             user_id=user_id,
             action=action,

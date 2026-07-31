@@ -23,10 +23,12 @@ WIDTH = 62
 
 
 def _line(ch="─") -> str:
+    """Return a horizontal rule of the standard display width."""
     return ch * WIDTH
 
 
 def _title(text: str) -> None:
+    """Print a centered title wrapped in a double-line banner."""
     pad = (WIDTH - len(text) - 2) // 2
     print(f"\n{'═' * WIDTH}")
     print(f"{' ' * pad}{text}{' ' * (WIDTH - len(text) - 2 - pad)}")
@@ -34,6 +36,7 @@ def _title(text: str) -> None:
 
 
 def _menu(title: str, items: list[str]) -> int | None:
+    """Print a numbered menu; return the chosen index or None when backing out."""
     print(f"\n  {title}")
     print(f"  {_line('─')}")
     for position, item in enumerate(items, 1):
@@ -53,11 +56,13 @@ def _menu(title: str, items: list[str]) -> int | None:
 
 
 def _user_label(user: dict) -> str:
+    """Format a user doc as 'Name <email>'."""
     name = user.get("full_name") or "???"
     return f"{name} <{user['email']}>"
 
 
 def _metadata_line(metadata: dict | None) -> str:
+    """Render a metadata doc's tags/location as one display string."""
     if metadata is None:
         return ""
     parts = []
@@ -69,6 +74,7 @@ def _metadata_line(metadata: dict | None) -> str:
 
 
 def _post_line(post: dict, user_map: dict, metadata: dict | None = None) -> str:
+    """Render a post with author label, counts, and optional metadata."""
     author = user_map.get(post["user_id"], {})
     label = _user_label(author) if author else str(post["user_id"])
     metadata_str = _metadata_line(metadata)
@@ -82,10 +88,12 @@ def _post_line(post: dict, user_map: dict, metadata: dict | None = None) -> str:
 
 
 def _pause() -> None:
+    """Block until the user presses Enter."""
     input(f"\n    {'─' * (WIDTH - 4)}\n    Press Enter to continue...")
 
 
 def _require_user(app: "App") -> bool:
+    """Guard for logged-in actions; returns False (after a message) if logged out."""
     if not app.user:
         print("\n    You must be logged in to do that.")
         _pause()
@@ -110,24 +118,30 @@ class App:
 
     @property
     def user(self) -> dict | None:
+        """The currently logged-in user doc, or None."""
         return self._user
 
     @property
     def user_id(self) -> Any:
+        """ID of the logged-in user, or None."""
         return self._user["id"] if self._user else None
 
     # -- user helpers -----------------------------------------------------
 
     def _all_users(self) -> list[dict]:
+        """Return every user doc stored in the repository."""
         return list(self.users_svc._user_repo.find({}))
 
     def _user_map(self) -> dict:
+        """Return a {user_id: user_doc} lookup table for all users."""
         return {user["id"]: user for user in self._all_users()}
 
     def _find_user_by_email(self, email: str) -> dict | None:
+        """Look up a single user by email address."""
         return self.users_svc._user_repo.find_by_email(email)
 
     def _pick_user(self, users: list[dict], title: str) -> dict | None:
+        """Show a numbered picker and return the chosen user, or None on back."""
         if not users:
             print("\n  No users found.")
             return None
@@ -151,16 +165,19 @@ class App:
     # -- post helpers -----------------------------------------------------
 
     def _enrich_metadata(self, posts: list[dict]) -> dict[Any, dict]:
+        """Fetch metadata docs for the given posts, keyed by post id."""
         post_ids = [post["id"] for post in posts]
         return self._metadata_repo.find_many(post_ids)
 
     def _all_posts(self) -> tuple[list[dict], dict, dict[Any, dict]]:
+        """Return (posts, user_map, metadata) for every post in the system."""
         posts = list(self.posts_svc._post_repo.find({}))
         user_map = self._user_map()
         metadata = self._enrich_metadata(posts)
         return posts, user_map, metadata
 
     def _my_posts(self) -> tuple[list[dict], dict, dict[Any, dict]]:
+        """Return (posts, user_map, metadata) for the logged-in user's posts."""
         posts = list(self.posts_svc._post_repo.find({"user_id": self.user_id}))
         user_map = self._user_map()
         metadata = self._enrich_metadata(posts)
@@ -173,6 +190,7 @@ class App:
         title: str,
         metadata: dict[Any, dict] | None = None,
     ) -> dict | None:
+        """Show a numbered post picker; return the chosen post, or None on back."""
         if not posts:
             print("\n  No posts found.")
             return None
@@ -205,6 +223,7 @@ class App:
     def _post_action_menu(
         self, post: dict, user_map: dict, metadata: dict[Any, dict] | None = None
     ) -> None:
+        """Loop over like/unlike/comment/view/edit/delete actions for one post."""
         assert self._user is not None
         metadata = metadata or {}
         is_owner = post["user_id"] == self.user_id
@@ -295,10 +314,12 @@ class App:
     # ====================================================================
 
     def run(self) -> None:
+        """Run the main menu loop until the user quits."""
         while True:
             self._main_menu()
 
     def _main_menu(self) -> None:
+        """Render the top-level menu and dispatch to the chosen section."""
         status = _user_label(self._user) if self._user else "Not logged in"
         print(f"\n{'╔' + '═' * (WIDTH - 2) + '╗'}")
         print(f"║{' ' * (WIDTH - 2)}║")
@@ -341,6 +362,7 @@ class App:
     # ====================================================================
 
     def _login(self) -> None:
+        """Authenticate an existing user and store the session."""
         _title("Login")
         email = input("  Email    : ").strip()
         password = input("  Password : ").strip()
@@ -355,6 +377,7 @@ class App:
         _pause()
 
     def _register(self) -> None:
+        """Create a new user account."""
         _title("Register")
         email = input("  Email     : ").strip()
         password = input("  Password  : ").strip()
@@ -375,6 +398,7 @@ class App:
         _pause()
 
     def _logout(self) -> None:
+        """End the current user session."""
         log.info("User logged out: %s", self._user["email"] if self._user else "?")
         self._user = None
         print("\n  Logged out.")
@@ -385,6 +409,7 @@ class App:
     # ====================================================================
 
     def _profile_menu(self) -> None:
+        """Profile/Users sub-menu: my profile, list, and search."""
         if not _require_user(self):
             return
         items = ["My Profile", "List All Users", "Search User by Email"]
@@ -418,6 +443,7 @@ class App:
     # ====================================================================
 
     def _posts_menu(self) -> None:
+        """Posts sub-menu: create, browse all, my posts, and trending."""
         if not _require_user(self):
             return
         items = ["Create Post", "Browse All Posts", "My Posts", "Trending Posts"]
@@ -472,6 +498,7 @@ class App:
     # ====================================================================
 
     def _follows_menu(self) -> None:
+        """Follows sub-menu: follow, unfollow, and list following/followers."""
         if not _require_user(self):
             return
         assert self._user is not None
@@ -526,6 +553,7 @@ class App:
     # ====================================================================
 
     def _timeline_menu(self) -> None:
+        """Show the logged-in user's cached timeline feed."""
         if not _require_user(self):
             return
         _title("Timeline")
@@ -548,6 +576,7 @@ class App:
 
 
 def main() -> None:
+    """Entry point — boot the app and exit cleanly on Ctrl+C."""
     try:
         App().run()
     except KeyboardInterrupt:

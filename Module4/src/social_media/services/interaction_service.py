@@ -17,6 +17,8 @@ log = get_logger(__name__)
 
 
 class LikeService:
+    """Like/unlike a post, maintaining the post's like counter."""
+
     def __init__(
         self,
         like_repo: ILikeRepository,
@@ -28,6 +30,7 @@ class LikeService:
         self._activity = activity_log or ActivityLogService()
 
     def _post_snippet(self, post_id: Any) -> str:
+        """Return a short quoted preview of a post's content for audit logs."""
         post = self._post_repo.find_by_id(post_id)
         if post:
             text = post.get("content", "")
@@ -35,9 +38,11 @@ class LikeService:
         return str(post_id)
 
     def _log(self, user_id: Any, action: str, target_id: Any, metadata: dict | None = None) -> None:
+        """Delegate an audit-log write for a post action."""
         self._activity.log(user_id, action, "post", target_id, metadata)
 
     def like(self, user_id: Any, post_id: Any) -> bool:
+        """Record a like; returns False if the user already liked the post."""
         if self._like_repo.exists(user_id, post_id):
             log.debug("Like skipped (already liked): user %s on post %s", user_id, post_id)
             return False
@@ -48,6 +53,7 @@ class LikeService:
         return True
 
     def unlike(self, user_id: Any, post_id: Any) -> bool:
+        """Remove a like; returns False if the user had not liked the post."""
         if self._like_repo.remove(user_id, post_id):
             self._post_repo.increment_like_count(post_id, -1)
             self._log(user_id, "unlike", post_id)
@@ -58,6 +64,8 @@ class LikeService:
 
 
 class CommentService:
+    """Add and list comments on posts."""
+
     def __init__(
         self,
         comment_repo: ICommentRepository,
@@ -75,6 +83,7 @@ class CommentService:
         content: str,
         parent_comment_id: Any | None = None,
     ) -> dict:
+        """Add a comment to a post (optionally as a reply) and return it."""
         if not content.strip():
             raise EmptyCommentError("Comment content cannot be empty")
         comment_id = self._comment_repo.insert(
@@ -93,10 +102,13 @@ class CommentService:
         return comment
 
     def for_post(self, post_id: Any) -> list:
+        """Return the non-deleted comments on a post, oldest first."""
         return self._comment_repo.for_post(post_id)
 
 
 class FollowService:
+    """Follow and unfollow users."""
+
     def __init__(
         self,
         follower_repo: IFollowerRepository,
@@ -106,6 +118,7 @@ class FollowService:
         self._activity = activity_log or ActivityLogService()
 
     def follow(self, follower_id: Any, followee_id: Any) -> bool:
+        """Follow a user; returns False if the edge already exists."""
         if follower_id == followee_id:
             raise SelfFollowError("Cannot follow yourself")
         result = self._follower_repo.follow(follower_id, followee_id)
@@ -117,6 +130,7 @@ class FollowService:
         return result
 
     def unfollow(self, follower_id: Any, followee_id: Any) -> bool:
+        """Unfollow a user; returns False if the edge did not exist."""
         result = self._follower_repo.unfollow(follower_id, followee_id) > 0
         if result:
             self._activity.log(follower_id, "unfollow", "user", followee_id)

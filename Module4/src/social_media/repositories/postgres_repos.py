@@ -31,6 +31,7 @@ class PostgresRepository(IRepository):
         self._pg_connection = pg_connection
 
     def insert(self, document: dict) -> Any:
+        """Insert a document and return its generated id."""
         columns = list(document.keys())
         placeholders = ", ".join(["%s"] * len(columns))
         columns_sql = ", ".join(columns)
@@ -43,11 +44,13 @@ class PostgresRepository(IRepository):
             return cursor.fetchone()[self.ID_COLUMN]
 
     def find_by_id(self, _id: Any) -> dict | None:
+        """Return the row for an id, or None."""
         with self._pg_connection.cursor() as cursor:
             cursor.execute(f"SELECT * FROM {self.TABLE} WHERE {self.ID_COLUMN} = %s", (_id,))
             return cursor.fetchone()
 
     def find(self, query: dict, limit: int = 0) -> list[dict]:
+        """Return rows matching a query, optionally capped by limit."""
         where_sql, params = "", []
         if query:
             where_sql = "WHERE " + " AND ".join(f"{col} = %s" for col in query)
@@ -59,6 +62,7 @@ class PostgresRepository(IRepository):
             return cursor.fetchall()
 
     def update(self, _id: Any, changes: dict) -> int:
+        """Apply changes to a row and return the rows affected."""
         set_sql = ", ".join(f"{col} = %s" for col in changes)
         sql = f"UPDATE {self.TABLE} SET {set_sql} WHERE {self.ID_COLUMN} = %s"
         with self._pg_connection.cursor() as cursor:
@@ -66,6 +70,7 @@ class PostgresRepository(IRepository):
             return cursor.rowcount
 
     def delete(self, _id: Any) -> int:
+        """Delete a row and return the rows affected."""
         with self._pg_connection.cursor() as cursor:
             cursor.execute(f"DELETE FROM {self.TABLE} WHERE {self.ID_COLUMN} = %s", (_id,))
             return cursor.rowcount
@@ -81,10 +86,12 @@ class PostgresCompositeRepository(IRepository):
         self._pg_connection = pg_connection
 
     def _key_where(self) -> str:
+        """Return the composite-key equality fragment for WHERE clauses."""
         key_a, key_b = self.KEY_COLUMNS
         return f"{key_a} = %s AND {key_b} = %s"
 
     def insert(self, document: dict) -> Any:
+        """Insert a document and return its composite key pair."""
         columns = list(document.keys())
         placeholders = ", ".join(["%s"] * len(columns))
         columns_sql = ", ".join(columns)
@@ -95,11 +102,13 @@ class PostgresCompositeRepository(IRepository):
         return (document[key_a], document[key_b])
 
     def find_by_id(self, _id: tuple) -> dict | None:
+        """Return the row for a composite key, or None."""
         with self._pg_connection.cursor() as cursor:
             cursor.execute(f"SELECT * FROM {self.TABLE} WHERE {self._key_where()}", _id)
             return cursor.fetchone()
 
     def find(self, query: dict, limit: int = 0) -> list[dict]:
+        """Return rows matching a query, optionally capped by limit."""
         where_sql, params = "", []
         if query:
             where_sql = "WHERE " + " AND ".join(f"{col} = %s" for col in query)
@@ -111,6 +120,7 @@ class PostgresCompositeRepository(IRepository):
             return cursor.fetchall()
 
     def update(self, _id: tuple, changes: dict) -> int:
+        """Apply changes to a row and return the rows affected."""
         set_sql = ", ".join(f"{col} = %s" for col in changes)
         sql = f"UPDATE {self.TABLE} SET {set_sql} WHERE {self._key_where()}"
         with self._pg_connection.cursor() as cursor:
@@ -118,21 +128,27 @@ class PostgresCompositeRepository(IRepository):
             return cursor.rowcount
 
     def delete(self, _id: tuple) -> int:
+        """Delete a row and return the rows affected."""
         with self._pg_connection.cursor() as cursor:
             cursor.execute(f"DELETE FROM {self.TABLE} WHERE {self._key_where()}", _id)
             return cursor.rowcount
 
 
 class UserRepository(PostgresRepository, IUserRepository):
+    """Users table backed by PostgreSQL."""
+
     TABLE = "users"
 
     def find_by_email(self, email: str) -> dict | None:
+        """Look up a user doc by email address."""
         with self._pg_connection.cursor() as cursor:
             cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
             return cursor.fetchone()
 
 
 class PostRepository(PostgresRepository, IPostRepository):
+    """Posts table backed by PostgreSQL — adds feed/trending/counter queries."""
+
     TABLE = "posts"
 
     # CTE + JOIN + ROW_NUMBER(): ranks each followee/own post by recency,
@@ -167,16 +183,19 @@ class PostRepository(PostgresRepository, IPostRepository):
     """
 
     def feed_for_user_ids(self, user_ids: list[Any], limit: int = 20, offset: int = 0) -> list:
+        """Return a page of non-deleted posts by the given authors, newest first."""
         with self._pg_connection.cursor() as cursor:
             cursor.execute(self.FEED_QUERY, (user_ids, offset, offset + limit))
             return cursor.fetchall()
 
     def trending(self, limit: int = 20, since_hours: int = 168) -> list:
+        """Return recent posts ordered by engagement score, highest first."""
         with self._pg_connection.cursor() as cursor:
             cursor.execute(self.TRENDING_QUERY, (since_hours, limit))
             return cursor.fetchall()
 
     def increment_like_count(self, post_id: Any, delta: int) -> None:
+        """Adjust a post's like counter by delta."""
         with self._pg_connection.cursor() as cursor:
             cursor.execute(
                 "UPDATE posts SET like_count = like_count + %s WHERE id = %s",
@@ -184,6 +203,7 @@ class PostRepository(PostgresRepository, IPostRepository):
             )
 
     def increment_comment_count(self, post_id: Any, delta: int) -> None:
+        """Adjust a post's comment counter by delta."""
         with self._pg_connection.cursor() as cursor:
             cursor.execute(
                 "UPDATE posts SET comment_count = comment_count + %s WHERE id = %s",
@@ -192,9 +212,12 @@ class PostRepository(PostgresRepository, IPostRepository):
 
 
 class CommentRepository(PostgresRepository, ICommentRepository):
+    """Comments table backed by PostgreSQL."""
+
     TABLE = "comments"
 
     def for_post(self, post_id: Any) -> list:
+        """Return the non-deleted comments on a post, oldest first."""
         with self._pg_connection.cursor() as cursor:
             cursor.execute(
                 "SELECT * FROM comments WHERE post_id = %s AND NOT is_deleted "
@@ -205,6 +228,8 @@ class CommentRepository(PostgresRepository, ICommentRepository):
 
 
 class FollowerRepository(PostgresCompositeRepository, IFollowerRepository):
+    """Followers join table — composite (follower_id, followee_id) primary key."""
+
     TABLE = "followers"
     KEY_COLUMNS = ("follower_id", "followee_id")
 
@@ -229,6 +254,7 @@ class FollowerRepository(PostgresCompositeRepository, IFollowerRepository):
             return False
 
     def unfollow(self, follower_id: Any, followee_id: Any) -> int:
+        """Delete the follow edge and decrement both counters; returns rows affected."""
         with self._pg_connection.cursor() as cursor:
             cursor.execute(
                 "DELETE FROM followers WHERE follower_id = %s AND followee_id = %s",
@@ -249,21 +275,26 @@ class FollowerRepository(PostgresCompositeRepository, IFollowerRepository):
             return deleted
 
     def followees_of(self, user_id: Any) -> list[Any]:
+        """Return the ids of the users the given user follows."""
         with self._pg_connection.cursor() as cursor:
             cursor.execute("SELECT followee_id FROM followers WHERE follower_id = %s", (user_id,))
             return [row["followee_id"] for row in cursor.fetchall()]
 
     def followers_of(self, user_id: Any) -> list[Any]:
+        """Return the ids of the users following the given user."""
         with self._pg_connection.cursor() as cursor:
             cursor.execute("SELECT follower_id FROM followers WHERE followee_id = %s", (user_id,))
             return [row["follower_id"] for row in cursor.fetchall()]
 
 
 class LikeRepository(PostgresCompositeRepository, ILikeRepository):
+    """Likes join table — composite (user_id, post_id) primary key."""
+
     TABLE = "likes"
     KEY_COLUMNS = ("user_id", "post_id")
 
     def exists(self, user_id: Any, post_id: Any) -> bool:
+        """Return True if the user has already liked the post."""
         with self._pg_connection.cursor() as cursor:
             cursor.execute(
                 "SELECT 1 FROM likes WHERE user_id = %s AND post_id = %s",
@@ -272,6 +303,7 @@ class LikeRepository(PostgresCompositeRepository, ILikeRepository):
             return cursor.fetchone() is not None
 
     def remove(self, user_id: Any, post_id: Any) -> int:
+        """Delete a like edge; returns the number of rows affected."""
         with self._pg_connection.cursor() as cursor:
             cursor.execute(
                 "DELETE FROM likes WHERE user_id = %s AND post_id = %s",

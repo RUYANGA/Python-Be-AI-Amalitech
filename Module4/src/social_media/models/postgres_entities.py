@@ -10,11 +10,14 @@ from typing import Any
 
 
 def _utcnow() -> datetime:
+    """Return the current UTC timestamp."""
     return datetime.now(UTC)
 
 
 @dataclass
 class User:
+    """A registered user account."""
+
     email: str
     password_hash: str
     full_name: str | None = None
@@ -25,6 +28,7 @@ class User:
     id: Any | None = None
 
     def to_doc(self) -> dict:
+        """Return the entity as a dict, dropping the id when unsaved."""
         d = asdict(self)
         if d["id"] is None:
             d.pop("id")
@@ -33,6 +37,8 @@ class User:
 
 @dataclass
 class Post:
+    """A single post authored by a user."""
+
     user_id: Any
     content: str
     like_count: int = 0
@@ -43,6 +49,7 @@ class Post:
     id: Any | None = None
 
     def to_doc(self) -> dict:
+        """Return the entity as a dict, dropping the id when unsaved."""
         d = asdict(self)
         if d["id"] is None:
             d.pop("id")
@@ -51,6 +58,8 @@ class Post:
 
 @dataclass
 class Comment:
+    """A comment on a post, optionally replying to another comment."""
+
     post_id: Any
     user_id: Any
     content: str
@@ -60,6 +69,7 @@ class Comment:
     id: Any | None = None
 
     def to_doc(self) -> dict:
+        """Return the entity as a dict, dropping the id when unsaved."""
         d = asdict(self)
         if d["id"] is None:
             d.pop("id")
@@ -68,19 +78,25 @@ class Comment:
 
 @dataclass
 class Follower:
+    """A directed follow edge from follower_id to followee_id."""
+
     follower_id: Any
     followee_id: Any
     created_at: datetime = field(default_factory=_utcnow)
 
     def to_doc(self) -> dict:
+        """Return the entity as a dict."""
         return asdict(self)
 
 
 @dataclass
 class Like:
+    """A like edge from user_id to post_id."""
+
     user_id: Any
     post_id: Any
     created_at: datetime = field(default_factory=_utcnow)
 
     def to_doc(self) -> dict:
+        """Return the entity as a dict."""
         return asdict(self)

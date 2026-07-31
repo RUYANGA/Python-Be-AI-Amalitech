@@ -10,6 +10,8 @@ from social_media.repositories.base import IActivityLogRepository
 
 
 class ActivityLogService:
+    """Optional audit logger — no-ops when no repository is configured."""
+
     def __init__(self, repo: IActivityLogRepository | None = None):
         self._repo = repo
 
@@ -21,6 +23,7 @@ class ActivityLogService:
         target_id: Any | None = None,
         metadata: dict | None = None,
     ) -> None:
+        """Record an activity entry if a backing repository is configured."""
         if self._repo is None:
             return
         self._repo.log(user_id, action, target_type, target_id, metadata)

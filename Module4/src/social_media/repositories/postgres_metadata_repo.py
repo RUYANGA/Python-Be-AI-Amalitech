@@ -15,6 +15,7 @@ class PostMetadataRepository:
     def upsert(
         self, post_id: int, tags: list[str] | None = None, location: str | None = None
     ) -> None:
+        """Insert metadata for a post or merge it into the existing JSONB row."""
         existing = self.find_by_id(post_id) or {}
         metadata = {
             "tags": tags if tags is not None else existing.get("tags", []),
@@ -32,12 +33,14 @@ class PostMetadataRepository:
             )
 
     def find_by_id(self, post_id: int) -> dict[str, Any] | None:
+        """Return the metadata doc for a post, or None if it has none."""
         with self._pg_connection.cursor() as cursor:
             cursor.execute("SELECT metadata FROM post_metadata WHERE post_id = %s", (post_id,))
             row = cursor.fetchone()
             return row["metadata"] if row else None
 
     def find_many(self, post_ids: list[int]) -> dict[int, dict]:
+        """Return {post_id: metadata} for the given post ids."""
         if not post_ids:
             return {}
         with self._pg_connection.cursor() as cursor:
@@ -48,5 +51,6 @@ class PostMetadataRepository:
             return {row["post_id"]: row["metadata"] for row in cursor.fetchall()}
 
     def delete(self, post_id: int) -> None:
+        """Remove the metadata row for a post."""
         with self._pg_connection.cursor() as cursor:
             cursor.execute("DELETE FROM post_metadata WHERE post_id = %s", (post_id,))

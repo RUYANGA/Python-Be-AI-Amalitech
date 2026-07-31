@@ -37,25 +37,23 @@ class PostgresConnection:
         return cls._instance
 
     def _init_pool(self, settings: Settings) -> None:
+        """Build the connection pool and apply the canonical schema."""
         dsn = (
             f"host={settings.pg_host} port={settings.pg_port} "
             f"dbname={settings.pg_db} user={settings.pg_user} password={settings.pg_password}"
         )
         try:
-            self._pool = ThreadedConnectionPool(
-                settings.pg_pool_min, settings.pg_pool_max, dsn
-            )
+            self._pool = ThreadedConnectionPool(settings.pg_pool_min, settings.pg_pool_max, dsn)
             with self.cursor() as cur:
                 cur.execute(SCHEMA_PATH.read_text())
-            log.info(
-                "Connected to PostgreSQL at %s:%s", settings.pg_host, settings.pg_port
-            )
+            log.info("Connected to PostgreSQL at %s:%s", settings.pg_host, settings.pg_port)
         except Exception as exc:
             log.error("PostgreSQL connection failed: %s", exc)
             raise
 
     @contextmanager
     def cursor(self):
+        """Borrow a pooled connection; commit on success, roll back on error."""
         conn = self._pool.getconn()
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -68,5 +66,6 @@ class PostgresConnection:
             self._pool.putconn(conn)
 
     def close(self) -> None:
+        """Close every connection in the pool."""
         self._pool.closeall()
         log.info("PostgreSQL connection pool closed")

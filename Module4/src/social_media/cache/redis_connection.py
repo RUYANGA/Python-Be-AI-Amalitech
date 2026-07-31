@@ -27,6 +27,7 @@ class RedisConnection:
         return cls._instance
 
     def _init_client(self, settings: Settings) -> None:
+        """Create the Redis client and verify connectivity."""
         kwargs = {
             "host": settings.redis_host,
             "port": settings.redis_port,
@@ -39,17 +40,17 @@ class RedisConnection:
         try:
             self._client: redis.Redis = redis.Redis(**kwargs)
             self._client.ping()
-            log.info(
-                "Connected to Redis at %s:%s", settings.redis_host, settings.redis_port
-            )
+            log.info("Connected to Redis at %s:%s", settings.redis_host, settings.redis_port)
         except Exception as exc:
             log.error("Redis connection failed: %s", exc)
             raise
 
     @property
     def client(self) -> redis.Redis:
+        """The configured Redis client for cache operations."""
         return self._client
 
     def close(self) -> None:
+        """Close the Redis connection."""
         self._client.close()
         log.info("Redis connection closed")

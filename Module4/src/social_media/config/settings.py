@@ -37,6 +37,7 @@ class Settings:
 
     @staticmethod
     def _require(key: str) -> str:
+        """Return the env var value or raise SettingsError when missing."""
         value = os.getenv(key)
         if not value:
             raise SettingsError(f"Missing required env var: {key}")
@@ -44,6 +45,7 @@ class Settings:
 
     @classmethod
     def load(cls) -> "Settings":
+        """Load all settings from the environment, applying defaults."""
         return cls(
             mongo_uri=cls._require("MONGO_URI"),
             mongo_db_name=cls._require("MONGO_DB_NAME"),

@@ -16,6 +16,8 @@ CACHE_TIMELINE_TTL = 60
 
 
 class PostService:
+    """Post CRUD plus cached timeline and trending feeds."""
+
     def __init__(
         self,
         post_repo: IPostRepository,
@@ -31,6 +33,7 @@ class PostService:
         self._activity = activity_log or ActivityLogService()
 
     def _invalidate_timeline_cache(self, user_id: Any) -> None:
+        """Delete every cached timeline entry belonging to the given user."""
         if self._cache_client is None:
             return
         pattern = f"timeline:{user_id}:*"
@@ -44,6 +47,7 @@ class PostService:
         tags: list[str] | None = None,
         location: str | None = None,
     ) -> dict | None:
+        """Replace a post's content and metadata; returns the updated post."""
         if not content.strip():
             raise EmptyPostContentError("Post content cannot be empty")
         self._post_repo.update(post_id, {"content": content})
@@ -59,6 +63,7 @@ class PostService:
         tags: list[str] | None = None,
         location: str | None = None,
     ) -> dict:
+        """Create a post for the given user and return its stored doc."""
         if not content.strip():
             raise EmptyPostContentError("Post content cannot be empty")
         post_id = self._post_repo.insert(Post(user_id=user_id, content=content).to_doc())
@@ -72,12 +77,14 @@ class PostService:
         return post
 
     def soft_delete(self, post_id: Any) -> None:
+        """Mark a post deleted and drop its metadata."""
         self._post_repo.update(post_id, {"is_deleted": True})
         if self._metadata_repo:
             self._metadata_repo.delete(post_id)
         log.debug("Post soft-deleted: %s", post_id)
 
     def timeline_for(self, user_id: Any, limit: int = 20, offset: int = 0) -> list[dict]:
+        """Return posts by the user's followees (plus self), cached in Redis."""
         cache_key = f"timeline:{user_id}:{limit}:{offset}"
         if self._cache_client is not None:
             cached = self._cache_client.get(cache_key)
@@ -96,4 +103,5 @@ class PostService:
         return result
 
     def trending(self, limit: int = 20, since_hours: int = 168) -> list[dict]:
+        """Return the most engaging posts from the last N hours."""
         return self._post_repo.trending(limit=limit, since_hours=since_hours)

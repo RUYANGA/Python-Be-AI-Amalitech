@@ -13,18 +13,18 @@ LOG_DIR = os.path.join(
 
 
 def _ensure_log_dir():
+    """Create the log directory if it does not exist."""
     os.makedirs(LOG_DIR, exist_ok=True)
 
 
 def get_logger(name: str) -> logging.Logger:
+    """Return a configured logger, attaching console and file handlers once."""
     logger = logging.getLogger(name)
     if logger.handlers:
         return logger
 
     logger.setLevel(settings.log_level)
-    formatter = logging.Formatter(
-        "%(asctime)s | %(levelname)-7s | %(name)s | %(message)s"
-    )
+    formatter = logging.Formatter("%(asctime)s | %(levelname)-7s | %(name)s | %(message)s")
 
     # Console handler
     ch = logging.StreamHandler()

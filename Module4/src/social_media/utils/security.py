@@ -16,11 +16,13 @@ class PasswordHasher:
         self._rounds = bcrypt_rounds
 
     def hash(self, plain: str) -> str:
+        """Hash a plaintext password with a fresh bcrypt salt."""
         salt = bcrypt.gensalt(rounds=self._rounds)
         return bcrypt.hashpw(plain.encode("utf-8"), salt).decode("utf-8")
 
     @staticmethod
     def verify(plain: str, hashed: str) -> bool:
+        """Check a plaintext password against an existing bcrypt hash."""
         return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
 
@@ -30,6 +32,7 @@ class PasswordValidator:
     MIN_LENGTH = 8
 
     def validate(self, password: str) -> None:
+        """Raise WeakPasswordError if the password fails the strength policy."""
         missing = []
         if len(password) < self.MIN_LENGTH:
             missing.append(f"at least {self.MIN_LENGTH} characters")

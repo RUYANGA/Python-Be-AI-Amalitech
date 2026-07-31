@@ -29,6 +29,7 @@ class MongoConnection:
         return cls._instance
 
     def _init_client(self, settings: Settings) -> None:
+        """Create the Mongo client, verify connectivity, and select the database."""
         kwargs = {"host": settings.mongo_uri, "serverSelectionTimeoutMS": 5000}
         if settings.mongo_username and settings.mongo_password:
             kwargs.update(
@@ -69,8 +70,10 @@ class MongoConnection:
 
     @property
     def db(self) -> Database:
+        """The resolved Mongo database handle."""
         return self._db
 
     def close(self) -> None:
+        """Close the underlying Mongo client."""
         self._client.close()
         log.info("MongoDB connection closed")
