@@ -17,20 +17,19 @@ from social_media.repositories.postgres_repos import (
     UserRepository,
 )
 
+_pg: PostgresConnection | None = None
+_connect_error: Exception | None = None
 try:
     _pg = PostgresConnection(settings)
-    _connect_error = None
 except Exception as exc:  # pragma: no cover - environment dependent
-    _pg = None
     _connect_error = exc
 
-pytestmark = pytest.mark.skipif(
-    _pg is None, reason=f"PostgreSQL not reachable: {_connect_error}"
-)
+pytestmark = pytest.mark.skipif(_pg is None, reason=f"PostgreSQL not reachable: {_connect_error}")
 
 
 @pytest.fixture(autouse=True)
 def _clean_tables():
+    assert _pg is not None
     with _pg.cursor() as cur:
         cur.execute(
             "TRUNCATE users, posts, comments, followers, likes, post_metadata "
@@ -41,23 +40,24 @@ def _clean_tables():
 
 @pytest.fixture
 def user_repo():
+    assert _pg is not None
     return UserRepository(_pg)
 
 
 @pytest.fixture
 def post_repo():
+    assert _pg is not None
     return PostRepository(_pg)
 
 
 @pytest.fixture
 def follower_repo():
+    assert _pg is not None
     return FollowerRepository(_pg)
 
 
 def _make_user(user_repo, email):
-    uid = user_repo.insert(
-        {"email": email, "password_hash": "x", "full_name": email.split("@")[0]}
-    )
+    uid = user_repo.insert({"email": email, "password_hash": "x", "full_name": email.split("@")[0]})
     return user_repo.find_by_id(uid)
 
 
@@ -95,9 +95,7 @@ class TestFeedQuery:
 
     def test_feed_excludes_deleted(self, user_repo, post_repo):
         alice = _make_user(user_repo, "alice@example.com")
-        pid = post_repo.insert(
-            {"user_id": alice["id"], "content": "gone", "is_deleted": True}
-        )
+        pid = post_repo.insert({"user_id": alice["id"], "content": "gone", "is_deleted": True})
         post_repo.insert({"user_id": alice["id"], "content": "kept"})
 
         feed = post_repo.feed_for_user_ids([alice["id"]], limit=20)
@@ -116,9 +114,7 @@ class TestTransactionalFollow:
         assert alice_after["following_count"] == 1
         assert bob_after["follower_count"] == 1
 
-    def test_duplicate_follow_returns_false_without_double_counting(
-        self, user_repo, follower_repo
-    ):
+    def test_duplicate_follow_returns_false_without_double_counting(self, user_repo, follower_repo):
         alice = _make_user(user_repo, "alice@example.com")
         bob = _make_user(user_repo, "bob@example.com")
 
@@ -149,12 +145,11 @@ class TestTransactionalFollow:
 
 class TestIndexes:
     def test_followers_has_two_composite_btree_indexes(self):
+        assert _pg is not None
         with _pg.cursor() as cur:
             cur.execute("SELECT indexdef FROM pg_indexes WHERE tablename = 'followers'")
             rows = cur.fetchall()
         composite = [
-            r
-            for r in rows
-            if "follower_id" in r["indexdef"] and "followee_id" in r["indexdef"]
+            r for r in rows if "follower_id" in r["indexdef"] and "followee_id" in r["indexdef"]
         ]
         assert len(composite) >= 2

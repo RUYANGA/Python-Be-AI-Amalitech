@@ -16,7 +16,7 @@ repos:
     rev: v1.15.0
     hooks:
       - id: mypy
-        args: [--no-site-packages, --exclude=\.venv, tests/]
+        entry: bash -c 'MYPYPATH=Module4/src mypy --no-site-packages --exclude=\.venv --config-file=Module4/pyproject.toml Module4/tests/'
         additional_dependencies: []
         pass_filenames: false
 

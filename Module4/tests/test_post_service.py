@@ -41,6 +41,7 @@ class TestUpdate:
             "content": "New content",
         }
         result = post_svc.update(pid, "New content")
+        assert result is not None
         assert result["content"] == "New content"
         post_repo.update.assert_called_once_with(pid, {"content": "New content"})
 
