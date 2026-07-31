@@ -16,9 +16,7 @@ from tests.conftest import fake_id
 
 
 class TestLikeService:
-    def test_like(
-        self, like_svc: LikeService, like_repo: MagicMock, post_repo: MagicMock
-    ):
+    def test_like(self, like_svc: LikeService, like_repo: MagicMock, post_repo: MagicMock):
         uid, pid = fake_id(), fake_id()
         like_repo.exists.return_value = False
         like_repo.insert.return_value = fake_id()
@@ -36,9 +34,7 @@ class TestLikeService:
         assert result is False
         like_repo.insert.assert_not_called()
 
-    def test_unlike(
-        self, like_svc: LikeService, like_repo: MagicMock, post_repo: MagicMock
-    ):
+    def test_unlike(self, like_svc: LikeService, like_repo: MagicMock, post_repo: MagicMock):
         uid, pid = fake_id(), fake_id()
         like_repo.remove.return_value = 1
         result = like_svc.unlike(uid, pid)
@@ -51,6 +47,24 @@ class TestLikeService:
         like_repo.remove.return_value = 0
         result = like_svc.unlike(fake_id(), fake_id())
         assert result is False
+
+    def test_post_snippet_short_content(self, like_svc: LikeService, post_repo: MagicMock):
+        pid = fake_id()
+        post_repo.find_by_id.return_value = {"id": pid, "content": "short"}
+        assert like_svc._post_snippet(pid) == '"short"'
+
+    def test_post_snippet_long_content(self, like_svc: LikeService, post_repo: MagicMock):
+        pid = fake_id()
+        post_repo.find_by_id.return_value = {
+            "id": pid,
+            "content": "x" * 100,
+        }
+        assert like_svc._post_snippet(pid) == '"' + "x" * 40 + '..."'
+
+    def test_post_snippet_missing_post(self, like_svc: LikeService, post_repo: MagicMock):
+        pid = fake_id()
+        post_repo.find_by_id.return_value = None
+        assert like_svc._post_snippet(pid) == str(pid)
 
 
 # ── CommentService ──────────────────────────────────────────────────
@@ -104,9 +118,7 @@ class TestFollowService:
         result = follow_svc.follow(fake_id(), fake_id())
         assert result is True
 
-    def test_follow_duplicate(
-        self, follow_svc: FollowService, follower_repo: MagicMock
-    ):
+    def test_follow_duplicate(self, follow_svc: FollowService, follower_repo: MagicMock):
         follower_repo.follow.return_value = False
         result = follow_svc.follow(fake_id(), fake_id())
         assert result is False
@@ -121,9 +133,7 @@ class TestFollowService:
         result = follow_svc.unfollow(fake_id(), fake_id())
         assert result is True
 
-    def test_unfollow_not_following(
-        self, follow_svc: FollowService, follower_repo: MagicMock
-    ):
+    def test_unfollow_not_following(self, follow_svc: FollowService, follower_repo: MagicMock):
         follower_repo.unfollow.return_value = 0
         result = follow_svc.unfollow(fake_id(), fake_id())
         assert result is False
