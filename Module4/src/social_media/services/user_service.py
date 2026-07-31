@@ -22,35 +22,35 @@ class UserService:
         hasher: PasswordHasher,
         password_validator: PasswordValidator | None = None,
     ):
-        self._users = user_repo
+        self._user_repo = user_repo
         self._hasher = hasher
         self._password_validator = password_validator or PasswordValidator()
 
     def register(self, email: str, password: str, full_name: str | None = None) -> dict:
         try:
             email = validate_email(email, check_deliverability=False).normalized
-        except EmailNotValidError as e:
-            raise InvalidEmailError(str(e)) from e
+        except EmailNotValidError as exc:
+            raise InvalidEmailError(str(exc)) from exc
 
         self._password_validator.validate(password)
 
-        if self._users.find_by_email(email):
+        if self._user_repo.find_by_email(email):
             raise UserAlreadyExistsError(email)
 
-        user = User(
+        new_user = User(
             email=email,
             password_hash=self._hasher.hash(password),
             full_name=full_name,
         )
-        user_id = self._users.insert(user.to_doc())
+        user_id = self._user_repo.insert(new_user.to_doc())
         log.debug("Registered user %s (%s)", email, user_id)
-        doc = self._users.find_by_id(user_id)
-        assert doc is not None
-        return doc
+        user = self._user_repo.find_by_id(user_id)
+        assert user is not None
+        return user
 
     def authenticate(self, email: str, password: str) -> dict:
-        doc = self._users.find_by_email(email)
-        if not doc or not self._hasher.verify(password, doc["password_hash"]):
+        user = self._user_repo.find_by_email(email)
+        if not user or not self._hasher.verify(password, user["password_hash"]):
             raise InvalidCredentialsError()
         log.debug("User authenticated: %s", email)
-        return doc
+        return user

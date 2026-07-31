@@ -22,25 +22,25 @@ class MongoRepository(IRepository):
     """Shared CRUD for Mongo collections."""
 
     def __init__(self, collection: Collection):
-        self._col = collection
+        self._collection = collection
 
     def insert(self, document: dict) -> Any:
-        return self._col.insert_one(document).inserted_id
+        return self._collection.insert_one(document).inserted_id
 
     def find_by_id(self, _id: Any) -> dict | None:
-        return self._col.find_one({"_id": _id})
+        return self._collection.find_one({"_id": _id})
 
     def find(self, query: dict, limit: int = 0) -> Iterable[dict]:
-        cursor = self._col.find(query)
+        cursor = self._collection.find(query)
         if limit:
             cursor = cursor.limit(limit)
         return list(cursor)
 
     def update(self, _id: Any, changes: dict) -> int:
-        return self._col.update_one({"_id": _id}, {"$set": changes}).modified_count
+        return self._collection.update_one({"_id": _id}, {"$set": changes}).modified_count
 
     def delete(self, _id: Any) -> int:
-        return self._col.delete_one({"_id": _id}).deleted_count
+        return self._collection.delete_one({"_id": _id}).deleted_count
 
 
 class ActivityLogRepository(MongoRepository, IActivityLogRepository):
@@ -48,8 +48,8 @@ class ActivityLogRepository(MongoRepository, IActivityLogRepository):
 
     def __init__(self, db: Database):
         super().__init__(db[self.COLLECTION])
-        self._col.create_index([("user_id", ASCENDING), ("created_at", DESCENDING)])
-        self._col.create_index("action")
+        self._collection.create_index([("user_id", ASCENDING), ("created_at", DESCENDING)])
+        self._collection.create_index("action")
 
     def log(
         self,

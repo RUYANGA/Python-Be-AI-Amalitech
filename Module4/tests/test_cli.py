@@ -123,7 +123,7 @@ class TestProfileMenu:
     def test_list_all_users(self):
         with patch("cli.build_services") as mock_build:
             svcs = mock_cli_services()
-            svcs["users"]._users.find.return_value = [
+            svcs["users"]._user_repo.find.return_value = [
                 user_doc(email="a@b.com", full_name="A"),
                 user_doc(email="b@b.com", full_name="B"),
             ]
@@ -151,7 +151,7 @@ class TestPostsMenu:
     def test_browse_all_posts_empty(self):
         with patch("cli.build_services") as mock_build:
             svcs = mock_cli_services()
-            svcs["posts"]._posts.find.return_value = []
+            svcs["posts"]._post_repo.find.return_value = []
             mock_build.return_value = svcs
 
             app = App()
@@ -164,7 +164,7 @@ class TestPostsMenu:
             svcs = mock_cli_services()
             uid = fake_id()
             p = post_doc(uid, content="First post")
-            svcs["posts"]._posts.find.return_value = [p]
+            svcs["posts"]._post_repo.find.return_value = [p]
             mock_build.return_value = svcs
 
             app = App()
@@ -175,7 +175,7 @@ class TestPostsMenu:
     def test_my_posts_empty(self):
         with patch("cli.build_services") as mock_build:
             svcs = mock_cli_services()
-            svcs["posts"]._posts.find.return_value = []
+            svcs["posts"]._post_repo.find.return_value = []
             mock_build.return_value = svcs
 
             app = App()
@@ -190,7 +190,7 @@ class TestFollowsMenu:
             svcs = mock_cli_services()
             me = user_doc(email="me@b.com")
             target = user_doc(email="bob@b.com")
-            svcs["users"]._users.find.return_value = [me, target]
+            svcs["users"]._user_repo.find.return_value = [me, target]
             svcs["follows"].follow.return_value = True
             mock_build.return_value = svcs
 
@@ -205,7 +205,7 @@ class TestFollowsMenu:
             svcs = mock_cli_services()
             me = user_doc(email="me@b.com")
             target = user_doc(email="bob@b.com")
-            svcs["users"]._users.find.return_value = [me, target]
+            svcs["users"]._user_repo.find.return_value = [me, target]
             svcs["follows"].follow.return_value = False
             mock_build.return_value = svcs
 
@@ -228,7 +228,7 @@ class TestPostActions:
             umap = {post["user_id"]: user_doc()}
             with patch("builtins.input", side_effect=["1", "", "0"]):
                 app._post_action_menu(post, umap)
-            svcs["likes"].like.assert_called_once_with(app.uid, post["id"])
+            svcs["likes"].like.assert_called_once_with(app.user_id, post["id"])
 
     def test_comment_on_post(self):
         with patch("cli.build_services") as mock_build:
@@ -269,8 +269,8 @@ class TestPostActions:
 
             app = App()
             app._user = user_doc()
-            post = post_doc(app.uid, content="My post")
-            umap = {app.uid: app._user}
+            post = post_doc(app.user_id, content="My post")
+            umap = {app.user_id: app._user}
             with patch("builtins.input", side_effect=["5", "Edited content", "", "", "", "0"]):
                 app._post_action_menu(post, umap)
             svcs["posts"].update.assert_called_once()
@@ -282,8 +282,8 @@ class TestPostActions:
 
             app = App()
             app._user = user_doc()
-            post = post_doc(app.uid, content="My post")
-            umap = {app.uid: app._user}
+            post = post_doc(app.user_id, content="My post")
+            umap = {app.user_id: app._user}
             with patch("builtins.input", side_effect=["6", ""]):
                 app._post_action_menu(post, umap)
             svcs["posts"].soft_delete.assert_called_once_with(post["id"])
@@ -379,7 +379,7 @@ class TestRequireUser:
 class TestUserPickers:
     def test_find_user_by_email(self, app_factory):
         app, svcs = app_factory()
-        svcs["users"]._users.find_by_email.return_value = {
+        svcs["users"]._user_repo.find_by_email.return_value = {
             "id": fake_id(),
             "email": "a@b.com",
         }
@@ -473,13 +473,13 @@ class TestProfileMenuExtra:
 
     def test_search_user_found(self, app_factory):
         app, svcs = app_factory(user=user_doc())
-        svcs["users"]._users.find_by_email.return_value = user_doc(email="a@b.com")
+        svcs["users"]._user_repo.find_by_email.return_value = user_doc(email="a@b.com")
         with patch("builtins.input", side_effect=["3", "a@b.com", ""]):
             app._profile_menu()
 
     def test_search_user_not_found(self, app_factory):
         app, svcs = app_factory(user=user_doc())
-        svcs["users"]._users.find_by_email.return_value = None
+        svcs["users"]._user_repo.find_by_email.return_value = None
         with patch("builtins.input", side_effect=["3", "nope@b.com", ""]):
             app._profile_menu()
 
@@ -503,8 +503,8 @@ class TestPostsMenuExtra:
 
     def test_my_posts_pick_one(self, app_factory):
         app, svcs = app_factory(user=user_doc())
-        p = post_doc(app.uid, content="Mine")
-        svcs["posts"]._posts.find.return_value = [p]
+        p = post_doc(app.user_id, content="Mine")
+        svcs["posts"]._post_repo.find.return_value = [p]
         with patch("builtins.input", side_effect=["3", "1", "0", ""]):
             app._posts_menu()
 
@@ -526,7 +526,7 @@ class TestPostsMenuExtra:
             "comment_count": 1,
         }
         svcs["posts"].trending.return_value = [hot]
-        svcs["users"]._users.find.return_value = [author]
+        svcs["users"]._user_repo.find.return_value = [author]
         with patch("builtins.input", side_effect=["4", ""]):
             app._posts_menu()
 
@@ -534,19 +534,19 @@ class TestPostsMenuExtra:
 class TestPostPickExtra:
     def test_pick_post_back(self, app_factory):
         app, svcs = app_factory(user=user_doc())
-        svcs["posts"]._posts.find.return_value = [post_doc(fake_id(), content="Hi")]
+        svcs["posts"]._post_repo.find.return_value = [post_doc(fake_id(), content="Hi")]
         with patch("builtins.input", side_effect=["2", "0", ""]):
             app._posts_menu()
 
     def test_pick_post_invalid_then_valid(self, app_factory):
         app, svcs = app_factory(user=user_doc())
-        svcs["posts"]._posts.find.return_value = [post_doc(fake_id(), content="Hi")]
+        svcs["posts"]._post_repo.find.return_value = [post_doc(fake_id(), content="Hi")]
         with patch("builtins.input", side_effect=["2", "99", "1", "0", ""]):
             app._posts_menu()
 
     def test_pick_post_value_error(self, app_factory):
         app, svcs = app_factory(user=user_doc())
-        svcs["posts"]._posts.find.return_value = [post_doc(fake_id(), content="Hi")]
+        svcs["posts"]._post_repo.find.return_value = [post_doc(fake_id(), content="Hi")]
         with patch("builtins.input", side_effect=["2", "abc", "1", "0", ""]):
             app._posts_menu()
 
@@ -557,7 +557,7 @@ class TestPostPickExtra:
         md_repo = make_metadata_repo()
         md_repo.find_many.return_value = {p["id"]: {"tags": ["x"]}}
         app, svcs = app_factory(user=user_doc(), metadata_repo=md_repo)
-        svcs["posts"]._posts.find.return_value = [p]
+        svcs["posts"]._post_repo.find.return_value = [p]
         with patch("builtins.input", side_effect=["2", "1", "0", ""]):
             app._posts_menu()
 
@@ -565,8 +565,8 @@ class TestPostPickExtra:
 class TestPostActionsExtra:
     def test_shows_metadata(self, app_factory):
         app, _ = app_factory(user=user_doc())
-        post = post_doc(app.uid, content="My post")
-        umap = {app.uid: app._user}
+        post = post_doc(app.user_id, content="My post")
+        umap = {app.user_id: app._user}
         md = {post["id"]: {"tags": ["x"], "location": "Accra"}}
         with patch("builtins.input", side_effect=["0"]):
             app._post_action_menu(post, umap, md)
@@ -617,15 +617,15 @@ class TestPostActionsExtra:
     def test_edit_post_not_found(self, app_factory):
         app, svcs = app_factory(user=user_doc())
         svcs["posts"].update.return_value = None
-        post = post_doc(app.uid, content="My post")
-        umap = {app.uid: app._user}
+        post = post_doc(app.user_id, content="My post")
+        umap = {app.user_id: app._user}
         with patch("builtins.input", side_effect=["5", "New", "t1,t2", "Accra", "", "0"]):
             app._post_action_menu(post, umap)
 
     def test_edit_post_empty_content(self, app_factory):
         app, _ = app_factory(user=user_doc())
-        post = post_doc(app.uid, content="My post")
-        umap = {app.uid: app._user}
+        post = post_doc(app.user_id, content="My post")
+        umap = {app.user_id: app._user}
         with patch("builtins.input", side_effect=["5", "", "", "0"]):
             app._post_action_menu(post, umap)
 
@@ -645,44 +645,44 @@ class TestFollowsMenuExtra:
         me = user_doc(email="me@b.com")
         target = user_doc(email="bob@b.com")
         app, svcs = app_factory(user=me)
-        svcs["users"]._users.find.return_value = [me, target]
+        svcs["users"]._user_repo.find.return_value = [me, target]
         return app, svcs, me, target
 
     def test_unfollow_user(self, app_factory):
         app, svcs, me, target = self._with_target(app_factory)
-        svcs["follows"]._followers.followees_of.return_value = [target["id"]]
+        svcs["follows"]._follower_repo.followees_of.return_value = [target["id"]]
         svcs["follows"].unfollow.return_value = True
         with patch("builtins.input", side_effect=["2", "1", ""]):
             app._follows_menu()
 
     def test_unfollow_not_following(self, app_factory):
         app, svcs, me, target = self._with_target(app_factory)
-        svcs["follows"]._followers.followees_of.return_value = [target["id"]]
+        svcs["follows"]._follower_repo.followees_of.return_value = [target["id"]]
         svcs["follows"].unfollow.return_value = False
         with patch("builtins.input", side_effect=["2", "1", ""]):
             app._follows_menu()
 
     def test_who_i_follow_empty(self, app_factory):
         app, svcs, me, target = self._with_target(app_factory)
-        svcs["follows"]._followers.followees_of.return_value = []
+        svcs["follows"]._follower_repo.followees_of.return_value = []
         with patch("builtins.input", side_effect=["3", ""]):
             app._follows_menu()
 
     def test_who_i_follow_with_users(self, app_factory):
         app, svcs, me, target = self._with_target(app_factory)
-        svcs["follows"]._followers.followees_of.return_value = [target["id"]]
+        svcs["follows"]._follower_repo.followees_of.return_value = [target["id"]]
         with patch("builtins.input", side_effect=["3", ""]):
             app._follows_menu()
 
     def test_my_followers_empty(self, app_factory):
         app, svcs, me, target = self._with_target(app_factory)
-        svcs["follows"]._followers.followers_of.return_value = []
+        svcs["follows"]._follower_repo.followers_of.return_value = []
         with patch("builtins.input", side_effect=["4", ""]):
             app._follows_menu()
 
     def test_my_followers_with_users(self, app_factory):
         app, svcs, me, target = self._with_target(app_factory)
-        svcs["follows"]._followers.followers_of.return_value = [target["id"]]
+        svcs["follows"]._follower_repo.followers_of.return_value = [target["id"]]
         with patch("builtins.input", side_effect=["4", ""]):
             app._follows_menu()
 
