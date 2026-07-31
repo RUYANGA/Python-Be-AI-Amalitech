@@ -22,6 +22,7 @@ from social_media.services.interaction_service import (
 from social_media.services.post_service import PostService
 from social_media.services.user_service import UserService
 from social_media.utils.security import PasswordHasher, PasswordValidator
+from social_media.utils.validators import UserValidator
 
 
 def build_services():
@@ -43,7 +44,10 @@ def build_services():
 
     return {
         "users": UserService(
-            user_repo, PasswordHasher(settings.bcrypt_rounds), PasswordValidator()
+            user_repo,
+            PasswordHasher(settings.bcrypt_rounds),
+            PasswordValidator(),
+            UserValidator(),
         ),
         "posts": PostService(
             post_repo,

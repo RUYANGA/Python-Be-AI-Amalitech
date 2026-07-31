@@ -60,7 +60,10 @@ class TestAuthFlow:
             mock_build.return_value = svc
 
             app = App()
-            with patch("builtins.input", side_effect=["a@b.com", "pw", ""]):
+            with (
+                patch("cli._prompt_password", return_value="pw"),
+                patch("builtins.input", side_effect=["a@b.com", ""]),
+            ):
                 app._login()
             assert app._user is not None
             assert app._user["email"] == "a@b.com"
@@ -74,7 +77,10 @@ class TestAuthFlow:
             mock_build.return_value = svc
 
             app = App()
-            with patch("builtins.input", side_effect=["a@b.com", "wrong", ""]):
+            with (
+                patch("cli._prompt_password", return_value="wrong"),
+                patch("builtins.input", side_effect=["a@b.com", ""]),
+            ):
                 app._login()
             assert app._user is None
 
@@ -85,9 +91,12 @@ class TestAuthFlow:
             mock_build.return_value = svc
 
             app = App()
-            with patch("builtins.input", side_effect=["new@b.com", "pw", "New", ""]):
+            with (
+                patch("cli._prompt_password", return_value="pw"),
+                patch("builtins.input", side_effect=["new@b.com", "New", "", ""]),
+            ):
                 app._register()
-            svc["users"].register.assert_called_once_with("new@b.com", "pw", "New")
+            svc["users"].register.assert_called_once_with("new@b.com", "pw", "New", None)
 
     def test_register_duplicate(self):
         with patch("cli.build_services") as mock_build:
@@ -98,7 +107,10 @@ class TestAuthFlow:
             mock_build.return_value = svc
 
             app = App()
-            with patch("builtins.input", side_effect=["dup@b.com", "pw", "", ""]):
+            with (
+                patch("cli._prompt_password", return_value="pw"),
+                patch("builtins.input", side_effect=["dup@b.com", "", "", ""]),
+            ):
                 app._register()
 
     def test_logout(self):
@@ -112,27 +124,48 @@ class TestAuthFlow:
 
 
 class TestProfileMenu:
-    def test_my_profile(self):
+    def test_view_profile_back(self):
         with patch("cli.build_services") as mock_build:
             mock_build.return_value = mock_cli_services()
             app = App()
             app._user = user_doc(full_name="Alice", email="alice@b.com")
-            with patch("builtins.input", side_effect=["1", ""]):
+            with patch("builtins.input", side_effect=["0"]):
                 app._profile_menu()
 
-    def test_list_all_users(self):
+    def test_edit_profile(self):
         with patch("cli.build_services") as mock_build:
             svcs = mock_cli_services()
-            svcs["users"]._user_repo.find.return_value = [
-                user_doc(email="a@b.com", full_name="A"),
-                user_doc(email="b@b.com", full_name="B"),
-            ]
+            updated = user_doc(full_name="New Name", bio="Hello", email="new@b.com")
+            svcs["users"].update_profile.return_value = updated
             mock_build.return_value = svcs
 
             app = App()
-            app._user = user_doc()
-            with patch("builtins.input", side_effect=["2", ""]):
+            original = user_doc(full_name="Alice", email="alice@b.com")
+            app._user = original
+            with patch(
+                "builtins.input", side_effect=["1", "New Name", "Hello", "new@b.com", "", "0"]
+            ):
                 app._profile_menu()
+            svcs["users"].update_profile.assert_called_once_with(
+                original["id"], full_name="New Name", bio="Hello", email="new@b.com"
+            )
+            assert app._user["email"] == "new@b.com"
+
+    def test_edit_profile_keeps_current_values_on_empty_input(self):
+        with patch("cli.build_services") as mock_build:
+            svcs = mock_cli_services()
+            updated = user_doc(full_name="Alice", bio="", email="alice@b.com")
+            svcs["users"].update_profile.return_value = updated
+            mock_build.return_value = svcs
+
+            app = App()
+            original = user_doc(full_name="Alice", email="alice@b.com")
+            app._user = original
+            with patch("builtins.input", side_effect=["1", "", "", "", "", "0"]):
+                app._profile_menu()
+            svcs["users"].update_profile.assert_called_once_with(
+                original["id"], full_name="Alice", bio="", email="alice@b.com"
+            )
 
 
 class TestPostsMenu:
@@ -377,14 +410,6 @@ class TestRequireUser:
 
 
 class TestUserPickers:
-    def test_find_user_by_email(self, app_factory):
-        app, svcs = app_factory()
-        svcs["users"]._user_repo.find_by_email.return_value = {
-            "id": fake_id(),
-            "email": "a@b.com",
-        }
-        assert app._find_user_by_email("a@b.com")["email"] == "a@b.com"
-
     def test_pick_user_empty(self, app_factory):
         app, _ = app_factory()
         with patch("builtins.input", return_value=""):
@@ -420,14 +445,20 @@ class TestMainMenu:
     def test_logged_out_login(self, app_factory):
         app, svcs = app_factory()
         svcs["users"].authenticate.return_value = user_doc(email="a@b.com")
-        with patch("builtins.input", side_effect=["1", "a@b.com", "pw", ""]):
+        with (
+            patch("cli._prompt_password", return_value="pw"),
+            patch("builtins.input", side_effect=["1", "a@b.com", ""]),
+        ):
             app._main_menu()
         assert app._user is not None
 
     def test_logged_out_register(self, app_factory):
         app, svcs = app_factory()
         svcs["users"].register.return_value = user_doc(email="new@b.com")
-        with patch("builtins.input", side_effect=["2", "new@b.com", "pw", "New", ""]):
+        with (
+            patch("cli._prompt_password", return_value="pw"),
+            patch("builtins.input", side_effect=["2", "new@b.com", "New", "", ""]),
+        ):
             app._main_menu()
 
     def test_logged_in_back(self, app_factory):
@@ -448,7 +479,10 @@ class TestRegisterErrors:
         from social_media.exceptions import InvalidEmailError
 
         svcs["users"].register.side_effect = InvalidEmailError("bad email")
-        with patch("builtins.input", side_effect=["bad", "pw", "New", ""]):
+        with (
+            patch("cli._prompt_password", return_value="pw"),
+            patch("builtins.input", side_effect=["bad", "New", "", ""]),
+        ):
             app._register()
 
     def test_register_weak_password(self, app_factory):
@@ -456,7 +490,10 @@ class TestRegisterErrors:
         from social_media.exceptions import WeakPasswordError
 
         svcs["users"].register.side_effect = WeakPasswordError("too weak")
-        with patch("builtins.input", side_effect=["e@b.com", "pw", "New", ""]):
+        with (
+            patch("cli._prompt_password", return_value="pw"),
+            patch("builtins.input", side_effect=["e@b.com", "New", "", ""]),
+        ):
             app._register()
 
 
@@ -471,16 +508,21 @@ class TestProfileMenuExtra:
         with patch("builtins.input", side_effect=["0"]):
             app._profile_menu()
 
-    def test_search_user_found(self, app_factory):
-        app, svcs = app_factory(user=user_doc())
-        svcs["users"]._user_repo.find_by_email.return_value = user_doc(email="a@b.com")
-        with patch("builtins.input", side_effect=["3", "a@b.com", ""]):
-            app._profile_menu()
+    def test_edit_profile_invalid_name(self, app_factory):
+        app, svcs = app_factory(user=user_doc(full_name="Alice", email="alice@b.com"))
+        from social_media.exceptions import InvalidFullNameError
 
-    def test_search_user_not_found(self, app_factory):
-        app, svcs = app_factory(user=user_doc())
-        svcs["users"]._user_repo.find_by_email.return_value = None
-        with patch("builtins.input", side_effect=["3", "nope@b.com", ""]):
+        svcs["users"].update_profile.side_effect = InvalidFullNameError("too short")
+        with patch("builtins.input", side_effect=["1", "Bob", "", "alice@b.com", "", "0"]):
+            app._profile_menu()
+        assert app._user["email"] == "alice@b.com"
+
+    def test_edit_profile_invalid_email(self, app_factory):
+        app, svcs = app_factory(user=user_doc(full_name="Alice", email="alice@b.com"))
+        from social_media.exceptions import InvalidEmailError
+
+        svcs["users"].update_profile.side_effect = InvalidEmailError("bad email")
+        with patch("builtins.input", side_effect=["1", "Alice", "", "bad", "", "0"]):
             app._profile_menu()
 
 
@@ -521,7 +563,6 @@ class TestPostsMenuExtra:
             "id": fake_id(),
             "user_id": author["id"],
             "content": "Hot",
-            "score": 3,
             "like_count": 2,
             "comment_count": 1,
         }

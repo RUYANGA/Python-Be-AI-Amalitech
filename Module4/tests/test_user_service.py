@@ -5,8 +5,10 @@ from unittest.mock import MagicMock
 import pytest
 
 from social_media.exceptions import (
+    InvalidBioError,
     InvalidCredentialsError,
     InvalidEmailError,
+    InvalidFullNameError,
     UserAlreadyExistsError,
     WeakPasswordError,
 )
@@ -47,12 +49,31 @@ class TestRegister:
         user_repo.insert.return_value = fake_uid
         user_repo.find_by_id.return_value = {
             "id": fake_uid,
-            "email": "Alice@Example.com",
+            "email": "alice@example.com",
         }
 
         result = user_svc.register("Alice@Example.com", "S3cret!x")
         # The normalized email is lowercase
-        assert result["email"] == "Alice@Example.com"
+        inserted = user_repo.insert.call_args[0][0]
+        assert inserted["email"] == "alice@example.com"
+        assert result["email"] == "alice@example.com"
+
+    def test_register_rejects_short_full_name(self, user_svc: UserService, user_repo: MagicMock):
+        user_repo.find_by_email.return_value = None
+        with pytest.raises(InvalidFullNameError, match="at least 5"):
+            user_svc.register("alice@example.com", "S3cret!x", "Bob")
+        user_repo.insert.assert_not_called()
+
+    def test_register_rejects_invalid_full_name(self, user_svc: UserService, user_repo: MagicMock):
+        user_repo.find_by_email.return_value = None
+        with pytest.raises(InvalidFullNameError):
+            user_svc.register("alice@example.com", "S3cret!x", "Alice123!")
+
+    def test_register_rejects_long_bio(self, user_svc: UserService, user_repo: MagicMock):
+        user_repo.find_by_email.return_value = None
+        with pytest.raises(InvalidBioError, match="at most 160"):
+            user_svc.register("alice@example.com", "S3cret!x", "Alice Johnson", "x" * 161)
+        user_repo.insert.assert_not_called()
 
     def test_register_stores_hashed_password(self, user_svc: UserService, user_repo: MagicMock):
         import bcrypt
@@ -133,6 +154,75 @@ class TestAuthenticate:
         user_repo.find_by_email.return_value = None
         with pytest.raises(InvalidCredentialsError):
             user_svc.authenticate("nobody@example.com", "pw")
+
+
+class TestUpdateProfile:
+    def _make_user(self, uid: int) -> dict:
+        return {
+            "id": uid,
+            "email": "alice@example.com",
+            "full_name": "Alice Johnson",
+            "bio": "Hello",
+        }
+
+    def test_updates_fields(self, user_svc: UserService, user_repo: MagicMock):
+        uid = fake_id()
+        user_repo.find_by_id.return_value = self._make_user(uid)
+
+        result = user_svc.update_profile(
+            uid, full_name="Alice Wonderland", bio="New bio", email="Alice@New.Com"
+        )
+
+        assert result["email"] == "alice@example.com"
+        user_repo.update.assert_called_once()
+        changes = user_repo.update.call_args[0][1]
+        assert changes["full_name"] == "Alice Wonderland"
+        assert changes["bio"] == "New bio"
+        assert changes["email"] == "alice@new.com"
+        assert "updated_at" in changes
+
+    def test_normalizes_email(self, user_svc: UserService, user_repo: MagicMock):
+        uid = fake_id()
+        user_repo.find_by_id.return_value = self._make_user(uid)
+
+        user_svc.update_profile(uid, email="Alice@Example.COM")
+        changes = user_repo.update.call_args[0][1]
+        assert changes["email"] == "alice@example.com"
+
+    def test_keeps_unchanged_fields(self, user_svc: UserService, user_repo: MagicMock):
+        uid = fake_id()
+        user_repo.find_by_id.return_value = self._make_user(uid)
+
+        user_svc.update_profile(uid)
+        user_repo.update.assert_not_called()
+
+    def test_rejects_short_full_name(self, user_svc: UserService, user_repo: MagicMock):
+        with pytest.raises(InvalidFullNameError):
+            user_svc.update_profile(fake_id(), full_name="Bob")
+        user_repo.update.assert_not_called()
+
+    def test_rejects_long_bio(self, user_svc: UserService, user_repo: MagicMock):
+        with pytest.raises(InvalidBioError):
+            user_svc.update_profile(fake_id(), bio="x" * 161)
+        user_repo.update.assert_not_called()
+
+    def test_rejects_email_taken_by_another_user(self, user_svc: UserService, user_repo: MagicMock):
+        uid = fake_id()
+        user_repo.find_by_email.return_value = {
+            "id": fake_id(),
+            "email": "taken@example.com",
+        }
+        with pytest.raises(UserAlreadyExistsError):
+            user_svc.update_profile(uid, email="taken@example.com")
+        user_repo.update.assert_not_called()
+
+    def test_allows_keeping_own_email(self, user_svc: UserService, user_repo: MagicMock):
+        uid = fake_id()
+        user_repo.find_by_email.return_value = self._make_user(uid)
+        user_repo.find_by_id.return_value = self._make_user(uid)
+
+        user_svc.update_profile(uid, email="alice@example.com")
+        user_repo.update.assert_called_once()
 
 
 class TestUserAlreadyExistsError:

@@ -1,5 +1,6 @@
 """Professional menu-driven CLI for the social media platform."""
 
+import getpass
 import sys
 from pathlib import Path
 from typing import Any
@@ -10,8 +11,10 @@ if _src not in sys.path:
 
 from social_media.composition import build_services  # noqa: E402
 from social_media.exceptions import (  # noqa: E402
+    InvalidBioError,
     InvalidCredentialsError,
     InvalidEmailError,
+    InvalidFullNameError,
     UserAlreadyExistsError,
     WeakPasswordError,
 )
@@ -92,6 +95,11 @@ def _pause() -> None:
     input(f"\n    {'─' * (WIDTH - 4)}\n    Press Enter to continue...")
 
 
+def _prompt_password(prompt: str) -> str:
+    """Read a password without echoing it to the terminal."""
+    return getpass.getpass(prompt).strip()
+
+
 def _require_user(app: "App") -> bool:
     """Guard for logged-in actions; returns False (after a message) if logged out."""
     if not app.user:
@@ -135,10 +143,6 @@ class App:
     def _user_map(self) -> dict:
         """Return a {user_id: user_doc} lookup table for all users."""
         return {user["id"]: user for user in self._all_users()}
-
-    def _find_user_by_email(self, email: str) -> dict | None:
-        """Look up a single user by email address."""
-        return self.users_svc._user_repo.find_by_email(email)
 
     def _pick_user(self, users: list[dict], title: str) -> dict | None:
         """Show a numbered picker and return the chosen user, or None on back."""
@@ -331,7 +335,7 @@ class App:
 
         if self._user:
             items = [
-                "Profile & Users",
+                "Profile",
                 "Posts",
                 "Follows",
                 "Timeline",
@@ -365,7 +369,7 @@ class App:
         """Authenticate an existing user and store the session."""
         _title("Login")
         email = input("  Email    : ").strip()
-        password = input("  Password : ").strip()
+        password = _prompt_password("  Password : ")
         try:
             self._user = self.users_svc.authenticate(email, password)
             assert self._user is not None
@@ -380,10 +384,11 @@ class App:
         """Create a new user account."""
         _title("Register")
         email = input("  Email     : ").strip()
-        password = input("  Password  : ").strip()
+        password = _prompt_password("  Password  : ")
         name = input("  Full name : ").strip() or None
+        bio = input("  Bio       : ").strip() or None
         try:
-            user = self.users_svc.register(email, password, name)
+            user = self.users_svc.register(email, password, name, bio)
             log.info("User registered: %s", email)
             print(f"\n  Registered {_user_label(user)}.")
         except UserAlreadyExistsError:
@@ -394,6 +399,12 @@ class App:
             print(f"\n  {error}")
         except WeakPasswordError as error:
             log.warning("Registration failed (weak password): %s", email)
+            print(f"\n  {error}")
+        except InvalidFullNameError as error:
+            log.warning("Registration failed (invalid full name): %s", email)
+            print(f"\n  {error}")
+        except InvalidBioError as error:
+            log.warning("Registration failed (invalid bio): %s", email)
             print(f"\n  {error}")
         _pause()
 
@@ -409,33 +420,48 @@ class App:
     # ====================================================================
 
     def _profile_menu(self) -> None:
-        """Profile/Users sub-menu: my profile, list, and search."""
+        """Profile sub-menu: view and update my own profile details."""
         if not _require_user(self):
             return
-        items = ["My Profile", "List All Users", "Search User by Email"]
-        choice = _menu("Profile & Users", items)
-        if choice is None:
-            return
-        if choice == 0:
+        assert self._user is not None
+        while True:
             _title("My Profile")
-            assert self._user is not None
             user = self._user
             print(f"  Name      : {user.get('full_name') or '—'}")
             print(f"  Email     : {user['email']}")
+            print(f"  Bio       : {user.get('bio') or '—'}")
             print(f"  User ID   : {user['id']}")
             print(f"  Active    : {user.get('is_active', True)}")
-        elif choice == 1:
-            _title("All Users")
-            for user in self._all_users():
-                print(f"  • {_user_label(user)}")
-        elif choice == 2:
-            _title("Search User")
-            email = input("  Email: ").strip()
-            found_user = self._find_user_by_email(email)
-            if found_user:
-                print(f"\n  Found: {_user_label(found_user)}")
-            else:
-                print("\n  No user found with that email.")
+            choice = _menu("Profile Actions", ["Edit Profile"])
+            if choice is None:
+                return
+            self._edit_profile()
+
+    def _edit_profile(self) -> None:
+        """Update profile details; empty input keeps the current value."""
+        assert self._user is not None
+        _title("Edit Profile")
+        print("  (Press Enter to keep the current value)")
+        current_name = self._user.get("full_name") or ""
+        current_bio = self._user.get("bio") or ""
+        name = input(f"  Full name [{current_name}]: ").strip() or current_name
+        bio = input(f"  Bio [{current_bio}]: ").strip() or current_bio
+        email = input(f"  Email [{self._user['email']}]: ").strip() or self._user["email"]
+        try:
+            self._user = self.users_svc.update_profile(
+                self.user_id, full_name=name, bio=bio, email=email
+            )
+            assert self._user is not None
+            log.info("Profile updated: %s", self._user["email"])
+            print("\n  Profile updated.")
+        except InvalidEmailError as error:
+            print(f"\n  {error}")
+        except InvalidFullNameError as error:
+            print(f"\n  {error}")
+        except InvalidBioError as error:
+            print(f"\n  {error}")
+        except UserAlreadyExistsError as error:
+            print(f"\n  {error}")
         _pause()
 
     # ====================================================================
@@ -489,7 +515,7 @@ class App:
                 for rank, post in enumerate(trending, 1):
                     author = user_map.get(post["user_id"], {})
                     label = _user_label(author) if author else post["user_id"]
-                    print(f"\n  {rank:>2}. {post['content'][:50]}  (score {post['score']})")
+                    print(f"\n  {rank:>2}. {post['content'][:50]}")
                     print(f"      {label}  ♥ {post['like_count']}  💬 {post['comment_count']}")
         _pause()
 

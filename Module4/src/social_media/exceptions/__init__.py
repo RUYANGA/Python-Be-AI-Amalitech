@@ -21,6 +21,14 @@ class WeakPasswordError(Exception):
     """Raised when a password fails the strength policy."""
 
 
+class InvalidFullNameError(Exception):
+    """Raised when a full name fails validation."""
+
+
+class InvalidBioError(Exception):
+    """Raised when a bio fails validation."""
+
+
 class EmptyPostContentError(Exception):
     """Raised when post content is empty or whitespace-only."""
 
