@@ -19,9 +19,7 @@ _logger = get_logger("writers")
 class JSONReportWriter:
     """Persist a :class:`ReportPayload` as pretty-printed JSON."""
 
-    def __init__(
-        self, path: Path | str, *, indent: int = 2, encoding: str = "utf-8"
-    ) -> None:
+    def __init__(self, path: Path | str, *, indent: int = 2, encoding: str = "utf-8") -> None:
         """Initialise the writer.
 
         Args:
@@ -50,9 +48,7 @@ class JSONReportWriter:
                 json.dump(payload, json_file, indent=self.indent, sort_keys=False)
         except PermissionError as error:
             _logger.error("Permission denied when writing %s", self.path)
-            raise ReportWriteError(
-                f"Permission denied when writing {self.path}"
-            ) from error
+            raise ReportWriteError(f"Permission denied when writing {self.path}") from error
         except OSError as error:
             _logger.error("Unable to write %s: %s", self.path, error)
             raise ReportWriteError(f"Unable to write {self.path}: {error}") from error

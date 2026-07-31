@@ -109,9 +109,7 @@ class StudentGradeAnalyzer:
         payload: ReportPayload = {
             "generated_at": datetime.now(tz=UTC).isoformat(),
             "total_students": len(students),
-            "grade_distribution": {
-                letter.value: distribution[letter] for letter in distribution
-            },
+            "grade_distribution": {letter.value: distribution[letter] for letter in distribution},
             "students_by_major": OrderedDict(
                 (major, sorted(student.student_id for student in group))
                 for major, group in sorted(by_major.items())

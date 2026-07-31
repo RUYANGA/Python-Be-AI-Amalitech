@@ -69,9 +69,7 @@ class TestCSVStudentReader:
         ):
             reader.read()
 
-    @pytest.mark.skipif(
-        sys.platform == "win32", reason="chmod semantics differ on Windows"
-    )
+    @pytest.mark.skipif(sys.platform == "win32", reason="chmod semantics differ on Windows")
     def test_os_error_is_translated(self, tmp_path: Path) -> None:
         target = tmp_path / "students.csv"
         target.write_text("dummy", encoding="utf-8")

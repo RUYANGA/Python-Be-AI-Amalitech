@@ -47,9 +47,7 @@ def test_file_handler_writes_to_log_dir() -> None:
     configure_logging(level=logging.DEBUG)
     logger = logging.getLogger("student_analytics")
     file_handlers = [
-        handler
-        for handler in logger.handlers
-        if isinstance(handler, logging.FileHandler)
+        handler for handler in logger.handlers if isinstance(handler, logging.FileHandler)
     ]
     assert len(file_handlers) == 1
     handler = file_handlers[0]

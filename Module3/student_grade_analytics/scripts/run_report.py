@@ -62,9 +62,7 @@ def display_overview_section(all_students: list[Student]) -> None:
     year_counts = Counter(student.year for student in all_students)
     print_formatted_field("Year groups", len(year_counts))
     average_gpa = (
-        sum(student.gpa for student in all_students) / len(all_students)
-        if all_students
-        else 0.0
+        sum(student.gpa for student in all_students) / len(all_students) if all_students else 0.0
     )
     print_formatted_field("Average GPA (all)", f"{average_gpa:.2f}")
     highest_gpa = max(student.gpa for student in all_students) if all_students else 0.0
@@ -118,9 +116,7 @@ def display_students_by_major_section(all_students: list[Student]) -> None:
     grouping_aggregator = StudentGroupAggregator()
     students_by_major = grouping_aggregator.group_by_major(all_students)
     for major in sorted(students_by_major):
-        major_students = sorted(
-            students_by_major[major], key=lambda student: student.student_id
-        )
+        major_students = sorted(students_by_major[major], key=lambda student: student.student_id)
         student_list = ", ".join(
             f"{student.full_name} ({student.student_id})" for student in major_students
         )
@@ -135,9 +131,7 @@ def display_students_by_year_section(all_students: list[Student]) -> None:
     grouping_aggregator = StudentGroupAggregator()
     students_by_year = grouping_aggregator.group_by_year(all_students)
     for year in sorted(students_by_year):
-        year_students = sorted(
-            students_by_year[year], key=lambda student: student.student_id
-        )
+        year_students = sorted(students_by_year[year], key=lambda student: student.student_id)
         year_label = year_labels.get(year, f"Year {year}")
         student_list = ", ".join(
             f"{student.full_name} ({student.student_id})" for student in year_students
@@ -172,13 +166,9 @@ def display_rolling_averages_section(all_students: list[Student]) -> None:
         ordered_grades = sorted(student.grades, key=lambda grade: grade.semester)
         semester_averages = [
             f"{average:.1f}"
-            for average in rolling_calculator.extend(
-                grade.score for grade in ordered_grades
-            )
+            for average in rolling_calculator.extend(grade.score for grade in ordered_grades)
         ]
-        print(
-            f"  {student.student_id:<8} {student.full_name:<24}  {' → '.join(semester_averages)}"
-        )
+        print(f"  {student.student_id:<8} {student.full_name:<24}  {' → '.join(semester_averages)}")
     print()
 
 
