@@ -5,9 +5,7 @@ from social_media.models.mongo_entities import ActivityLog
 
 class TestActivityLog:
     def test_to_doc_without_id(self):
-        log = ActivityLog(
-            user_id="u1", action="like", target_type="post", target_id="p1"
-        )
+        log = ActivityLog(user_id="u1", action="like", target_type="post", target_id="p1")
         doc = log.to_doc()
         assert doc["user_id"] == "u1"
         assert doc["action"] == "like"

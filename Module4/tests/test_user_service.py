@@ -15,9 +15,7 @@ from tests.conftest import fake_id
 
 
 class TestRegister:
-    def test_register_new_user(
-        self, user_svc: UserService, hasher, user_repo: MagicMock
-    ):
+    def test_register_new_user(self, user_svc: UserService, hasher, user_repo: MagicMock):
         user_repo.find_by_email.return_value = None
         fake_uid = fake_id()
         user_repo.insert.return_value = fake_uid
@@ -31,9 +29,7 @@ class TestRegister:
         assert result["email"] == "alice@example.com"
         user_repo.insert.assert_called_once()
 
-    def test_register_duplicate_email(
-        self, user_svc: UserService, user_repo: MagicMock
-    ):
+    def test_register_duplicate_email(self, user_svc: UserService, user_repo: MagicMock):
         user_repo.find_by_email.return_value = {
             "id": fake_id(),
             "email": "alice@example.com",
@@ -45,9 +41,7 @@ class TestRegister:
         with pytest.raises(InvalidEmailError):
             user_svc.register("not-an-email", "S3cret!x", "Bad")
 
-    def test_register_normalizes_email(
-        self, user_svc: UserService, user_repo: MagicMock
-    ):
+    def test_register_normalizes_email(self, user_svc: UserService, user_repo: MagicMock):
         user_repo.find_by_email.return_value = None
         fake_uid = fake_id()
         user_repo.insert.return_value = fake_uid
@@ -60,9 +54,7 @@ class TestRegister:
         # The normalized email is lowercase
         assert result["email"] == "Alice@Example.com"
 
-    def test_register_stores_hashed_password(
-        self, user_svc: UserService, user_repo: MagicMock
-    ):
+    def test_register_stores_hashed_password(self, user_svc: UserService, user_repo: MagicMock):
         import bcrypt
 
         user_repo.find_by_email.return_value = None
@@ -104,9 +96,7 @@ class TestPasswordPolicy:
             user_svc.register("weak@example.com", password, "Weak")
         user_repo.insert.assert_not_called()
 
-    def test_register_accepts_strong_password(
-        self, user_svc: UserService, user_repo: MagicMock
-    ):
+    def test_register_accepts_strong_password(self, user_svc: UserService, user_repo: MagicMock):
         user_repo.find_by_email.return_value = None
         fake_uid = fake_id()
         user_repo.insert.return_value = fake_uid
@@ -120,9 +110,7 @@ class TestPasswordPolicy:
 
 
 class TestAuthenticate:
-    def test_valid_credentials(
-        self, user_svc: UserService, user_repo: MagicMock, hasher
-    ):
+    def test_valid_credentials(self, user_svc: UserService, user_repo: MagicMock, hasher):
         pw_hash = hasher.hash("validpw")
         doc = {"id": fake_id(), "email": "alice@example.com", "password_hash": pw_hash}
         user_repo.find_by_email.return_value = doc
@@ -130,9 +118,7 @@ class TestAuthenticate:
         result = user_svc.authenticate("alice@example.com", "validpw")
         assert result["id"] == doc["id"]
 
-    def test_invalid_password(
-        self, user_svc: UserService, user_repo: MagicMock, hasher
-    ):
+    def test_invalid_password(self, user_svc: UserService, user_repo: MagicMock, hasher):
         doc = {
             "id": fake_id(),
             "email": "alice@example.com",
