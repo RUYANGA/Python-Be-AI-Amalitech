@@ -9,6 +9,11 @@ the existing analysis pipeline. The report prioritises clarity: labels
 are unambiguous (per-student GPA vs. raw grade scores), every table is
 consistently aligned, and each section ends with a plain-language note
 that explains how to read the numbers.
+
+In addition to the terminal display, the same student data is run
+through the standard :class:`ReportPayloadBuilder` and persisted as
+JSON via :class:`JSONReportWriter` (default: ``reports/report.json``,
+override with ``--output``).
 """
 
 import argparse
@@ -22,10 +27,14 @@ from student_analytics.analytics.aggregators import (
     OrderedReportAggregator,
     StudentGroupAggregator,
 )
+from student_analytics.analytics.analyzer import DEFAULT_TOP_PERFORMER_LIMIT
+from student_analytics.analytics.builder import ReportPayloadBuilder
+from student_analytics.analytics.metrics import build_default_metrics
 from student_analytics.analytics.rolling_average import RollingAverageCalculator
 from student_analytics.analytics.statistics import GradeStatistics
 from student_analytics.exceptions import AnalyticsError
 from student_analytics.io.readers import CSVStudentReader
+from student_analytics.io.writers import JSONReportWriter
 from student_analytics.models import GradeLetter, Student
 
 TERMINAL_LINE_WIDTH = 72
@@ -363,6 +372,13 @@ def main() -> int:
         default=Path(__file__).resolve().parent.parent / "data" / "sample_students.csv",
         help="Path to the input CSV file.",
     )
+    parser.add_argument(
+        "--output",
+        "-o",
+        type=Path,
+        default=Path(__file__).resolve().parent.parent / "reports" / "report.json",
+        help="Path to write the JSON report to.",
+    )
     parsed_arguments = parser.parse_args()
 
     try:
@@ -395,11 +411,19 @@ def main() -> int:
     display_rolling_averages_section(all_students)
     display_per_student_breakdown_section(all_students)
 
+    metrics = build_default_metrics(
+        top_performer_limit=DEFAULT_TOP_PERFORMER_LIMIT,
+        rolling_window_size=ROLLING_WINDOW_SIZE,
+    )
+    payload = ReportPayloadBuilder(metrics=metrics).build(all_students)
+    JSONReportWriter(path=parsed_arguments.output).write(payload)
+
     print_separator_line("=")
     print(
         f"   Report complete — {len(all_students)} students, "
         f"{sum(len(student.grades) for student in all_students)} grades processed."
     )
+    print(f"   JSON report written to: {parsed_arguments.output}")
     print_separator_line("=")
     return 0
 

@@ -35,7 +35,7 @@ by **`ruff`**, **`black`**, **`mypy --strict`**, and **`pytest`** with
 - **Rolling averages** — a `deque(maxlen=N)` supplies O(1) windowed means.
 - **Professional logging** — a single call to `configure_logging` produces timestamped, level-tagged, source-attributed logs to both stderr and a file in `logs/`.
 - **CLI** — `student-analytics --input students.csv --output report.json`.
-- **Terminal report** — `python scripts/run_report.py` prints a professional formatted report directly to the console with tables, histograms, and per-student breakdowns.
+- **Terminal report** — `python scripts/run_report.py` prints a professional formatted report directly to the console with tables, histograms, and per-student breakdowns, and also writes the same analytics as JSON to `reports/report.json`.
 - **100% test coverage** — every branch is exercised by `pytest`.
 
 ---
@@ -130,16 +130,27 @@ pip install -e ".[dev]"              # installs runtime + dev tools
 
 ### Terminal report
 
-Print a formatted analytics report directly to the console:
+Print a formatted analytics report directly to the console. This also runs
+the same data through the standard analytics pipeline and writes the JSON
+report to `reports/report.json` (unless a different `--output` is given):
 
 ```bash
 python scripts/run_report.py
 ```
 
-With a custom input file:
+With a custom input file and/or output path:
 
 ```bash
-python scripts/run_report.py --input path/to/students.csv
+python scripts/run_report.py --input path/to/students.csv --output path/to/report.json
+```
+
+### CLI (JSON report only)
+
+Run the pipeline headlessly and write only the JSON report, without the
+terminal display:
+
+```bash
+student-analytics --input data/sample_students.csv --output reports/report.json
 ```
 
 ### As a library
@@ -272,6 +283,7 @@ S001,John,Doe,CS,2,CS201,Data Structures,3,Spring2024,92.0
 
 ========================================================================
    Report complete — 7 students, 21 grades processed.
+   JSON report written to: reports/report.json
 ========================================================================
 ```
 
