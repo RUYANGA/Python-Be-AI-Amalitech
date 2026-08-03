@@ -1,22 +1,121 @@
 student_id,first_name,last_name,major,year,course_code,course_name,credits,semester,score
-S001,John,Doe,CS,2,CS101,Intro to CS,3,Fall2023,85.5
-S001,John,Doe,CS,2,MA201,Calculus II,4,Fall2023,78.0
-S001,John,Doe,CS,2,CS201,Data Structures,3,Spring2024,92.0
-S001,John,Doe,CS,2,EN101,English Composition,3,Spring2024,88.0
-S002,Jane,Smith,MATH,3,MA301,Linear Algebra,3,Fall2023,95.0
-S002,Jane,Smith,MATH,3,MA302,Real Analysis,3,Fall2023,89.0
-S002,Jane,Smith,MATH,3,CS101,Intro to CS,3,Spring2024,91.5
-S003,Alice,Johnson,CS,1,CS101,Intro to CS,3,Fall2023,65.0
-S003,Alice,Johnson,CS,1,MA101,Calculus I,4,Fall2023,72.0
-S003,Alice,Johnson,CS,1,EN101,English Composition,3,Spring2024,80.0
-S004,Bob,Williams,PHYS,4,PH401,Quantum Mechanics,3,Fall2023,55.0
-S004,Bob,Williams,PHYS,4,PH402,Thermodynamics,3,Fall2023,68.0
-S004,Bob,Williams,PHYS,4,MA301,Linear Algebra,3,Spring2024,74.0
-S005,Carol,Brown,MATH,2,MA201,Calculus II,4,Fall2023,90.0
-S005,Carol,Brown,MATH,2,MA202,Discrete Math,3,Fall2023,87.0
-S005,Carol,Brown,MATH,2,CS201,Data Structures,3,Spring2024,82.5
-S006,David,Miller,CS,3,CS301,Algorithms,3,Fall2023,95.5
-S006,David,Miller,CS,3,CS302,Operating Systems,3,Fall2023,88.0
-S006,David,Miller,CS,3,CS303,Databases,3,Spring2024,93.0
-S007,Eve,Davis,PHYS,1,PH101,Intro Physics,4,Fall2023,78.0
-S007,Eve,Davis,PHYS,1,MA101,Calculus I,4,Fall2023,82.0
+S003,Alice,Johnson,CS,1,CS101,Intro to CS,3,Fall2023,54.2
+S003,Alice,Johnson,CS,1,MA101,Calculus I,4,Fall2023,63.7
+S003,Alice,Johnson,CS,1,EN101,English Composition,3,Spring2024,66.2
+S007,Eve,Davis,PHYS,1,CS101,Intro to CS,3,Fall2023,64.3
+S007,Eve,Davis,PHYS,1,MA101,Calculus I,4,Fall2023,58.9
+S007,Eve,Davis,PHYS,1,EN101,English Composition,3,Spring2024,61.1
+S008,Frank,Miller,CS,1,CS101,Intro to CS,3,Fall2023,72.7
+S008,Frank,Miller,CS,1,MA101,Calculus I,4,Fall2023,81.2
+S008,Frank,Miller,CS,1,EN101,English Composition,3,Spring2024,86.6
+S009,Grace,Lee,MATH,1,CS101,Intro to CS,3,Fall2023,65.5
+S009,Grace,Lee,MATH,1,MA101,Calculus I,4,Fall2023,79.5
+S009,Grace,Lee,MATH,1,EN101,English Composition,3,Spring2024,89.8
+S010,Henry,Wilson,PHYS,1,CS101,Intro to CS,3,Fall2023,67.1
+S010,Henry,Wilson,PHYS,1,MA101,Calculus I,4,Fall2023,55.6
+S010,Henry,Wilson,PHYS,1,EN101,English Composition,3,Spring2024,68.4
+S011,Ivy,Chen,CS,1,CS101,Intro to CS,3,Fall2023,70.6
+S011,Ivy,Chen,CS,1,MA101,Calculus I,4,Fall2023,83.2
+S011,Ivy,Chen,CS,1,EN101,English Composition,3,Spring2024,87.6
+S012,Jack,Taylor,MATH,1,CS101,Intro to CS,3,Fall2023,98.5
+S012,Jack,Taylor,MATH,1,MA101,Calculus I,4,Fall2023,85.1
+S012,Jack,Taylor,MATH,1,EN101,English Composition,3,Spring2024,98.5
+S013,Karen,White,CS,1,CS101,Intro to CS,3,Fall2023,62.4
+S013,Karen,White,CS,1,MA101,Calculus I,4,Fall2023,56.9
+S013,Karen,White,CS,1,EN101,English Composition,3,Spring2024,71.1
+S014,Leo,Garcia,PHYS,1,CS101,Intro to CS,3,Fall2023,53.6
+S014,Leo,Garcia,PHYS,1,MA101,Calculus I,4,Fall2023,73.7
+S014,Leo,Garcia,PHYS,1,EN101,English Composition,3,Spring2024,66.4
+S015,Mona,Patel,MATH,1,CS101,Intro to CS,3,Fall2023,50.7
+S015,Mona,Patel,MATH,1,MA101,Calculus I,4,Fall2023,58.9
+S015,Mona,Patel,MATH,1,EN101,English Composition,3,Spring2024,53.4
+S001,John,Doe,CS,2,CS201,Data Structures,3,Fall2023,65.0
+S001,John,Doe,CS,2,MA201,Calculus II,4,Fall2023,79.8
+S001,John,Doe,CS,2,MA202,Discrete Math,3,Spring2024,69.5
+S005,Carol,Brown,MATH,2,CS201,Data Structures,3,Fall2023,76.2
+S005,Carol,Brown,MATH,2,MA201,Calculus II,4,Fall2023,76.2
+S005,Carol,Brown,MATH,2,MA202,Discrete Math,3,Spring2024,65.4
+S016,Nick,Adams,CS,2,CS201,Data Structures,3,Fall2023,81.1
+S016,Nick,Adams,CS,2,MA201,Calculus II,4,Fall2023,72.6
+S016,Nick,Adams,CS,2,MA202,Discrete Math,3,Spring2024,59.7
+S017,Olivia,Clark,MATH,2,CS201,Data Structures,3,Fall2023,84.1
+S017,Olivia,Clark,MATH,2,MA201,Calculus II,4,Fall2023,73.5
+S017,Olivia,Clark,MATH,2,MA202,Discrete Math,3,Spring2024,75.1
+S018,Peter,Lewis,PHYS,2,CS201,Data Structures,3,Fall2023,68.9
+S018,Peter,Lewis,PHYS,2,MA201,Calculus II,4,Fall2023,69.0
+S018,Peter,Lewis,PHYS,2,MA202,Discrete Math,3,Spring2024,62.5
+S019,Quinn,Young,CS,2,CS201,Data Structures,3,Fall2023,47.3
+S019,Quinn,Young,CS,2,MA201,Calculus II,4,Fall2023,56.8
+S019,Quinn,Young,CS,2,MA202,Discrete Math,3,Spring2024,57.0
+S020,Rachel,King,MATH,2,CS201,Data Structures,3,Fall2023,77.6
+S020,Rachel,King,MATH,2,MA201,Calculus II,4,Fall2023,92.0
+S020,Rachel,King,MATH,2,MA202,Discrete Math,3,Spring2024,69.2
+S021,Sam,Moore,CS,2,CS201,Data Structures,3,Fall2023,68.7
+S021,Sam,Moore,CS,2,MA201,Calculus II,4,Fall2023,96.4
+S021,Sam,Moore,CS,2,MA202,Discrete Math,3,Spring2024,64.9
+S022,Tina,Hall,PHYS,2,CS201,Data Structures,3,Fall2023,66.4
+S022,Tina,Hall,PHYS,2,MA201,Calculus II,4,Fall2023,73.1
+S022,Tina,Hall,PHYS,2,MA202,Discrete Math,3,Spring2024,72.4
+S023,Uma,Baker,MATH,2,CS201,Data Structures,3,Fall2023,89.5
+S023,Uma,Baker,MATH,2,MA201,Calculus II,4,Fall2023,59.6
+S023,Uma,Baker,MATH,2,MA202,Discrete Math,3,Spring2024,78.3
+S002,Jane,Smith,MATH,3,CS301,Algorithms,3,Fall2023,72.1
+S002,Jane,Smith,MATH,3,MA301,Linear Algebra,3,Fall2023,79.9
+S002,Jane,Smith,MATH,3,MA302,Real Analysis,3,Spring2024,85.3
+S006,David,Miller,CS,3,CS301,Algorithms,3,Fall2023,81.5
+S006,David,Miller,CS,3,MA301,Linear Algebra,3,Fall2023,69.7
+S006,David,Miller,CS,3,MA302,Real Analysis,3,Spring2024,81.6
+S024,Victor,Hill,CS,3,CS301,Algorithms,3,Fall2023,81.1
+S024,Victor,Hill,CS,3,MA301,Linear Algebra,3,Fall2023,72.7
+S024,Victor,Hill,CS,3,MA302,Real Analysis,3,Spring2024,66.1
+S025,Wendy,Scott,MATH,3,CS301,Algorithms,3,Fall2023,87.3
+S025,Wendy,Scott,MATH,3,MA301,Linear Algebra,3,Fall2023,90.1
+S025,Wendy,Scott,MATH,3,MA302,Real Analysis,3,Spring2024,76.9
+S026,Xavier,Green,PHYS,3,CS301,Algorithms,3,Fall2023,92.4
+S026,Xavier,Green,PHYS,3,MA301,Linear Algebra,3,Fall2023,82.9
+S026,Xavier,Green,PHYS,3,MA302,Real Analysis,3,Spring2024,92.2
+S027,Yvonne,Nelson,CS,3,CS301,Algorithms,3,Fall2023,80.2
+S027,Yvonne,Nelson,CS,3,MA301,Linear Algebra,3,Fall2023,84.2
+S027,Yvonne,Nelson,CS,3,MA302,Real Analysis,3,Spring2024,72.7
+S028,Zachary,Carter,MATH,3,CS301,Algorithms,3,Fall2023,94.9
+S028,Zachary,Carter,MATH,3,MA301,Linear Algebra,3,Fall2023,70.0
+S028,Zachary,Carter,MATH,3,MA302,Real Analysis,3,Spring2024,79.5
+S029,Aisha,Wright,CS,3,CS301,Algorithms,3,Fall2023,54.4
+S029,Aisha,Wright,CS,3,MA301,Linear Algebra,3,Fall2023,61.1
+S029,Aisha,Wright,CS,3,MA302,Real Analysis,3,Spring2024,71.4
+S030,Brian,Torres,PHYS,3,CS301,Algorithms,3,Fall2023,63.0
+S030,Brian,Torres,PHYS,3,MA301,Linear Algebra,3,Fall2023,54.9
+S030,Brian,Torres,PHYS,3,MA302,Real Analysis,3,Spring2024,61.8
+S031,Chloe,Foster,MATH,3,CS301,Algorithms,3,Fall2023,60.4
+S031,Chloe,Foster,MATH,3,MA301,Linear Algebra,3,Fall2023,43.8
+S031,Chloe,Foster,MATH,3,MA302,Real Analysis,3,Spring2024,51.0
+S004,Bob,Williams,PHYS,4,CS303,Databases,3,Fall2023,64.3
+S004,Bob,Williams,PHYS,4,PH401,Quantum Mechanics,3,Fall2023,56.8
+S004,Bob,Williams,PHYS,4,PH402,Thermodynamics,3,Spring2024,53.0
+S032,Daniel,Ross,CS,4,CS303,Databases,3,Fall2023,81.4
+S032,Daniel,Ross,CS,4,PH401,Quantum Mechanics,3,Fall2023,85.0
+S032,Daniel,Ross,CS,4,PH402,Thermodynamics,3,Spring2024,80.7
+S033,Emily,Morgan,MATH,4,CS303,Databases,3,Fall2023,60.8
+S033,Emily,Morgan,MATH,4,PH401,Quantum Mechanics,3,Fall2023,74.7
+S033,Emily,Morgan,MATH,4,PH402,Thermodynamics,3,Spring2024,67.3
+S034,George,Price,CS,4,CS303,Databases,3,Fall2023,56.3
+S034,George,Price,CS,4,PH401,Quantum Mechanics,3,Fall2023,74.9
+S034,George,Price,CS,4,PH402,Thermodynamics,3,Spring2024,71.5
+S035,Hannah,Reed,PHYS,4,CS303,Databases,3,Fall2023,50.0
+S035,Hannah,Reed,PHYS,4,PH401,Quantum Mechanics,3,Fall2023,56.6
+S035,Hannah,Reed,PHYS,4,PH402,Thermodynamics,3,Spring2024,73.9
+S036,Ian,Bell,CS,4,CS303,Databases,3,Fall2023,56.0
+S036,Ian,Bell,CS,4,PH401,Quantum Mechanics,3,Fall2023,53.5
+S036,Ian,Bell,CS,4,PH402,Thermodynamics,3,Spring2024,46.4
+S037,Julia,Ward,MATH,4,CS303,Databases,3,Fall2023,91.0
+S037,Julia,Ward,MATH,4,PH401,Quantum Mechanics,3,Fall2023,81.6
+S037,Julia,Ward,MATH,4,PH402,Thermodynamics,3,Spring2024,72.7
+S038,Kyle,Hayes,PHYS,4,CS303,Databases,3,Fall2023,84.3
+S038,Kyle,Hayes,PHYS,4,PH401,Quantum Mechanics,3,Fall2023,77.1
+S038,Kyle,Hayes,PHYS,4,PH402,Thermodynamics,3,Spring2024,77.9
+S039,Laura,Bennett,CS,4,CS303,Databases,3,Fall2023,65.4
+S039,Laura,Bennett,CS,4,PH401,Quantum Mechanics,3,Fall2023,61.7
+S039,Laura,Bennett,CS,4,PH402,Thermodynamics,3,Spring2024,59.1
+S040,Nathan,Cox,MATH,4,CS303,Databases,3,Fall2023,90.8
+S040,Nathan,Cox,MATH,4,PH401,Quantum Mechanics,3,Fall2023,94.1
+S040,Nathan,Cox,MATH,4,PH402,Thermodynamics,3,Spring2024,86.2

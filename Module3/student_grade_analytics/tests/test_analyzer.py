@@ -3,6 +3,8 @@
 import pytest
 
 from student_analytics.analytics.analyzer import StudentGradeAnalyzer
+from student_analytics.analytics.builder import ReportPayloadBuilder
+from student_analytics.analytics.metrics import GradeDistributionMetric
 from student_analytics.models import ReportPayload, Student
 
 
@@ -78,3 +80,40 @@ class TestStudentGradeAnalyzer:
         payload = analyzer.run()
         # S001: Fall2023=85, Spring2024=95 -> rolling: [85.0, 90.0]
         assert payload["rolling_averages"]["S001"] == pytest.approx([85.0, 90.0])
+
+    def test_constructor_rejects_both_builder_and_metrics(
+        self, sample_students: list[Student]
+    ) -> None:
+        builder = ReportPayloadBuilder(metrics=[GradeDistributionMetric()])
+        with pytest.raises(ValueError, match="either payload_builder or metrics"):
+            StudentGradeAnalyzer(
+                reader=InMemoryReader(sample_students),
+                writer=InMemoryWriter(),
+                payload_builder=builder,
+                metrics=[GradeDistributionMetric()],
+            )
+
+    def test_constructor_accepts_custom_metrics(self, sample_students: list[Student]) -> None:
+        reader = InMemoryReader(sample_students)
+        writer = InMemoryWriter()
+        analyzer = StudentGradeAnalyzer(
+            reader=reader,
+            writer=writer,
+            metrics=[GradeDistributionMetric()],
+        )
+        payload = analyzer.run()
+        assert payload["grade_distribution"]["A"] == 1
+        assert "top_performers" not in payload
+
+    def test_constructor_accepts_payload_builder(self, sample_students: list[Student]) -> None:
+        reader = InMemoryReader(sample_students)
+        writer = InMemoryWriter()
+        builder = ReportPayloadBuilder(metrics=[GradeDistributionMetric()])
+        analyzer = StudentGradeAnalyzer(
+            reader=reader,
+            writer=writer,
+            payload_builder=builder,
+        )
+        payload = analyzer.run()
+        assert payload["total_students"] == 3
+        assert "students_by_major" not in payload

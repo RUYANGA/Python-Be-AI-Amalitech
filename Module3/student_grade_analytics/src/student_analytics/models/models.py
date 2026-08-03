@@ -91,8 +91,7 @@ class Grade:
         """
         if not 0.0 <= self.score <= 100.0:
             raise InvalidGradeError(
-                f"Score for course {self.course.code} must be in [0.0, 100.0]; "
-                f"got {self.score!r}."
+                f"Score for course {self.course.code} must be in [0.0, 100.0]; got {self.score!r}."
             )
 
     @property

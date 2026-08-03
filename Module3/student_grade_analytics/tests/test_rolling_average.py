@@ -47,7 +47,7 @@ class TestRollingAverageCalculator:
         rolling_calculator = RollingAverageCalculator(window_size=2)
         # bool is a subclass of int but semantically inappropriate as a grade.
         with pytest.raises(InvalidGradeError):
-            rolling_calculator.add(True)  # type: ignore[arg-type]
+            rolling_calculator.add(True)
 
     def test_reset_clears_samples(self) -> None:
         rolling_calculator = RollingAverageCalculator(window_size=3)

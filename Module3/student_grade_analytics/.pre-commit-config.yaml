@@ -1,8 +1,9 @@
 repos:
   - repo: https://github.com/psf/black
-    rev: 24.10.0
+    rev: 26.5.1
     hooks:
       - id: black
+        files: '^Module3/student_grade_analytics/'
         args: [Module3/student_grade_analytics]
         always_run: true
 

@@ -62,6 +62,8 @@ student_grade_analytics/
 │       │   ├── __init__.py
 │       │   ├── aggregators.py        # Counter / defaultdict / OrderedDict
 │       │   ├── analyzer.py           # Orchestrator (composition root)
+│       │   ├── builder.py            # ReportPayloadBuilder (payload assembly)
+│       │   ├── metrics.py            # MetricCalculator protocol + metrics
 │       │   ├── rolling_average.py    # deque-based rolling mean
 │       │   └── statistics.py         # mean / median / mode / percentiles
 │       ├── exceptions/               # Exception hierarchy
@@ -82,9 +84,11 @@ student_grade_analytics/
 │   ├── conftest.py
 │   ├── test_aggregators.py
 │   ├── test_analyzer.py
+│   ├── test_builder.py
 │   ├── test_cli.py
 │   ├── test_exceptions.py
 │   ├── test_logger.py
+│   ├── test_metrics.py
 │   ├── test_models.py
 │   ├── test_protocols.py
 │   ├── test_readers.py
@@ -103,11 +107,11 @@ student_grade_analytics/
 
 | Principle | Where it lives |
 |-----------|----------------|
-| **S**ingle Responsibility | Each module does one thing: `readers` reads, `writers` writes, `statistics` computes, `aggregators` aggregates, `analyzer` orchestrates. |
-| **O**pen/Closed | New readers or writers just implement the protocols in `models/protocols.py`; `analytics/analyzer.py` never has to change. |
-| **L**iskov Substitution | `StudentReader` and `ReportWriter` protocols guarantee any conforming class is interchangeable. |
-| **I**nterface Segregation | Two narrow protocols instead of a fat "IOService" — readers know nothing about writing and vice versa. |
-| **D**ependency Inversion | `StudentGradeAnalyzer` depends only on the protocols, not on concrete classes; the CLI is the composition root. |
+| **S**ingle Responsibility | Each module does one thing: `readers` reads, `writers` writes, `statistics` computes, `aggregators` aggregates, `metrics.py` computes one metric each, `builder.py` assembles the payload, `analyzer.py` only orchestrates. |
+| **O**pen/Closed | New readers or writers implement the protocols in `models/protocols.py`; new report sections are added as extra `MetricCalculator` implementations in `metrics.py` — `analyzer.py` and `builder.py` never have to change. |
+| **L**iskov Substitution | `StudentReader`, `ReportWriter`, and `MetricCalculator` protocols guarantee any conforming class is interchangeable. |
+| **I**nterface Segregation | Narrow protocols (`StudentReader`, `ReportWriter`, `MetricCalculator`) instead of fat "IOService" or "Analyzer" classes — clients depend only on the methods they actually use. |
+| **D**ependency Inversion | `StudentGradeAnalyzer` depends only on the abstractions (`StudentReader`, `ReportWriter`, `MetricCalculator`, `ReportPayloadBuilder`), not on concrete classes; the CLI is the composition root. |
 
 ---
 
