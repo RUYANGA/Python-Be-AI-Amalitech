@@ -182,8 +182,9 @@ print(f"Generated report for {report['total_students']} students.")
 
 ```csv
 student_id,first_name,last_name,major,year,course_code,course_name,credits,semester,score
-S001,John,Doe,CS,2,CS101,Intro to CS,3,Fall2023,85.5
-S001,John,Doe,CS,2,CS201,Data Structures,3,Spring2024,92.0
+S003,Alice,Johnson,CS,1,CS101,Intro to CS,3,Fall2023,54.2
+S003,Alice,Johnson,CS,1,MA101,Calculus I,4,Fall2023,63.7
+S003,Alice,Johnson,CS,1,EN101,English Composition,3,Spring2024,66.2
 ...
 ```
 
@@ -192,134 +193,307 @@ S001,John,Doe,CS,2,CS201,Data Structures,3,Spring2024,92.0
 ```
 ========================================================================
    STUDENT GRADE ANALYTICS REPORT
-   Generated: 2026-07-29 11:20:36
-   Source:    sample_students.csv
+   Generated: 2026-08-03 12:59:50   Source: sample_students.csv
 ========================================================================
+
+========================================================================
+  WHAT THIS REPORT TELLS YOU
+========================================================================
+  • 40 students, 120 grades recorded across 3 majors.
+  • Performance is strong: 34 of 120 grades (28%) are a B or better.
+  • The average student GPA is 71.44; the mean score across all 120 grades is 71.44.
+  • Best performer: Jack Taylor (S012, MATH) with a GPA of 94.03.
+  • The most common letter grade is C and the most popular major is CS (16 students).
 
 ========================================================================
   OVERVIEW
 ========================================================================
-  Total students                          7
-  Total grades                           21
+  Total students                         40
+  Total grades                          120
   Unique majors                           3
   Year groups                             4
-  Average GPA (all)                   82.05
-  Highest GPA                         92.17
-  Lowest GPA                          65.67
+  Average student GPA                 71.44
+  Best student GPA                    94.03
+  Lowest student GPA                  51.73
+  Note: GPA is each student's average course score; the overall mean of all raw grades appears in the Statistics section.
 
 ========================================================================
   TOP PERFORMERS
 ========================================================================
-  Rank   ID       Name                     Major    GPA
+  Rank   ID       Name
 ------------------------------------------------------------------------
-  1      S006     David Miller             CS       92.17
-  2      S002     Jane Smith               MATH     91.83
-  3      S005     Carol Brown              MATH     86.50
-  4      S001     John Doe                 CS       85.88
-  5      S007     Eve Davis                PHYS     80.00
-  6      S003     Alice Johnson            CS       72.33
-  7      S004     Bob Williams             PHYS     65.67
+  1      S012     Jack Taylor
+  2      S040     Nathan Cox
+  3      S026     Xavier Green
+  4      S025     Wendy Scott
+  5      S032     Daniel Ross
+  6      S037     Julia Ward
+  7      S028     Zachary Carter
+  8      S011     Ivy Chen
+  9      S008     Frank Miller
+  10     S038     Kyle Hayes
+  Note: Top performers across the whole school, ranked by overall GPA.
+
+========================================================================
+  TOP PERFORMERS BY YEAR
+========================================================================
+  Year 1  (5 students)
+    Rank  ID     Name                    MA     CS     EN     Avg
+------------------------------------------------------------------------
+    1     S012   Jack Taylor           85.1   98.5   98.5   94.03
+    2     S011   Ivy Chen              83.2   70.6   87.6   80.47
+    3     S008   Frank Miller          81.2   72.7   86.6   80.17
+    4     S009   Grace Lee             79.5   65.5   89.8   78.27
+    5     S014   Leo Garcia            73.7   53.6   66.4   64.57
+
+  Year 2  (5 students)
+    Rank  ID     Name                    MA     CS     Avg
+------------------------------------------------------------------------
+    1     S020   Rachel King           80.6   77.6   79.60
+    2     S017   Olivia Clark          74.3   84.1   77.57
+    3     S021   Sam Moore             80.7   68.7   76.67
+    4     S023   Uma Baker             69.0   89.5   75.80
+    5     S005   Carol Brown           70.8   76.2   72.60
+
+  Year 3  (5 students)
+    Rank  ID     Name                    MA     CS     Avg
+------------------------------------------------------------------------
+    1     S026   Xavier Green          87.6   92.4   89.17
+    2     S025   Wendy Scott           83.5   87.3   84.77
+    3     S028   Zachary Carter        74.8   94.9   81.47
+    4     S002   Jane Smith            82.6   72.1   79.10
+    5     S027   Yvonne Nelson         78.5   80.2   79.03
+
+  Year 4  (5 students)
+    Rank  ID     Name                    CS     PH     Avg
+------------------------------------------------------------------------
+    1     S040   Nathan Cox            90.8   90.2   90.37
+    2     S032   Daniel Ross           81.4   82.8   82.37
+    3     S037   Julia Ward            91.0   77.2   81.77
+    4     S038   Kyle Hayes            84.3   77.5   79.77
+    5     S033   Emily Morgan          60.8   71.0   67.60
+
+  Note: Each subject column is the student's average in that subject; Avg is the student's overall average. Students in the same year study the same courses, so only those subjects are listed.
 
 ========================================================================
   GRADE DISTRIBUTION
 ========================================================================
-  Letter   Count    %         Distribution
+  Letter   Range    Count           %  Histogram
 ------------------------------------------------------------------------
-  A        6          28.6%  ████████░░░░░░░░░░░░░░░░░░░░░░
-  B        8          38.1%  ███████████░░░░░░░░░░░░░░░░░░░
-  C        4          19.0%  █████░░░░░░░░░░░░░░░░░░░░░░░░░
-  D        2           9.5%  ██░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-  F        1           4.8%  █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+  A        90-100   11           9.2%  ██░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+  B        80-89    23          19.2%  █████░░░░░░░░░░░░░░░░░░░░░░░░░
+  C        70-79    30          25.0%  ███████░░░░░░░░░░░░░░░░░░░░░░░
+  D        60-69    30          25.0%  ███████░░░░░░░░░░░░░░░░░░░░░░░
+  F        0-59     26          21.7%  ██████░░░░░░░░░░░░░░░░░░░░░░░░
 ------------------------------------------------------------------------
-  TOTAL    21       100.0%
+  TOTAL             120        100.0%
 
 ========================================================================
-  STATISTICS
+  STATISTICS — ALL 120 GRADES
 ========================================================================
-  Mean                                82.33
-  Median                              85.50
-  Mode                                78.00
-  25th Percentile                     78.00
-  75th Percentile                     90.00
-  Highest Score                       95.50
-  Lowest Score                        55.00
+  Mean score                          71.44
+  Median score                        71.45
+  Most common score                   72.70
+  25th percentile                     61.55
+  75th percentile                     81.12
+  Highest score                       98.50
+  Lowest score                        43.80
+  Note: A percentile describes where a grade sits: the 25th percentile of 61.55 means a quarter of all grades are at or below that score.
 
 ========================================================================
   STUDENTS BY MAJOR
 ========================================================================
-  CS       ( 3)  John Doe (S001), Alice Johnson (S003), David Miller (S006)
-  MATH     ( 2)  Jane Smith (S002), Carol Brown (S005)
-  PHYS     ( 2)  Bob Williams (S004), Eve Davis (S007)
+  Major    Count   Distribution (40 students)
+------------------------------------------------------------------------
+  CS          16   ████████████░░░░░░░░░░░░░░░░░░
+  MATH        14   ██████████░░░░░░░░░░░░░░░░░░░░
+  PHYS        10   ███████░░░░░░░░░░░░░░░░░░░░░░░
+
+  Note: Student counts per declared major.
 
 ========================================================================
   STUDENTS BY YEAR
 ========================================================================
-  Freshman     ( 2)  Alice Johnson (S003), Eve Davis (S007)
-  Sophomore    ( 2)  John Doe (S001), Carol Brown (S005)
-  Junior       ( 2)  Jane Smith (S002), David Miller (S006)
-  Senior       ( 1)  Bob Williams (S004)
+  Year     Count   Distribution (40 students)
+------------------------------------------------------------------------
+  Year 1      10   ███████░░░░░░░░░░░░░░░░░░░░░░░
+  Year 2      10   ███████░░░░░░░░░░░░░░░░░░░░░░░
+  Year 3      10   ███████░░░░░░░░░░░░░░░░░░░░░░░
+  Year 4      10   ███████░░░░░░░░░░░░░░░░░░░░░░░
+
+  Note: Student counts per academic year.
 
 ========================================================================
   ROLLING AVERAGES (window=3)
 ========================================================================
-  S001     John Doe                  85.5 → 81.8 → 85.2 → 86.0
-  S002     Jane Smith                95.0 → 92.0 → 91.8
-  S003     Alice Johnson             65.0 → 68.5 → 72.3
-  S004     Bob Williams              55.0 → 61.5 → 65.7
-  S005     Carol Brown               90.0 → 88.5 → 86.5
-  S006     David Miller              95.5 → 91.8 → 92.2
-  S007     Eve Davis                 78.0 → 80.0
+  Year 1
+    ID      Name                     CS101   MA101   EN101     Avg
+------------------------------------------------------------------------
+    S003    Alice Johnson             54.2    63.7    66.2    61.4
+    S007    Eve Davis                 64.3    58.9    61.1    61.4
+    S008    Frank Miller              72.7    81.2    86.6    80.2
+    S009    Grace Lee                 65.5    79.5    89.8    78.3
+    S010    Henry Wilson              67.1    55.6    68.4    63.7
+    S011    Ivy Chen                  70.6    83.2    87.6    80.5
+    S012    Jack Taylor               98.5    85.1    98.5    94.0
+    S013    Karen White               62.4    56.9    71.1    63.5
+    S014    Leo Garcia                53.6    73.7    66.4    64.6
+    S015    Mona Patel                50.7    58.9    53.4    54.3
+
+  Year 2
+    ID      Name                     CS201   MA201   MA202     Avg
+------------------------------------------------------------------------
+    S001    John Doe                  65.0    79.8    69.5    71.4
+    S005    Carol Brown               76.2    76.2    65.4    72.6
+    S016    Nick Adams                81.1    72.6    59.7    71.1
+    S017    Olivia Clark              84.1    73.5    75.1    77.6
+    S018    Peter Lewis               68.9    69.0    62.5    66.8
+    S019    Quinn Young               47.3    56.8    57.0    53.7
+    S020    Rachel King               77.6    92.0    69.2    79.6
+    S021    Sam Moore                 68.7    96.4    64.9    76.7
+    S022    Tina Hall                 66.4    73.1    72.4    70.6
+    S023    Uma Baker                 89.5    59.6    78.3    75.8
+
+  Year 3
+    ID      Name                     CS301   MA301   MA302     Avg
+------------------------------------------------------------------------
+    S002    Jane Smith                72.1    79.9    85.3    79.1
+    S006    David Miller              81.5    69.7    81.6    77.6
+    S024    Victor Hill               81.1    72.7    66.1    73.3
+    S025    Wendy Scott               87.3    90.1    76.9    84.8
+    S026    Xavier Green              92.4    82.9    92.2    89.2
+    S027    Yvonne Nelson             80.2    84.2    72.7    79.0
+    S028    Zachary Carter            94.9    70.0    79.5    81.5
+    S029    Aisha Wright              54.4    61.1    71.4    62.3
+    S030    Brian Torres              63.0    54.9    61.8    59.9
+    S031    Chloe Foster              60.4    43.8    51.0    51.7
+
+  Year 4
+    ID      Name                     CS303   PH401   PH402     Avg
+------------------------------------------------------------------------
+    S004    Bob Williams              64.3    56.8    53.0    58.0
+    S032    Daniel Ross               81.4    85.0    80.7    82.4
+    S033    Emily Morgan              60.8    74.7    67.3    67.6
+    S034    George Price              56.3    74.9    71.5    67.6
+    S035    Hannah Reed               50.0    56.6    73.9    60.2
+    S036    Ian Bell                  56.0    53.5    46.4    52.0
+    S037    Julia Ward                91.0    81.6    72.7    81.8
+    S038    Kyle Hayes                84.3    77.1    77.9    79.8
+    S039    Laura Bennett             65.4    61.7    59.1    62.1
+    S040    Nathan Cox                90.8    94.1    86.2    90.4
+
+  Note: Each course column is the student's actual recorded score; Avg is the rolling mean of the latest 3 grades, recomputed as each new course is completed. Students in the same year study the same courses.
 
 ========================================================================
   PER-STUDENT BREAKDOWN
 ========================================================================
-  Alice Johnson            S003     CS     Yr1   GPA: 72.33   |  CS101:65, MA101:72, EN101:80
-  Bob Williams             S004     PHYS   Yr4   GPA: 65.67   |  PH401:55, PH402:68, MA301:74
-  Carol Brown              S005     MATH   Yr2   GPA: 86.50   |  MA201:90, MA202:87, CS201:82
-  David Miller             S006     CS     Yr3   GPA: 92.17   |  CS301:96, CS302:88, CS303:93
-  Eve Davis                S007     PHYS   Yr1   GPA: 80.00   |  PH101:78, MA101:82
-  Jane Smith               S002     MATH   Yr3   GPA: 91.83   |  MA301:95, MA302:89, CS101:92
-  John Doe                 S001     CS     Yr2   GPA: 85.88   |  CS101:86, MA201:78, CS201:92, EN101:88
+  Year 1  (10 students)
+    Rank  ID     Name                    MA     CS     EN     Avg
+------------------------------------------------------------------------
+    1     S012   Jack Taylor           85.1   98.5   98.5   94.03
+    2     S011   Ivy Chen              83.2   70.6   87.6   80.47
+    3     S008   Frank Miller          81.2   72.7   86.6   80.17
+    4     S009   Grace Lee             79.5   65.5   89.8   78.27
+    5     S014   Leo Garcia            73.7   53.6   66.4   64.57
+    6     S010   Henry Wilson          55.6   67.1   68.4   63.70
+    7     S013   Karen White           56.9   62.4   71.1   63.47
+    8     S007   Eve Davis             58.9   64.3   61.1   61.43
+    9     S003   Alice Johnson         63.7   54.2   66.2   61.37
+    10    S015   Mona Patel            58.9   50.7   53.4   54.33
+
+  Year 2  (10 students)
+    Rank  ID     Name                    MA     CS     Avg
+------------------------------------------------------------------------
+    1     S020   Rachel King           80.6   77.6   79.60
+    2     S017   Olivia Clark          74.3   84.1   77.57
+    3     S021   Sam Moore             80.7   68.7   76.67
+    4     S023   Uma Baker             69.0   89.5   75.80
+    5     S005   Carol Brown           70.8   76.2   72.60
+    6     S001   John Doe              74.7   65.0   71.43
+    7     S016   Nick Adams            66.2   81.1   71.13
+    8     S022   Tina Hall             72.8   66.4   70.63
+    9     S018   Peter Lewis           65.8   68.9   66.80
+    10    S019   Quinn Young           56.9   47.3   53.70
+
+  Year 3  (10 students)
+    Rank  ID     Name                    MA     CS     Avg
+------------------------------------------------------------------------
+    1     S026   Xavier Green          87.6   92.4   89.17
+    2     S025   Wendy Scott           83.5   87.3   84.77
+    3     S028   Zachary Carter        74.8   94.9   81.47
+    4     S002   Jane Smith            82.6   72.1   79.10
+    5     S027   Yvonne Nelson         78.5   80.2   79.03
+    6     S006   David Miller          75.7   81.5   77.60
+    7     S024   Victor Hill           69.4   81.1   73.30
+    8     S029   Aisha Wright          66.2   54.4   62.30
+    9     S030   Brian Torres          58.3   63.0   59.90
+    10    S031   Chloe Foster          47.4   60.4   51.73
+
+  Year 4  (10 students)
+    Rank  ID     Name                    CS     PH     Avg
+------------------------------------------------------------------------
+    1     S040   Nathan Cox            90.8   90.2   90.37
+    2     S032   Daniel Ross           81.4   82.8   82.37
+    3     S037   Julia Ward            91.0   77.2   81.77
+    4     S038   Kyle Hayes            84.3   77.5   79.77
+    5     S033   Emily Morgan          60.8   71.0   67.60
+    6     S034   George Price          56.3   73.2   67.57
+    7     S039   Laura Bennett         65.4   60.4   62.07
+    8     S035   Hannah Reed           50.0   65.2   60.17
+    9     S004   Bob Williams          64.3   54.9   58.03
+    10    S036   Ian Bell              56.0   50.0   51.97
+
+  Note: Subject columns are each student's average in that subject; Avg is their overall average. Students in the same year study the same courses.
 
 ========================================================================
-   Report complete — 7 students, 21 grades processed.
+   Report complete — 40 students, 120 grades processed.
    JSON report written to: reports/report.json
 ========================================================================
 ```
 
 ### Output — `reports/report.json`
 
+Written by both `student-analytics` and `python scripts/run_report.py` for
+the full `data/sample_students.csv` (40 students, 120 grades). Lists are
+truncated below with `...` for brevity — the real file enumerates every
+student:
+
 ```json
 {
-  "generated_at": "2026-07-29T12:00:00+00:00",
-  "total_students": 7,
-  "grade_distribution": {"A": 6, "B": 6, "C": 4, "D": 3, "F": 1},
+  "generated_at": "2026-08-03T10:54:26.400130+00:00",
+  "total_students": 40,
+  "grade_distribution": {"A": 11, "B": 23, "C": 30, "D": 30, "F": 26},
   "students_by_major": {
-    "CS": ["S001", "S003", "S006"],
-    "MATH": ["S002", "S005"],
-    "PHYS": ["S004", "S007"]
+    "CS": ["S001", "S003", "S006", "..."],
+    "MATH": ["S002", "S005", "S009", "..."],
+    "PHYS": ["S004", "S007", "S010", "..."]
   },
   "students_by_year": {
-    "1": ["S003", "S007"],
-    "2": ["S001", "S005"],
-    "3": ["S002", "S006"],
-    "4": ["S004"]
+    "1": ["S003", "S007", "S008", "..."],
+    "2": ["S001", "S005", "S016", "..."],
+    "3": ["S002", "S006", "S024", "..."],
+    "4": ["S004", "S032", "S033", "..."]
   },
   "top_performers": [
-    {"student_id": "S006", "gpa": 92.17},
-    {"student_id": "S002", "gpa": 91.83}
+    {"student_id": "S012", "gpa": 94.03},
+    {"student_id": "S040", "gpa": 90.37},
+    {"student_id": "S026", "gpa": 89.17},
+    {"student_id": "S025", "gpa": 84.77},
+    {"student_id": "S032", "gpa": 82.37}
   ],
   "statistics": {
-    "mean": 81.02,
-    "median": 85.0,
-    "mode": 78.0,
-    "percentile_25": 74.0,
-    "percentile_75": 90.0,
-    "highest": 95.5,
-    "lowest": 55.0
+    "mean": 71.44,
+    "median": 71.45,
+    "mode": 72.7,
+    "percentile_25": 61.55,
+    "percentile_75": 81.12,
+    "highest": 98.5,
+    "lowest": 43.8
   },
   "rolling_averages": {
-    "S001": [85.5, 81.75, 84.5, 86.375]
+    "S003": [54.2, 58.95, 61.37],
+    "S007": [64.3, 61.6, 61.43],
+    "...": ["..."]
   }
 }
 ```
