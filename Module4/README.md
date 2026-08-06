@@ -10,6 +10,8 @@ A social media platform backend built with SOLID principles, deliberately
 split across three databases by workload instead of forcing everything into
 one store:
 
+Demo video: https://vimeo.com/1216073326?share=copy&fl=sv&fe=ci
+
 | Database | Role |
 |---|---|
 | **PostgreSQL** | Normalized (3NF) system of record — users, posts, comments, followers, likes — plus JSONB post metadata (tags/location) |
