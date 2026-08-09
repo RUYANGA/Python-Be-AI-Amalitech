@@ -1,4 +1,4 @@
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiExample, extend_schema
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -14,11 +14,21 @@ class LogoutView(BaseAuthView):
 
     @extend_schema(
         request=LogoutSerializer,
-        responses={205: None},
+        responses={200: None},
         summary="Logout and blacklist refresh token",
+        examples=[
+            OpenApiExample(
+                "Logout",
+                value={"refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."},
+                request_only=True,
+            )
+        ],
     )
     def post(self, request):
         serializer = LogoutSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.auth_service.logout(serializer.validated_data["refresh"])
-        return Response(status=status.HTTP_205_RESET_CONTENT)
+        return Response(
+            {"message": "Logged out successfully."},
+            status=status.HTTP_200_OK,
+        )

@@ -1,4 +1,4 @@
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiExample, extend_schema
 from rest_framework import status
 from rest_framework.response import Response
 
@@ -11,11 +11,28 @@ class RegisterView(BaseAuthView):
 
     @extend_schema(
         request=RegisterSerializer,
-        responses={201: UserSerializer},
+        responses={201: None},
         summary="Register a new user",
+        examples=[
+            OpenApiExample(
+                "Register",
+                value={
+                    "username": "johndoe",
+                    "email": "john@example.com",
+                    "password": "StrongPass123",
+                },
+                request_only=True,
+            )
+        ],
     )
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = self.auth_service.register(serializer.validated_data)
-        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
+        return Response(
+            {
+                "message": "User registered successfully.",
+                "user": UserSerializer(user).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )

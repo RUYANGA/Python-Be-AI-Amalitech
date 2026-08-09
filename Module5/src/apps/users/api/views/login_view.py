@@ -1,4 +1,4 @@
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiExample, extend_schema
 from rest_framework import status
 from rest_framework.response import Response
 
@@ -13,6 +13,13 @@ class LoginView(BaseAuthView):
         request=LoginSerializer,
         responses={200: None},
         summary="Login and receive JWT tokens",
+        examples=[
+            OpenApiExample(
+                "Login",
+                value={"username": "johndoe", "password": "StrongPass123"},
+                request_only=True,
+            )
+        ],
     )
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
@@ -23,6 +30,7 @@ class LoginView(BaseAuthView):
         )
         return Response(
             {
+                "message": "Login successful.",
                 "user": UserSerializer(result["user"]).data,
                 "refresh": result["tokens"]["refresh"],
                 "access": result["tokens"]["access"],
