@@ -12,6 +12,9 @@ class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ["id", "username", "first_name", "last_name", "email", "password"]
+        # Disable the auto-generated UniqueValidator so our friendlier
+        # message in validate_username below is what actually surfaces.
+        extra_kwargs: dict = {"username": {"validators": []}}
 
     def validate_username(self, value):
         if User.objects.filter(username=value).exists():
