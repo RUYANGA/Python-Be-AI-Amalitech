@@ -1,3 +1,5 @@
+"""URL routes for the users API endpoints."""
+
 from django.urls import path
 
 from apps.users.api.views import LoginView, LogoutView, RefreshTokenView, RegisterView
