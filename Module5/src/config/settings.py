@@ -32,6 +32,8 @@ ALLOWED_HOSTS: list[str] = config(
     "ALLOWED_HOSTS", default="*", cast=lambda v: [h.strip() for h in v.split(",")]
 )
 
+AUTH_USER_MODEL = "users.User"
+
 
 # Application definition
 
@@ -45,6 +47,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     "drf_spectacular",
+    "apps.users",
 ]
 
 REST_FRAMEWORK = {

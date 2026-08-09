@@ -31,6 +31,9 @@ src = ["src"]
 select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "ARG"]
 ignore = ["N818"]
 
+[tool.ruff.lint.per-file-ignores]
+"src/apps/*/migrations/*.py" = ["E501"]
+
 [tool.ruff.format]
 quote-style = "double"
 
