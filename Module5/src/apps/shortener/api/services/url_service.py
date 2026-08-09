@@ -10,8 +10,13 @@ the async layer in Module 8.
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 
-from apps.shortener.api.exceptions import ShortCodeGenerationError, URLNotFoundError
+from apps.shortener.api.exceptions import (
+    ShortCodeGenerationError,
+    URLNotFoundError,
+    URLNotOwnedError,
+)
 from apps.shortener.api.interfaces.repository import IURLRepository
 from apps.shortener.api.interfaces.shortener import IShortCodeGenerator
 from apps.shortener.models import URL
@@ -67,9 +72,41 @@ class URLShortenerService:
         logger.debug("url.resolved short_code=%s", short_code)
         return url
 
+    def list_owned(self, owner) -> Iterable[URL]:
+        """Return every URL owned by ``owner``."""
+        return self._repository.list_by_owner(owner)
+
+    def update_owned(self, pk: int, owner, original_url: str) -> URL:
+        """Update ``original_url`` on the URL ``pk``, if owned by ``owner``.
+
+        Raises :class:`URLNotOwnedError` if it doesn't exist or belongs to
+        someone else.
+        """
+        url = self._get_owned_or_raise(pk, owner)
+        updated = self._repository.update(url, original_url=original_url)
+        logger.info("url.updated id=%s owner_id=%s", pk, owner.id)
+        return updated
+
+    def delete_owned(self, pk: int, owner) -> None:
+        """Delete the URL ``pk``, if owned by ``owner``.
+
+        Raises :class:`URLNotOwnedError` if it doesn't exist or belongs to
+        someone else.
+        """
+        url = self._get_owned_or_raise(pk, owner)
+        self._repository.delete(url)
+        logger.info("url.deleted id=%s owner_id=%s", pk, owner.id)
+
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
+    def _get_owned_or_raise(self, pk: int, owner) -> URL:
+        url = self._repository.get_by_id(pk)
+        if url is None or url.owner_id != owner.id:
+            logger.warning("url.not_owned id=%s owner_id=%s", pk, owner.id)
+            raise URLNotOwnedError(pk)
+        return url
+
     def _generate_unique_code(self) -> str:
         for attempt in range(1, self.MAX_GENERATION_ATTEMPTS + 1):
             code = self._generator.generate(self.DEFAULT_CODE_LENGTH)

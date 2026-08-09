@@ -82,3 +82,130 @@ class TestURLRedirectView:
     def test_returns_404_for_unknown_code(self, api_client):
         response = api_client.get("/nonexist/")
         assert response.status_code == 404
+
+
+class TestURLListView:
+    def test_rejects_anonymous_requests(self, api_client):
+        response = api_client.get("/api/urls/mine/")
+        assert response.status_code == 401
+
+    def test_lists_only_my_urls(self, api_client, user, other_user):
+        URL.objects.create(
+            original_url="https://mine.example.com", short_code="mine001", owner=user
+        )
+        URL.objects.create(
+            original_url="https://not-mine.example.com", short_code="theirs01", owner=other_user
+        )
+        api_client.force_authenticate(user=user)
+
+        response = api_client.get("/api/urls/mine/")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert len(body) == 1
+        assert body[0]["short_code"] == "mine001"
+
+
+class TestURLDetailViewUpdate:
+    def test_rejects_anonymous_requests(self, api_client, user):
+        url = URL.objects.create(
+            original_url="https://old.example.com", short_code="upd0001", owner=user
+        )
+
+        response = api_client.patch(
+            f"/api/urls/{url.pk}/", {"original_url": "https://new.example.com"}, format="json"
+        )
+
+        assert response.status_code == 401
+
+    def test_owner_can_update(self, api_client, user):
+        url = URL.objects.create(
+            original_url="https://old.example.com", short_code="upd0002", owner=user
+        )
+        api_client.force_authenticate(user=user)
+
+        response = api_client.patch(
+            f"/api/urls/{url.pk}/", {"original_url": "https://new.example.com"}, format="json"
+        )
+
+        assert response.status_code == 200
+        assert response.json()["original_url"] == "https://new.example.com"
+        url.refresh_from_db()
+        assert url.original_url == "https://new.example.com"
+
+    def test_non_owner_gets_404(self, api_client, user, other_user):
+        url = URL.objects.create(
+            original_url="https://old.example.com", short_code="upd0003", owner=other_user
+        )
+        api_client.force_authenticate(user=user)
+
+        response = api_client.patch(
+            f"/api/urls/{url.pk}/", {"original_url": "https://new.example.com"}, format="json"
+        )
+
+        assert response.status_code == 404
+        url.refresh_from_db()
+        assert url.original_url == "https://old.example.com"
+
+    def test_returns_404_for_unknown_id(self, api_client, user):
+        api_client.force_authenticate(user=user)
+
+        response = api_client.patch(
+            "/api/urls/999999/", {"original_url": "https://new.example.com"}, format="json"
+        )
+
+        assert response.status_code == 404
+
+    def test_rejects_invalid_url(self, api_client, user):
+        url = URL.objects.create(
+            original_url="https://old.example.com", short_code="upd0004", owner=user
+        )
+        api_client.force_authenticate(user=user)
+
+        response = api_client.patch(
+            f"/api/urls/{url.pk}/", {"original_url": "not a url"}, format="json"
+        )
+
+        assert response.status_code == 400
+
+
+class TestURLDetailViewDelete:
+    def test_rejects_anonymous_requests(self, api_client, user):
+        url = URL.objects.create(
+            original_url="https://old.example.com", short_code="del0001", owner=user
+        )
+
+        response = api_client.delete(f"/api/urls/{url.pk}/")
+
+        assert response.status_code == 401
+        assert URL.objects.filter(pk=url.pk).exists()
+
+    def test_owner_can_delete(self, api_client, user):
+        url = URL.objects.create(
+            original_url="https://old.example.com", short_code="del0002", owner=user
+        )
+        api_client.force_authenticate(user=user)
+
+        response = api_client.delete(f"/api/urls/{url.pk}/")
+
+        assert response.status_code == 200
+        assert response.json()["message"] == "URL deleted successfully."
+        assert not URL.objects.filter(pk=url.pk).exists()
+
+    def test_non_owner_gets_404(self, api_client, user, other_user):
+        url = URL.objects.create(
+            original_url="https://old.example.com", short_code="del0003", owner=other_user
+        )
+        api_client.force_authenticate(user=user)
+
+        response = api_client.delete(f"/api/urls/{url.pk}/")
+
+        assert response.status_code == 404
+        assert URL.objects.filter(pk=url.pk).exists()
+
+    def test_returns_404_for_unknown_id(self, api_client, user):
+        api_client.force_authenticate(user=user)
+
+        response = api_client.delete("/api/urls/999999/")
+
+        assert response.status_code == 404

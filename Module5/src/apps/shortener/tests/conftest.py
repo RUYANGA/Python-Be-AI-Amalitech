@@ -20,3 +20,13 @@ def user(db):
         email="alice@example.com",
         password="testpass123",
     )
+
+
+@pytest.fixture
+def other_user(db):
+    user_model = get_user_model()
+    return user_model.objects.create_user(
+        username="bob",
+        email="bob@example.com",
+        password="testpass123",
+    )
