@@ -24,6 +24,17 @@ class URLRedirectView(BaseURLView):
             404: OpenApiResponse(description="Short code not found."),
         },
         summary="Redirect to the original URL",
+        description=(
+            "Returns a 302 redirect to the original URL.\n\n"
+            '**Note for Swagger UI:** clicking "Execute" here will usually show '
+            '"Failed to fetch" / a CORS error. That\'s expected — Swagger UI runs '
+            "requests through the browser's `fetch()`, which follows the 302 and "
+            "then tries to load the target site as a cross-origin request; most "
+            "sites don't grant CORS to arbitrary origins, so the browser blocks "
+            "that second hop. The redirect itself still works. To verify it, open "
+            "the URL directly in a new browser tab, or run "
+            "`curl -v <base_url>/<short_code>/`."
+        ),
         tags=["URLs"],
     )
     def get(self, _request: Request, short_code: str) -> HttpResponseRedirect:
