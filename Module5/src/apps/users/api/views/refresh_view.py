@@ -1,8 +1,12 @@
+import logging
+
 from drf_spectacular.utils import OpenApiExample, extend_schema
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.views import TokenRefreshView
+
+logger = logging.getLogger(__name__)
 
 
 class RefreshTokenView(TokenRefreshView):
@@ -23,6 +27,7 @@ class RefreshTokenView(TokenRefreshView):
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        logger.info("Access token refreshed for user: %s", request.user)
         return Response(
             {"message": "Token refreshed successfully.", **serializer.validated_data},
             status=status.HTTP_200_OK,

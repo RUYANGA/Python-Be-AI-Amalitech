@@ -222,9 +222,9 @@ LOGGING = {
             "level": "INFO",
             "propagate": False,
         },
-        "urlshortener": {
+        "apps.users": {
             "handlers": ["console", "file"],
-            "level": "DEBUG",
+            "level": "INFO",
             "propagate": False,
         },
     },

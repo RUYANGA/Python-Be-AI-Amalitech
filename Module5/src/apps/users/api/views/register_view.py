@@ -18,6 +18,8 @@ class RegisterView(BaseAuthView):
                 "Register",
                 value={
                     "username": "johndoe",
+                    "first_name": "John",
+                    "last_name": "Doe",
                     "email": "john@example.com",
                     "password": "StrongPass123",
                 },
