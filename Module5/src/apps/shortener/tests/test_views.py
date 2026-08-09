@@ -1,4 +1,4 @@
-"""Integration tests for the URL create + redirect views."""
+"""Integration tests for the shortener API views."""
 
 from __future__ import annotations
 
@@ -70,14 +70,15 @@ class TestURLCreateView:
         assert response.status_code == 500
 
 
-class TestURLRedirectView:
-    def test_redirects_to_original_url(self, api_client):
+class TestURLResolveView:
+    def test_returns_original_url(self, api_client):
         url = URL.objects.create(original_url="https://example.com/target", short_code="tgt1234")
 
         response = api_client.get(f"/{url.short_code}/")
 
-        assert response.status_code == 302
-        assert response["Location"] == "https://example.com/target"
+        assert response.status_code == 200
+        assert response.json()["original_url"] == "https://example.com/target"
+        assert "Location" not in response
 
     def test_returns_404_for_unknown_code(self, api_client):
         response = api_client.get("/nonexist/")

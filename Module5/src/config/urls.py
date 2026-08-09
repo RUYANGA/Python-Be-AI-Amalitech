@@ -23,7 +23,7 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 
-from apps.shortener.api.views import URLRedirectView
+from apps.shortener.api.views import URLResolveView
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -40,5 +40,5 @@ urlpatterns = [
         SpectacularRedocView.as_view(url_name="schema"),
         name="redoc",
     ),
-    path("<str:short_code>/", URLRedirectView.as_view(), name="url-redirect"),
+    path("<str:short_code>/", URLResolveView.as_view(), name="url-resolve"),
 ]
