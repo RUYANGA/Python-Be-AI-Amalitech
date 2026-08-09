@@ -11,7 +11,7 @@ pytestmark = pytest.mark.django_db
 class TestRegisterView:
     def test_registers_a_new_user(self, api_client):
         response = api_client.post(
-            "/api/auth/register/",
+            "/api/v1/auth/register/",
             {
                 "username": "newuser",
                 "first_name": "New",
@@ -28,7 +28,7 @@ class TestRegisterView:
 
     def test_rejects_duplicate_username(self, api_client, user):
         response = api_client.post(
-            "/api/auth/register/",
+            "/api/v1/auth/register/",
             {"username": user.username, "email": "other@example.com", "password": "StrongPass123"},
             format="json",
         )
@@ -38,7 +38,7 @@ class TestRegisterView:
 class TestLoginView:
     def test_logs_in_with_valid_credentials(self, api_client, user):
         response = api_client.post(
-            "/api/auth/login/",
+            "/api/v1/auth/login/",
             {"username": "alice", "password": "testpass123"},
             format="json",
         )
@@ -51,7 +51,7 @@ class TestLoginView:
 
     def test_rejects_invalid_credentials(self, api_client, user):
         response = api_client.post(
-            "/api/auth/login/",
+            "/api/v1/auth/login/",
             {"username": "alice", "password": "wrongpassword"},
             format="json",
         )
@@ -59,7 +59,7 @@ class TestLoginView:
 
     def test_rejects_inactive_account(self, api_client, inactive_user):
         response = api_client.post(
-            "/api/auth/login/",
+            "/api/v1/auth/login/",
             {"username": "bob", "password": "testpass123"},
             format="json",
         )
@@ -72,7 +72,7 @@ class TestLogoutView:
         refresh = RefreshToken.for_user(user)
 
         response = api_client.post(
-            "/api/auth/logout/",
+            "/api/v1/auth/logout/",
             {"refresh": str(refresh)},
             format="json",
         )
@@ -83,7 +83,7 @@ class TestLogoutView:
         refresh = RefreshToken.for_user(user)
 
         response = api_client.post(
-            "/api/auth/logout/",
+            "/api/v1/auth/logout/",
             {"refresh": str(refresh)},
             format="json",
         )
@@ -96,7 +96,7 @@ class TestRefreshTokenView:
         refresh = RefreshToken.for_user(user)
 
         response = api_client.post(
-            "/api/auth/token/refresh/",
+            "/api/v1/auth/token/refresh/",
             {"refresh": str(refresh)},
             format="json",
         )
@@ -106,7 +106,7 @@ class TestRefreshTokenView:
 
     def test_rejects_invalid_refresh_token(self, api_client):
         response = api_client.post(
-            "/api/auth/token/refresh/",
+            "/api/v1/auth/token/refresh/",
             {"refresh": "not-a-real-token"},
             format="json",
         )

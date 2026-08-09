@@ -1,3 +1,4 @@
+from django.urls import reverse
 from rest_framework import serializers
 
 from apps.shortener.models import URL
@@ -15,7 +16,7 @@ class URLResponseSerializer(serializers.ModelSerializer):
 
     def get_short_url(self, obj: URL) -> str:
         request = self.context.get("request")
-        path = f"/{obj.short_code}/"
+        path = reverse("url-resolve", kwargs={"short_code": obj.short_code})
         if request is None:
             return path
         return request.build_absolute_uri(path)

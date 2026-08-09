@@ -15,7 +15,7 @@ pytestmark = pytest.mark.django_db
 class TestURLCreateView:
     def test_rejects_anonymous_requests(self, api_client):
         response = api_client.post(
-            "/api/urls/",
+            "/api/v1/urls/",
             {"original_url": "https://example.com/some/path"},
             format="json",
         )
@@ -25,7 +25,7 @@ class TestURLCreateView:
         api_client.force_authenticate(user=user)
 
         response = api_client.post(
-            "/api/urls/",
+            "/api/v1/urls/",
             {"original_url": "https://example.com/owned"},
             format="json",
         )
@@ -42,7 +42,7 @@ class TestURLCreateView:
         api_client.force_authenticate(user=user)
 
         response = api_client.post(
-            "/api/urls/",
+            "/api/v1/urls/",
             {"original_url": "not a url"},
             format="json",
         )
@@ -51,7 +51,7 @@ class TestURLCreateView:
     def test_rejects_missing_field(self, api_client, user):
         api_client.force_authenticate(user=user)
 
-        response = api_client.post("/api/urls/", {}, format="json")
+        response = api_client.post("/api/v1/urls/", {}, format="json")
         assert response.status_code == 400
         assert "original_url" in response.json()
 
@@ -62,7 +62,7 @@ class TestURLCreateView:
             mock_build.return_value.shorten.side_effect = ShortCodeGenerationError()
 
             response = api_client.post(
-                "/api/urls/",
+                "/api/v1/urls/",
                 {"original_url": "https://example.com/fail"},
                 format="json",
             )
@@ -74,20 +74,20 @@ class TestURLResolveView:
     def test_returns_original_url(self, api_client):
         url = URL.objects.create(original_url="https://example.com/target", short_code="tgt1234")
 
-        response = api_client.get(f"/{url.short_code}/")
+        response = api_client.get(f"/api/v1/{url.short_code}/")
 
         assert response.status_code == 200
         assert response.json()["original_url"] == "https://example.com/target"
         assert "Location" not in response
 
     def test_returns_404_for_unknown_code(self, api_client):
-        response = api_client.get("/nonexist/")
+        response = api_client.get("/api/v1/nonexist/")
         assert response.status_code == 404
 
 
 class TestURLListView:
     def test_rejects_anonymous_requests(self, api_client):
-        response = api_client.get("/api/urls/mine/")
+        response = api_client.get("/api/v1/urls/mine/")
         assert response.status_code == 401
 
     def test_lists_only_my_urls(self, api_client, user, other_user):
@@ -99,7 +99,7 @@ class TestURLListView:
         )
         api_client.force_authenticate(user=user)
 
-        response = api_client.get("/api/urls/mine/")
+        response = api_client.get("/api/v1/urls/mine/")
 
         assert response.status_code == 200
         body = response.json()
@@ -114,7 +114,7 @@ class TestURLDetailViewUpdate:
         )
 
         response = api_client.patch(
-            f"/api/urls/{url.pk}/", {"original_url": "https://new.example.com"}, format="json"
+            f"/api/v1/urls/{url.pk}/", {"original_url": "https://new.example.com"}, format="json"
         )
 
         assert response.status_code == 401
@@ -126,7 +126,7 @@ class TestURLDetailViewUpdate:
         api_client.force_authenticate(user=user)
 
         response = api_client.patch(
-            f"/api/urls/{url.pk}/", {"original_url": "https://new.example.com"}, format="json"
+            f"/api/v1/urls/{url.pk}/", {"original_url": "https://new.example.com"}, format="json"
         )
 
         assert response.status_code == 200
@@ -141,7 +141,7 @@ class TestURLDetailViewUpdate:
         api_client.force_authenticate(user=user)
 
         response = api_client.patch(
-            f"/api/urls/{url.pk}/", {"original_url": "https://new.example.com"}, format="json"
+            f"/api/v1/urls/{url.pk}/", {"original_url": "https://new.example.com"}, format="json"
         )
 
         assert response.status_code == 404
@@ -152,7 +152,7 @@ class TestURLDetailViewUpdate:
         api_client.force_authenticate(user=user)
 
         response = api_client.patch(
-            "/api/urls/999999/", {"original_url": "https://new.example.com"}, format="json"
+            "/api/v1/urls/999999/", {"original_url": "https://new.example.com"}, format="json"
         )
 
         assert response.status_code == 404
@@ -164,7 +164,7 @@ class TestURLDetailViewUpdate:
         api_client.force_authenticate(user=user)
 
         response = api_client.patch(
-            f"/api/urls/{url.pk}/", {"original_url": "not a url"}, format="json"
+            f"/api/v1/urls/{url.pk}/", {"original_url": "not a url"}, format="json"
         )
 
         assert response.status_code == 400
@@ -176,7 +176,7 @@ class TestURLDetailViewDelete:
             original_url="https://old.example.com", short_code="del0001", owner=user
         )
 
-        response = api_client.delete(f"/api/urls/{url.pk}/")
+        response = api_client.delete(f"/api/v1/urls/{url.pk}/")
 
         assert response.status_code == 401
         assert URL.objects.filter(pk=url.pk).exists()
@@ -187,7 +187,7 @@ class TestURLDetailViewDelete:
         )
         api_client.force_authenticate(user=user)
 
-        response = api_client.delete(f"/api/urls/{url.pk}/")
+        response = api_client.delete(f"/api/v1/urls/{url.pk}/")
 
         assert response.status_code == 200
         assert response.json()["message"] == "URL deleted successfully."
@@ -199,7 +199,7 @@ class TestURLDetailViewDelete:
         )
         api_client.force_authenticate(user=user)
 
-        response = api_client.delete(f"/api/urls/{url.pk}/")
+        response = api_client.delete(f"/api/v1/urls/{url.pk}/")
 
         assert response.status_code == 404
         assert URL.objects.filter(pk=url.pk).exists()
@@ -207,6 +207,6 @@ class TestURLDetailViewDelete:
     def test_returns_404_for_unknown_id(self, api_client, user):
         api_client.force_authenticate(user=user)
 
-        response = api_client.delete("/api/urls/999999/")
+        response = api_client.delete("/api/v1/urls/999999/")
 
         assert response.status_code == 404
