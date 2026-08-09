@@ -33,6 +33,7 @@ ignore = ["N818"]
 
 [tool.ruff.lint.per-file-ignores]
 "src/apps/*/migrations/*.py" = ["E501"]
+"src/apps/*/tests/*.py" = ["ARG001", "ARG002"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -41,7 +42,7 @@ quote-style = "double"
 python_version = "3.12"
 strict = false
 ignore_missing_imports = true
-exclude = ["src/__init__\\.py"]
+exclude = ["src/__init__\\.py", ".*/migrations/.*\\.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

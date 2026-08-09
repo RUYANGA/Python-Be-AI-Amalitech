@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
     "drf_spectacular",
     "apps.users",
+    "apps.shortener",
 ]
 
 REST_FRAMEWORK = {
@@ -223,6 +224,11 @@ LOGGING = {
             "propagate": False,
         },
         "apps.users": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "apps.shortener": {
             "handlers": ["console", "file"],
             "level": "INFO",
             "propagate": False,
