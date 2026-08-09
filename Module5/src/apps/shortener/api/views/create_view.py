@@ -2,6 +2,7 @@ import logging
 
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 
@@ -13,11 +14,9 @@ logger = logging.getLogger(__name__)
 
 
 class URLCreateView(BaseURLView):
-    """``POST /api/urls/`` — create a shortened URL.
+    """``POST /api/urls/`` — create a shortened URL, owned by the caller."""
 
-    Anonymous creation is allowed in Module 5. Module 7 will require
-    authentication and enforce per-tier limits.
-    """
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(
         operation_id="urls_create",
@@ -25,6 +24,7 @@ class URLCreateView(BaseURLView):
         responses={
             201: URLResponseSerializer,
             400: OpenApiResponse(description="Invalid input."),
+            401: OpenApiResponse(description="Authentication required."),
             500: OpenApiResponse(description="Could not generate a unique short code."),
         },
         summary="Create a short URL",
@@ -34,12 +34,10 @@ class URLCreateView(BaseURLView):
         serializer = URLCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        owner = request.user if request.user.is_authenticated else None
-
         try:
             url = self.service.shorten(
                 original_url=serializer.validated_data["original_url"],
-                owner=owner,
+                owner=request.user,
             )
         except ShortCodeGenerationError:
             logger.exception("url.create_failed reason=short_code_exhausted")
