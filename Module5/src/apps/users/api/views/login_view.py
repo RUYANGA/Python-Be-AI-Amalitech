@@ -13,6 +13,7 @@ class LoginView(BaseAuthView):
         request=LoginSerializer,
         responses={200: None},
         summary="Login and receive JWT tokens",
+        tags=["Auth API"],
         examples=[
             OpenApiExample(
                 "Login",

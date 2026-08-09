@@ -17,6 +17,7 @@ class RefreshTokenView(TokenRefreshView):
         request=TokenRefreshSerializer,
         responses={200: None},
         summary="Refresh access token",
+        tags=["Auth API"],
         examples=[
             OpenApiExample(
                 "Refresh",

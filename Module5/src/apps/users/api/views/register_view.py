@@ -13,6 +13,7 @@ class RegisterView(BaseAuthView):
         request=RegisterSerializer,
         responses={201: None},
         summary="Register a new user",
+        tags=["Auth API"],
         examples=[
             OpenApiExample(
                 "Register",

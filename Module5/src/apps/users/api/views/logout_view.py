@@ -20,6 +20,7 @@ class LogoutView(BaseAuthView):
         request=LogoutSerializer,
         responses={200: None},
         summary="Logout and blacklist refresh token",
+        tags=["Auth API"],
         examples=[
             OpenApiExample(
                 "Logout",
