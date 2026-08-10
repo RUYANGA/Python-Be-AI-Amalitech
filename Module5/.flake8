@@ -1,0 +1,28 @@
+[flake8]
+# Match the rest of the toolchain (black, ruff) instead of PEP 8's default of 79.
+max-line-length = 100
+
+# Black's formatting style intentionally triggers these two checks, so they're
+# disabled here to keep flake8 and black from disagreeing with each other:
+# https://black.readthedocs.io/en/stable/guides/using_black_with_other_tools.html#flake8
+extend-ignore =
+    E203,
+    W503
+
+# Auto-generated Django migrations routinely exceed the line-length limit;
+# that's expected and not worth flagging. Mirrors the equivalent rule for
+# ruff in pyproject.toml.
+per-file-ignores =
+    */migrations/*.py: E501
+
+# Never lint virtual envs, VCS metadata, tool caches, or generated reports.
+exclude =
+    .git,
+    .venv,
+    __pycache__,
+    .mypy_cache,
+    .ruff_cache,
+    .pytest_cache,
+    htmlcov,
+    build,
+    dist
