@@ -117,3 +117,12 @@ class TestStudentGradeAnalyzer:
         payload = analyzer.run()
         assert payload["total_students"] == 3
         assert "students_by_major" not in payload
+
+    def test_builder_requires_at_least_one_metric(self) -> None:
+        with pytest.raises(ValueError, match="At least one metric calculator"):
+            ReportPayloadBuilder(metrics=[])
+
+    def test_builder_rejects_duplicate_metric_keys(self) -> None:
+        duplicate = GradeDistributionMetric()
+        with pytest.raises(ValueError, match="Metric keys must be unique"):
+            ReportPayloadBuilder(metrics=[duplicate, duplicate])

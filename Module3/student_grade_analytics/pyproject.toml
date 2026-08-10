@@ -127,6 +127,7 @@ show_error_codes = true
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]
+pythonpath = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -134,6 +135,8 @@ addopts = [
     "-v",
     "--strict-markers",
     "--tb=short",
+    "-p",
+    "pytest_cov_scope",
     "--cov=student_analytics",
     "--cov-report=term-missing",
     "--cov-report=html",
