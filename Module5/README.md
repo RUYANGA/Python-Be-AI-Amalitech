@@ -331,11 +331,19 @@ Once the server is running:
 
 ## Running the tests
 
+Test tooling (`pytest`, `pytest-django`, `pytest-cov`) isn't part of the runtime `requirements.txt` — install it separately, once:
+
 ```bash
-export PYTHONPATH=src
-export DJANGO_SETTINGS_MODULE=config.settings
-python -m pytest src/apps --cov=apps --cov-report=term-missing
+pip install -r requirements-dev.txt
 ```
+
+Then, from the project root:
+
+```bash
+pytest --cov=apps --cov-report=term-missing
+```
+
+(`pythonpath` and `DJANGO_SETTINGS_MODULE` are already configured in `pyproject.toml`, so no environment variables are needed — plain `pytest` works too.)
 
 Sample output:
 
@@ -348,6 +356,13 @@ Name                                              Stmts   Miss  Cover
 ---------------------------------------------------------------------
 TOTAL                                               468      0   100%
 71 passed in 39.66s
+```
+
+For a browsable, line-by-line report instead of a terminal summary:
+
+```bash
+pytest --cov=apps --cov-report=html
+xdg-open htmlcov/index.html   # macOS: open htmlcov/index.html
 ```
 
 ## Code quality

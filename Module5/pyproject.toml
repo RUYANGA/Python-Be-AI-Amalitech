@@ -45,7 +45,9 @@ ignore_missing_imports = true
 exclude = ["src/__init__\\.py", ".*/migrations/.*\\.py"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+DJANGO_SETTINGS_MODULE = "config.settings"
+pythonpath = ["src"]
+testpaths = ["src/apps"]
 python_files = ["test_*.py"]
 
 [tool.coverage.run]
