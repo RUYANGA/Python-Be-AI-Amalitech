@@ -6,12 +6,11 @@ from unittest.mock import MagicMock
 import psycopg2
 
 from social_media.repositories.mongo_repos import ActivityLogRepository, MongoRepository
-from social_media.repositories.postgres_metadata_repo import PostMetadataRepository as _ShimRepo
+from social_media.repositories.postgres_metadata_repo import PostMetadataRepository
 from social_media.repositories.postgres_repos import (
     CommentRepository,
     FollowerRepository,
     LikeRepository,
-    PostMetadataRepository,
     PostRepository,
     UserRepository,
 )
@@ -320,8 +319,3 @@ class TestActivityLogRepository:
         assert doc["target_type"] == "post"
         assert doc["target_id"] == "p1"
         assert doc["metadata"] == {"k": "v"}
-
-
-class TestBackwardCompatShim:
-    def test_postgres_metadata_repo_shim_reexports_same_class(self):
-        assert _ShimRepo is PostMetadataRepository

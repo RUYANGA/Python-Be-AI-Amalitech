@@ -6,7 +6,6 @@ insert/find_by_id/find/update/delete, with each concrete class adding only
 its own query methods.
 """
 
-import json
 from collections.abc import Iterable
 from typing import Any
 
@@ -314,53 +313,3 @@ class LikeRepository(PostgresCompositeRepository, ILikeRepository):
                 (user_id, post_id),
             )
             return cursor.rowcount
-
-
-class PostMetadataRepository:
-    """CRUD for post_metadata table backed by PostgreSQL JSONB."""
-
-    def __init__(self, pg_connection: PostgresConnection):
-        self._pg_connection = pg_connection
-
-    def upsert(
-        self, post_id: int, tags: list[str] | None = None, location: str | None = None
-    ) -> None:
-        """Insert metadata for a post or merge it into the existing JSONB row."""
-        existing = self.find_by_id(post_id) or {}
-        metadata = {
-            "tags": tags if tags is not None else existing.get("tags", []),
-            "location": location if location is not None else existing.get("location"),
-        }
-        with self._pg_connection.cursor() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO post_metadata (post_id, metadata)
-                VALUES (%s, %s)
-                ON CONFLICT (post_id)
-                DO UPDATE SET metadata = EXCLUDED.metadata
-                """,
-                (post_id, json.dumps(metadata)),
-            )
-
-    def find_by_id(self, post_id: int) -> dict[str, Any] | None:
-        """Return the metadata doc for a post, or None if it has none."""
-        with self._pg_connection.cursor() as cursor:
-            cursor.execute("SELECT metadata FROM post_metadata WHERE post_id = %s", (post_id,))
-            row = cursor.fetchone()
-            return row["metadata"] if row else None
-
-    def find_many(self, post_ids: list[int]) -> dict[int, dict]:
-        """Return {post_id: metadata} for the given post ids."""
-        if not post_ids:
-            return {}
-        with self._pg_connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT post_id, metadata FROM post_metadata WHERE post_id = ANY(%s)",
-                (post_ids,),
-            )
-            return {row["post_id"]: row["metadata"] for row in cursor.fetchall()}
-
-    def delete(self, post_id: int) -> None:
-        """Remove the metadata row for a post."""
-        with self._pg_connection.cursor() as cursor:
-            cursor.execute("DELETE FROM post_metadata WHERE post_id = %s", (post_id,))

@@ -4,7 +4,7 @@
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
 ![MongoDB](https://img.shields.io/badge/MongoDB-7-47A248?logo=mongodb&logoColor=white)
 ![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-257%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-256%20passing-brightgreen)
 ![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)
 
 A social media platform backend built with SOLID principles, deliberately
@@ -291,7 +291,7 @@ pytest --cov=src/social_media \
        --cov-report=html:logs/htmlcov  # HTML coverage report
 ```
 
-257 tests: unit tests mock every repository (no database required), plus
+256 tests: unit tests mock every repository (no database required), plus
 live integration tests in `tests/test_postgres_repos.py` that exercise the
 real transactional follow, feed pagination, and index presence against a
 running PostgreSQL instance — skipped automatically if Postgres isn't
