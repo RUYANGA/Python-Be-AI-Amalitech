@@ -7,6 +7,7 @@ that issues several cur.execute() calls inside one `with` block gets one
 atomic transaction for free — that's what the transactional follow relies on.
 """
 
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
@@ -52,7 +53,7 @@ class PostgresConnection:
             raise
 
     @contextmanager
-    def cursor(self):
+    def cursor(self) -> Generator[RealDictCursor, None, None]:
         """Borrow a pooled connection; commit on success, roll back on error."""
         conn = self._pool.getconn()
         try:

@@ -6,11 +6,11 @@ from unittest.mock import MagicMock
 import psycopg2
 
 from social_media.repositories.mongo_repos import ActivityLogRepository, MongoRepository
-from social_media.repositories.postgres_metadata_repo import PostMetadataRepository
 from social_media.repositories.postgres_repos import (
     CommentRepository,
     FollowerRepository,
     LikeRepository,
+    PostMetadataRepository,
     PostRepository,
     UserRepository,
 )

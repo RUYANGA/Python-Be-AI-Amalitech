@@ -6,7 +6,7 @@ from typing import Any
 from social_media.exceptions import EmptyPostContentError
 from social_media.models.postgres_entities import Post
 from social_media.repositories.base import IFollowerRepository, IPostRepository
-from social_media.repositories.postgres_metadata_repo import PostMetadataRepository
+from social_media.repositories.postgres_repos import PostMetadataRepository
 from social_media.services.activity_log_service import ActivityLogService
 from social_media.utils.logger import get_logger
 

@@ -5,11 +5,11 @@ from social_media.config.settings import settings
 from social_media.database.mongodb_connection import MongoConnection
 from social_media.database.postgres_connection import PostgresConnection
 from social_media.repositories.mongo_repos import ActivityLogRepository
-from social_media.repositories.postgres_metadata_repo import PostMetadataRepository
 from social_media.repositories.postgres_repos import (
     CommentRepository,
     FollowerRepository,
     LikeRepository,
+    PostMetadataRepository,
     PostRepository,
     UserRepository,
 )
