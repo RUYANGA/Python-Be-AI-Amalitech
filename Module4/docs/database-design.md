@@ -62,8 +62,7 @@ erDiagram
     USERS ||--o{ COMMENTS : writes
     POSTS ||--o{ COMMENTS : has
     COMMENTS ||--o{ COMMENTS : replies_to
-    USERS ||--o{ FOLLOWERS : follows_as_follower
-    USERS ||--o{ FOLLOWERS : followed_as_followee
+    USERS }o--o{ FOLLOWERS : follows
     USERS ||--o{ LIKES : likes_as_user
     POSTS ||--o{ LIKES : liked_by
     POSTS ||--|| POST_METADATA : has
