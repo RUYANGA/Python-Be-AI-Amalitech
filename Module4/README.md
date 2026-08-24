@@ -49,8 +49,6 @@ erDiagram
         text full_name
         text bio
         boolean is_active
-        int follower_count
-        int following_count
         timestamptz created_at
         timestamptz updated_at
     }
@@ -123,14 +121,18 @@ primary key and nothing else:
   of "no tags." This is a modeling choice for semi-structured data, not a
   3NF violation.
 
-**Deliberate denormalization:** `users.follower_count`/`following_count`
-and `posts.like_count`/`comment_count` are counts derivable from other
-tables, cached for O(1) reads instead of `COUNT(*)` on every profile/post
-view. They're updated by the same transaction that changes the underlying
-rows — see the transactional follow write-up in
-[`docs/database-design.md`](docs/database-design.md#transactional-follow) —
-so they can't drift out of sync. Standard performance trade-off, not a
-normalization mistake.
+**Deliberate denormalization (posts only):** `posts.like_count` and
+`comment_count` are counts derivable from other tables, cached for O(1)
+reads instead of `COUNT(*)` on every post view. They're updated in the same
+transaction that changes the underlying rows, so they can't drift out of
+sync. Standard performance trade-off, not a normalization mistake.
+
+**Followers stay fully normalized:** a follower count is a property of the
+relationship set, not of a user, so `users` carries no counter columns —
+follower/following counts are derived at read time with `COUNT(*)` over
+`followers`, and the join table is the single source of truth (see the
+follow write path in
+[`docs/database-design.md`](docs/database-design.md#follow-write-path--one-insert-constraints-do-the-work)).
 
 Full column-by-column detail lives in
 [`docs/database-design.md`](docs/database-design.md#normalization-3nf).
@@ -292,13 +294,13 @@ pytest --cov=src/social_media \
 
 256 tests: unit tests mock every repository (no database required), plus
 live integration tests in `tests/test_postgres_repos.py` that exercise the
-real transactional follow, feed pagination, and index presence against a
-running PostgreSQL instance — skipped automatically if Postgres isn't
-reachable. Coverage sits at **100%** across all source files.
+real follow/unfollow constraints, feed pagination, and index presence
+against a running PostgreSQL instance — skipped automatically if Postgres
+isn't reachable. Coverage sits at **100%** across all source files.
 
 ## Documentation
 
 [`docs/database-design.md`](docs/database-design.md) — the ER diagram
-above plus 3NF rationale, the transactional-follow write-up, the CTE +
+above plus 3NF rationale, the follow write path, the CTE +
 `JOIN` + `ROW_NUMBER()` feed query, and real `EXPLAIN ANALYZE` output
 measured on a 500-user/20,000-post seeded dataset.

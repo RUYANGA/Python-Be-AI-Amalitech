@@ -28,7 +28,7 @@ INSERT INTO posts (user_id, content, created_at) VALUES
     (2, 'New camera lens arrived, time to shoot.',                                now() - interval '1 day'),
     (3, 'Reading up on 3NF and denormalization trade-offs.',                      now() - interval '2 days'),
     (4, 'ROW_NUMBER() window functions beat OFFSET pagination every time.',       now() - interval '6 hours'),
-    (4, 'Wrote a transactional follow today: one INSERT, two UPDATEs, one txn.',  now() - interval '2 hours'),
+    (4, 'Normalized follow model today: one INSERT, the composite PK does the rest.',  now() - interval '2 hours'),
     (5, 'Lurking as usual.',                                                      now() - interval '30 minutes');
 -- ids: 1..8, in the order above
 
@@ -60,15 +60,13 @@ INSERT INTO likes (user_id, post_id) VALUES
     (2, 6), (3, 6),
     (1, 7), (2, 7), (3, 7);
 
--- Recompute the denormalized counters from the relationships just inserted,
--- rather than hand-counting them — this is exactly what
--- FollowerRepository.follow()/unfollow() and the like/comment services do
--- incrementally in application code; here we derive them in bulk so the
--- sample data is internally consistent regardless of how these INSERTs
--- above get edited later.
-UPDATE users u SET
-    follower_count  = (SELECT count(*) FROM followers f WHERE f.followee_id = u.id),
-    following_count = (SELECT count(*) FROM followers f WHERE f.follower_id = u.id);
+-- Recompute the denormalized like/comment counters from the relationships
+-- just inserted, rather than hand-counting them — this is exactly what the
+-- like/comment services do incrementally in application code; here we derive
+-- them in bulk so the sample data is internally consistent regardless of how
+-- these INSERTs above get edited later.
+-- (users carries no follower/following counters: those are derived from the
+-- followers table at query time.)
 
 UPDATE posts p SET
     like_count    = (SELECT count(*) FROM likes l WHERE l.post_id = p.id),

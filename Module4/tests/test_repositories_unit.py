@@ -136,7 +136,7 @@ class TestFollowerRepository:
         pg, cur = make_pg()
         cur.rowcount = 1
         assert FollowerRepository(pg).unfollow(1, 2) == 1
-        assert cur.execute.call_count == 3
+        assert "DELETE FROM followers" in cur.execute.call_args[0][0]
 
     def test_unfollow_no_edge(self):
         pg, cur = make_pg()

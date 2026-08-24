@@ -237,45 +237,21 @@ class FollowerRepository(PostgresCompositeRepository, IFollowerRepository):
     KEY_COLUMNS = ("follower_id", "followee_id")
 
     def follow(self, follower_id: Any, followee_id: Any) -> bool:
-        """Insert the edge and bump both counters atomically. False on duplicate."""
+        """Insert the follow edge. False if it already exists.
+
+        A single INSERT — atomicity is free, and the composite PK plus the
+        CHECK (follower_id <> followee_id) constraint enforce uniqueness and
+        no-self-follow at the schema level.
+        """
         try:
-            with self._pg_connection.cursor() as cursor:
-                cursor.execute(
-                    "INSERT INTO followers (follower_id, followee_id) VALUES (%s, %s)",
-                    (follower_id, followee_id),
-                )
-                cursor.execute(
-                    "UPDATE users SET following_count = following_count + 1 WHERE id = %s",
-                    (follower_id,),
-                )
-                cursor.execute(
-                    "UPDATE users SET follower_count = follower_count + 1 WHERE id = %s",
-                    (followee_id,),
-                )
+            self.insert({"follower_id": follower_id, "followee_id": followee_id})
             return True
         except psycopg2.errors.UniqueViolation:
             return False
 
     def unfollow(self, follower_id: Any, followee_id: Any) -> int:
-        """Delete the follow edge and decrement both counters; returns rows affected."""
-        with self._pg_connection.cursor() as cursor:
-            cursor.execute(
-                "DELETE FROM followers WHERE follower_id = %s AND followee_id = %s",
-                (follower_id, followee_id),
-            )
-            deleted = cursor.rowcount
-            if deleted:
-                cursor.execute(
-                    "UPDATE users SET following_count = GREATEST(following_count - 1, 0) "
-                    "WHERE id = %s",
-                    (follower_id,),
-                )
-                cursor.execute(
-                    "UPDATE users SET follower_count = GREATEST(follower_count - 1, 0) "
-                    "WHERE id = %s",
-                    (followee_id,),
-                )
-            return deleted
+        """Delete the follow edge; returns the number of rows affected."""
+        return self.delete((follower_id, followee_id))
 
     def followees_of(self, user_id: Any) -> list[Any]:
         """Return the ids of the users the given user follows."""

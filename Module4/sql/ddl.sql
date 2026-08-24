@@ -15,12 +15,16 @@ CREATE TABLE IF NOT EXISTS users (
     full_name TEXT,
     bio TEXT,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    follower_count INTEGER NOT NULL DEFAULT 0,
-    following_count INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_users_created_at ON users (created_at DESC);
+
+-- Retire the old denormalized counter cache: follower/following counts are
+-- derived from the followers table at read time (see docs/database-design.md).
+-- DROP COLUMN IF EXISTS keeps this file idempotent for pre-existing schemas.
+ALTER TABLE users DROP COLUMN IF EXISTS follower_count;
+ALTER TABLE users DROP COLUMN IF EXISTS following_count;
 
 CREATE TABLE IF NOT EXISTS posts (
     id BIGSERIAL PRIMARY KEY,

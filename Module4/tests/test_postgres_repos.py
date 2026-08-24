@@ -1,8 +1,10 @@
 """Integration tests against a real local PostgreSQL instance.
 
 Unit tests elsewhere mock every repository, so they can't verify the schema,
-connection pooling, or — the main event — that the transactional follow
-actually behaves atomically against a real database. These tests do that.
+connection pooling, or — the main event — that follow/unfollow behave
+correctly against a real database (uniqueness via the composite PK,
+self-follow rejection via the CHECK constraint, counts derived from the
+join table rather than stored). These tests do that.
 Skips cleanly if Postgres isn't reachable so the suite stays portable.
 """
 
@@ -65,8 +67,8 @@ class TestUserRepository:
     def test_insert_and_find(self, user_repo):
         doc = _make_user(user_repo, "alice@example.com")
         assert doc["email"] == "alice@example.com"
-        assert doc["follower_count"] == 0
-        assert doc["following_count"] == 0
+        assert "follower_count" not in doc
+        assert "following_count" not in doc
 
     def test_find_by_email(self, user_repo):
         _make_user(user_repo, "bob@example.com")
@@ -102,29 +104,26 @@ class TestFeedQuery:
         assert all(p["id"] != pid for p in feed)
 
 
-class TestTransactionalFollow:
-    def test_follow_bumps_both_counters(self, user_repo, follower_repo):
+class TestFollowEdges:
+    def test_follow_creates_edge_visible_from_both_ends(self, user_repo, follower_repo):
         alice = _make_user(user_repo, "alice@example.com")
         bob = _make_user(user_repo, "bob@example.com")
 
         assert follower_repo.follow(alice["id"], bob["id"]) is True
 
-        alice_after = user_repo.find_by_id(alice["id"])
-        bob_after = user_repo.find_by_id(bob["id"])
-        assert alice_after["following_count"] == 1
-        assert bob_after["follower_count"] == 1
+        assert follower_repo.followees_of(alice["id"]) == [bob["id"]]
+        assert follower_repo.followers_of(bob["id"]) == [alice["id"]]
 
-    def test_duplicate_follow_returns_false_without_double_counting(self, user_repo, follower_repo):
+    def test_duplicate_follow_returns_false_without_second_edge(self, user_repo, follower_repo):
         alice = _make_user(user_repo, "alice@example.com")
         bob = _make_user(user_repo, "bob@example.com")
 
         assert follower_repo.follow(alice["id"], bob["id"]) is True
         assert follower_repo.follow(alice["id"], bob["id"]) is False
 
-        bob_after = user_repo.find_by_id(bob["id"])
-        assert bob_after["follower_count"] == 1  # not double-counted
+        assert len(follower_repo.followers_of(bob["id"])) == 1  # not double-inserted
 
-    def test_unfollow_decrements_symmetrically(self, user_repo, follower_repo):
+    def test_unfollow_deletes_the_edge(self, user_repo, follower_repo):
         alice = _make_user(user_repo, "alice@example.com")
         bob = _make_user(user_repo, "bob@example.com")
         follower_repo.follow(alice["id"], bob["id"])
@@ -132,15 +131,40 @@ class TestTransactionalFollow:
         deleted = follower_repo.unfollow(alice["id"], bob["id"])
         assert deleted == 1
 
-        alice_after = user_repo.find_by_id(alice["id"])
-        bob_after = user_repo.find_by_id(bob["id"])
-        assert alice_after["following_count"] == 0
-        assert bob_after["follower_count"] == 0
+        assert follower_repo.followees_of(alice["id"]) == []
+        assert follower_repo.followers_of(bob["id"]) == []
 
     def test_self_follow_rejected_by_check_constraint(self, user_repo, follower_repo):
         alice = _make_user(user_repo, "alice@example.com")
         with pytest.raises(psycopg2.errors.CheckViolation):
             follower_repo.follow(alice["id"], alice["id"])
+
+    def test_follower_counts_derived_not_stored(self, user_repo, follower_repo):
+        """The normalized design: counts come from COUNT(*) over followers."""
+        alice = _make_user(user_repo, "alice@example.com")
+        bob = _make_user(user_repo, "bob@example.com")
+        carol = _make_user(user_repo, "carol@example.com")
+        for followee in (bob, carol):
+            follower_repo.follow(alice["id"], followee["id"])
+        follower_repo.follow(bob["id"], alice["id"])
+
+        with _pg.cursor() as cur:
+            cur.execute(
+                "SELECT count(*) AS n FROM followers WHERE follower_id = %s",
+                (alice["id"],),
+            )
+            assert cur.fetchone()["n"] == 2
+            cur.execute(
+                "SELECT count(*) AS n FROM followers WHERE followee_id = %s",
+                (alice["id"],),
+            )
+            assert cur.fetchone()["n"] == 1
+            # No counter columns on users to drift out of sync.
+            cur.execute(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name = 'users' AND column_name LIKE '%_count'"
+            )
+            assert cur.fetchall() == []
 
 
 class TestIndexes:

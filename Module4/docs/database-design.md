@@ -19,8 +19,6 @@ erDiagram
         text full_name
         text bio
         boolean is_active
-        int follower_count
-        int following_count
         timestamptz created_at
         timestamptz updated_at
     }
@@ -86,14 +84,21 @@ else:
   would mean nullable columns for the common case of "no tags." JSONB here
   is a modeling choice for semi-structured data, not a 3NF violation.
 
-**Deliberate denormalization:** `users.follower_count` / `following_count`
-(and `posts.like_count` / `comment_count`, already present before this
-change) are counts derivable from other tables, cached for O(1) reads
-instead of `COUNT(*)` on every profile/post view. They're maintained by the
-same transaction that changes the underlying rows (see "Transactional
-follow" below) so they can't drift out of sync. This is a standard
-performance trade-off, not a normalization mistake — each cached column
-still depends only on the row it lives on.
+**Deliberate denormalization (posts only):** `posts.like_count` /
+`comment_count` are counts derivable from other tables, cached for O(1)
+reads instead of `COUNT(*)` on every post view. They're maintained by the
+same transaction that changes the underlying rows so they can't drift out
+of sync — a standard performance trade-off, not a normalization mistake.
+
+**Followers stay fully normalized:** a follower count is not an attribute
+of a user; it's the size of a relationship set. There are no
+`follower_count`/`following_count` columns on `users` — counts are derived
+at read time with `COUNT(*)` over `followers` (served index-only by the two
+composite B-trees below), and the join table is the single source of truth.
+Nothing to keep in sync, no drift possible. If profile reads ever became
+hot enough to matter, the counter cache could be reintroduced as an
+explicit optimization layer (or moved to Redis) without touching the
+normalized core.
 
 ## Indexing strategy
 
@@ -113,29 +118,30 @@ The two `followers` indexes are the lab's explicit composite-B-tree
 requirement — a follow relationship is queried from both ends
 (followees-of and followers-of), so it needs both orderings.
 
-## Transactional follow
+## Follow write path — one INSERT, constraints do the work
 
-`FollowerRepository.follow()` ([`postgres_repos.py`](../src/social_media/repositories/postgres_repos.py))
-runs three statements inside one `with self._pg.cursor() as cur:` block —
-one borrowed connection, one transaction, committed together or rolled back
-together:
+With no counters to maintain, `FollowerRepository.follow()`
+([`postgres_repos.py`](../src/social_media/repositories/postgres_repos.py))
+is a single statement:
 
 ```sql
 INSERT INTO followers (follower_id, followee_id) VALUES (%s, %s);
-UPDATE users SET following_count = following_count + 1 WHERE id = %s;
-UPDATE users SET follower_count  = follower_count  + 1 WHERE id = %s;
 ```
 
-If the insert violates the composite PK (already following), `psycopg2`
-raises `UniqueViolation`; the connection context manager rolls back
-*before* the exception propagates, so the two `UPDATE`s never happen for a
-duplicate follow — `follow()` catches it and returns `False` with zero
-partial effects. `unfollow()` is symmetric: delete, then decrement both
-counters, in the same transaction, only if a row was actually deleted.
+All integrity guarantees live in the schema, not in application code: the
+composite primary key rejects duplicate follows (`psycopg2` raises
+`UniqueViolation`, which `follow()` catches and turns into a `False`
+return), and `CHECK (follower_id <> followee_id)` rejects self-follows.
+A single-statement write is trivially atomic — there are no second and
+third statements that could half-apply. `unfollow()` is likewise just the
+parameterized `DELETE` inherited from the composite-key base repository,
+returning the rows affected.
+
 Verified in [`tests/test_postgres_repos.py`](../tests/test_postgres_repos.py)
-(`TestTransactionalFollow`) against a real Postgres instance — including
-that a duplicate follow doesn't double-count and that self-follows are
-rejected by the `CHECK (follower_id <> followee_id)` constraint.
+(`TestFollowEdges`) against a real Postgres instance — edge visibility from
+both directions, duplicate follows not double-inserting, unfollow removing
+the edge, self-follow rejection, and that `users` carries no `%_count`
+columns at all.
 
 ## Feed query — CTE + JOIN + `ROW_NUMBER()`
 
