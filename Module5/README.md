@@ -9,6 +9,7 @@ Built as an AmaliTech Training Academy project to demonstrate a clean, layered D
 - [Features](#features)
 - [Tech stack](#tech-stack)
 - [Architecture](#architecture)
+- [Redis caching](#redis-caching)
 - [Project structure](#project-structure)
 - [Getting started](#getting-started)
 - [Environment variables](#environment-variables)
@@ -24,6 +25,7 @@ Built as an AmaliTech Training Academy project to demonstrate a clean, layered D
 - **URL shortening** — generate a unique, collision-safe short code (base62, CSPRNG) for any URL.
 - **Owner-scoped management** — list, update, and delete only the short links you created; anyone else's return `404`, not `403`, so link IDs can't be probed.
 - **Public resolution** — look up the original URL for any short code, no login required.
+- **Redis caching** — read-through cache with write-through invalidation, TTL-based expiry, and graceful fallback to PostgreSQL when Redis is unavailable.
 - **OpenAPI 3 schema** — full interactive documentation via Swagger UI and Redoc, generated from the code (`drf-spectacular`).
 - **100% test coverage** on both apps, enforced via `pytest-cov`.
 
@@ -35,6 +37,7 @@ Built as an AmaliTech Training Academy project to demonstrate a clean, layered D
 | Framework | Django 6.1, Django REST Framework |
 | Auth | `djangorestframework-simplejwt` (JWT, with token blacklisting) |
 | Database | PostgreSQL |
+| Cache | Redis (`redis`, `django-redis`) |
 | API docs | `drf-spectacular` (OpenAPI 3, Swagger UI, Redoc) |
 | Server | Uvicorn (ASGI) |
 | Testing | pytest, pytest-django, pytest-cov |
@@ -52,6 +55,7 @@ api/
 ├── services/       # Business logic, framework-agnostic where practical
 ├── interfaces/      # Abstract contracts services depend on (Dependency Inversion)
 ├── repositories/    # Only place that touches the Django ORM directly
+├── cache/           # Redis client wrapper and connection management
 ├── exceptions/      # Domain errors, translated to HTTP status codes by views
 └── urls.py
 ```
@@ -59,6 +63,47 @@ api/
 This keeps the ORM at a single boundary (the repository), lets services be unit-tested with mock repositories instead of a database, and means swapping a data store or generation algorithm later doesn't ripple through the views.
 
 `apps/shortener`'s ownership check lives in the **service** layer (`update_owned` / `delete_owned`), not the view — so "is this actually yours?" is enforced in exactly one place, and it deliberately raises the same "not found" error for both "doesn't exist" and "exists but isn't yours," so a caller can't use the API to enumerate other users' link IDs.
+
+## Redis caching
+
+A `CachedURLRepository` wraps the Django ORM repository, adding a Redis read-through cache. The service layer is unaware of the caching — it depends only on `IURLRepository`, so the cache can be toggled on or off without changing any business logic.
+
+### Data flow
+
+```
+View → Service → CachedURLRepository → Redis (reads)
+                                          ↓ (miss)
+                                    DjangoURLRepository → PostgreSQL
+```
+
+Writes always go to PostgreSQL first, then invalidate the affected cache keys so the next read repopulates with fresh data.
+
+### Cache key scheme
+
+| Key pattern | Stores | TTL |
+|---|---|---|
+| `url:code:{short_code}` | URL data by short code | 10 min |
+| `url:id:{pk}` | URL data by primary key | 10 min |
+| `url:exists:{short_code}` | Existence check result | 5 min |
+| `url:list:{owner_id}` | List of URL IDs for an owner | 2 min |
+
+### Endpoint behaviour
+
+| Endpoint | Cache action |
+|---|---|
+| `POST /urls/` | Write DB → invalidate `url:code:`, `url:id:`, `url:exists:`, `url:list:{owner}` |
+| `GET /urls/mine/` | Read `url:list:{owner_id}`, each individual URL from `url:id:{pk}` |
+| `PATCH /urls/{id}/` | Write DB → invalidate all related keys including `url:list:` |
+| `DELETE /urls/{id}/` | Write DB → invalidate all related keys including `url:list:` |
+| `GET /{short_code}/` | Read `url:code:{short_code}` — zero DB queries on hit |
+
+### Caching strategies
+
+1. **Read-through** — the repository checks Redis first; on miss it queries PostgreSQL and populates the cache automatically.
+2. **Write-through invalidation** — every write deletes the relevant cache keys. The next read repopulates them. This avoids stale reads without write amplification.
+3. **Cache-aside (lazy population)** — each repository method explicitly manages `get` / `set` rather than relying on an automatic cache layer.
+4. **TTL-based expiry** — every key has a hard TTL so stale data self-destructs even without explicit invalidation.
+5. **Graceful degradation** — if Redis is unreachable at startup, the factory falls back to the plain ORM repository. The API continues to work with zero downtime; only caching is lost.
 
 ## Project structure
 
@@ -80,6 +125,13 @@ Module5/
         │   └── tests/
         └── shortener/      # URL shortening + resolution
             ├── api/
+            │   ├── cache/       # Redis client wrapper
+            │   ├── interfaces/  # repository + generator contracts
+            │   ├── repositories/ # Django ORM + cached implementations
+            │   ├── services/    # business logic + factory
+            │   ├── views/       # HTTP layer
+            │   ├── serializers/ # input/output validation
+            │   └── exceptions/  # domain errors
             ├── models.py
             ├── admin.py
             └── tests/
@@ -91,6 +143,7 @@ Module5/
 
 - Python 3.12+
 - PostgreSQL (running locally, or reachable from wherever the app runs)
+- Redis (running locally, or reachable from wherever the app runs)
 - Docker + Docker Compose (only if you use the Docker route below)
 
 ### 1. Clone and configure
@@ -108,7 +161,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-This runs migrations automatically, then starts the API on **http://localhost:8000**. The container connects to PostgreSQL via `host.docker.internal` (i.e. Postgres runs on your host machine, not in a container) — make sure it's running and `DB_HOST`/`DB_PORT`/credentials in `.env` match.
+This runs migrations automatically, then starts the API on **http://localhost:8000**. The container connects to PostgreSQL via `host.docker.internal` (i.e. Postgres runs on your host machine, not in a container) — make sure it's running and `DB_HOST`/`DB_PORT`/credentials in `.env` match. Redis runs inside Docker on port `6380` (mapped from container port `6379`).
 
 ### 2b. Run locally without Docker
 
@@ -121,6 +174,8 @@ python manage.py migrate
 python manage.py createsuperuser   # optional, for /admin/
 python manage.py runserver 0.0.0.0:8000
 ```
+
+Make sure Redis is running locally on port `6379` (the default). If you use a different port, set `REDIS_URL` in `.env` accordingly.
 
 (`manage.py` adds `src/` to `sys.path` itself, so no `PYTHONPATH` is needed here — only for running `pytest` directly, below.)
 
@@ -145,6 +200,7 @@ Set these in `.env` (see `.env.example`):
 | `DB_PASSWORD` | Database password | — |
 | `DB_HOST` | Database host | `127.0.0.1` (or `host.docker.internal` under Docker) |
 | `DB_PORT` | Database port | `5432` |
+| `REDIS_URL` | Redis connection URL | `redis://127.0.0.1:6379/0` (or `redis://redis:6379/0` inside Docker) |
 
 ## API reference
 

@@ -5,9 +5,10 @@ Write operations go directly to the database and invalidate the cache.
 Read operations check Redis first, falling back to the ORM on cache miss.
 
 Cache key scheme:
-    - ``url:code:{short_code}`` → cached URL dict by short code
-    - ``url:id:{pk}``           → cached URL dict by primary key
-    - ``url:exists:{short_code}`` → existence check result
+    - ``url:code:{short_code}``  → cached URL dict by short code
+    - ``url:id:{pk}``            → cached URL dict by primary key
+    - ``url:exists:{short_code}``→ existence check result
+    - ``url:list:{owner_id}``    → cached list of URL IDs for an owner
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 _URL_CACHE_TTL: int = 600  # 10 minutes
 _EXISTS_CACHE_TTL: int = 300  # 5 minutes
+_LIST_CACHE_TTL: int = 120  # 2 minutes
 
 
 class CachedURLRepository(IURLRepository):
@@ -97,19 +99,42 @@ class CachedURLRepository(IURLRepository):
     ) -> URL:
         url = self._orm.create(original_url=original_url, short_code=short_code, owner=owner)
         self._invalidate(short_code, url.pk)
+        if owner is not None:
+            self._cache.delete(f"url:list:{owner.id}")
         return url
 
     def update(self, url: URL, original_url: str) -> URL:
         updated = self._orm.update(url, original_url=original_url)
         self._invalidate(updated.short_code, updated.pk)
+        if updated.owner_id is not None:
+            self._cache.delete(f"url:list:{updated.owner_id}")
         return updated
 
     def delete(self, url: URL) -> None:
+        owner_id = url.owner_id
         self._invalidate(url.short_code, url.pk)
         self._orm.delete(url)
+        if owner_id is not None:
+            self._cache.delete(f"url:list:{owner_id}")
 
     def list_by_owner(self, owner) -> Iterable[URL]:
-        return self._orm.list_by_owner(owner)
+        cache_key = f"url:list:{owner.id}"
+
+        cached_ids = self._cache.get(cache_key)
+        if cached_ids is not None:
+            logger.debug("cache.hit key=%s", cache_key)
+            return [
+                url for url in (self._get_by_id_cached(pk) for pk in cached_ids) if url is not None
+            ]
+
+        logger.debug("cache.miss key=%s", cache_key)
+        urls = list(self._orm.list_by_owner(owner))
+        self._cache.set(
+            cache_key,
+            [url.pk for url in urls],
+            ttl=_LIST_CACHE_TTL,
+        )
+        return urls
 
     # ------------------------------------------------------------------
     # Cache invalidation
@@ -121,6 +146,19 @@ class CachedURLRepository(IURLRepository):
         self._cache.delete(f"url:id:{pk}")
         self._cache.delete(f"url:exists:{short_code}")
         logger.debug("cache.invalidated short_code=%s pk=%s", short_code, pk)
+
+    def _get_by_id_cached(self, pk: int) -> URL | None:
+        """Retrieve a URL by ID using the per-entity cache."""
+        cache_key = f"url:id:{pk}"
+
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            return self._dict_to_url(cached)
+
+        url = self._orm.get_by_id(pk)
+        if url is not None:
+            self._cache.set(cache_key, self._url_to_dict(url), ttl=_URL_CACHE_TTL)
+        return url
 
     # ------------------------------------------------------------------
     # Serialization helpers

@@ -33,6 +33,7 @@ def build_url_service() -> URLShortenerService:
 
     try:
         redis_client = get_redis_client()
+        logger.info("url_service.redis_url=%s", redis_client._url)
         if redis_client.ping():
             repository = CachedURLRepository(
                 orm_repository=orm_repo,
@@ -40,9 +41,12 @@ def build_url_service() -> URLShortenerService:
             )
             logger.info("url_service.using_cached_repository")
         else:
-            logger.warning("url_service.redis_unavailable falling_back_to_orm")
-    except Exception:
-        logger.warning("url_service.redis_init_failed falling_back_to_orm")
+            logger.warning(
+                "url_service.redis_ping_failed falling_back_to_orm url=%s",
+                redis_client._url,
+            )
+    except Exception as exc:
+        logger.warning("url_service.redis_init_failed falling_back_to_orm error=%s", exc)
 
     return URLShortenerService(
         repository=repository,
