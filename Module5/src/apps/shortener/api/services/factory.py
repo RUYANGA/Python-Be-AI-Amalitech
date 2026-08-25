@@ -2,18 +2,49 @@
 
 Keeps the concrete-implementation choices out of the view layer so
 tests can substitute doubles without patching modules.
+
+Uses the Redis-cached repository for reads and the ORM for writes,
+with automatic fallback to the plain ORM repository if Redis is
+unavailable.
 """
 
 from __future__ import annotations
 
+import logging
+
+from apps.shortener.api.cache.redis_client import get_redis_client
+from apps.shortener.api.interfaces.repository import IURLRepository
+from apps.shortener.api.repositories.cached_url_repository import CachedURLRepository
 from apps.shortener.api.repositories.url_repository import DjangoURLRepository
 from apps.shortener.api.services.short_code_generator import Base62ShortCodeGenerator
 from apps.shortener.api.services.url_service import URLShortenerService
 
+logger = logging.getLogger(__name__)
+
 
 def build_url_service() -> URLShortenerService:
-    """Return a fully wired :class:`URLShortenerService`."""
+    """Return a fully wired :class:`URLShortenerService`.
+
+    Falls back to the plain ORM repository if Redis is unreachable,
+    ensuring the service always works even without caching.
+    """
+    orm_repo = DjangoURLRepository()
+    repository: IURLRepository | CachedURLRepository | DjangoURLRepository = orm_repo
+
+    try:
+        redis_client = get_redis_client()
+        if redis_client.ping():
+            repository = CachedURLRepository(
+                orm_repository=orm_repo,
+                redis_client=redis_client,
+            )
+            logger.info("url_service.using_cached_repository")
+        else:
+            logger.warning("url_service.redis_unavailable falling_back_to_orm")
+    except Exception:
+        logger.warning("url_service.redis_init_failed falling_back_to_orm")
+
     return URLShortenerService(
-        repository=DjangoURLRepository(),
+        repository=repository,
         generator=Base62ShortCodeGenerator(),
     )

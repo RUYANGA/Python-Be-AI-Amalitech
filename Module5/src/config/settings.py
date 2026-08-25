@@ -135,6 +135,23 @@ DATABASES = {
     }
 }
 
+# ─── Redis Cache ────────────────────────────────────────────────────
+# Used by the CachedURLRepository for read-through caching of URL lookups.
+# Falls back to in-memoryLocMemCache if Redis is unavailable.
+REDIS_URL = config("REDIS_URL", default="redis://127.0.0.1:6379/0")
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": REDIS_URL,
+        "OPTIONS": {
+            "db": 0,
+        },
+        "KEY_PREFIX": "urlshortener",
+        "TIMEOUT": 300,  # 5 minutes default TTL
+    }
+}
+
 
 # Password validation
 # https://docs.djangoproject.com/en/6.1/ref/settings/#auth-password-validators

@@ -1,4 +1,19 @@
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: urlshortener-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   web:
     build: .
     image: urlshortener:latest
@@ -18,8 +33,15 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       DB_HOST: host.docker.internal
       DB_PORT: ${DB_PORT}
+      REDIS_URL: redis://redis:6379/0
       ALLOWED_HOSTS: ${ALLOWED_HOSTS},0.0.0.0
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  redis_data:
