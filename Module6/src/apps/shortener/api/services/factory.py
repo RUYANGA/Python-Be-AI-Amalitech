@@ -12,9 +12,13 @@ from __future__ import annotations
 import logging
 
 from apps.shortener.api.cache.redis_client import get_redis_client
+from apps.shortener.api.interfaces.analytics import IClickAnalyticsRepository
 from apps.shortener.api.interfaces.repository import IURLRepository
 from apps.shortener.api.repositories.analytics_repository import (
     SQLAlchemyClickAnalyticsRepository,
+)
+from apps.shortener.api.repositories.cached_analytics_repository import (
+    CachedAnalyticsRepository,
 )
 from apps.shortener.api.repositories.cached_url_repository import CachedURLRepository
 from apps.shortener.api.repositories.url_repository import SQLAlchemyURLRepository
@@ -27,12 +31,15 @@ logger = logging.getLogger(__name__)
 def build_url_service() -> URLShortenerService:
     """Return a fully wired :class:`URLShortenerService`.
 
-    Falls back to the plain SA repository if Redis is unreachable,
+    Falls back to plain SA repositories if Redis is unreachable,
     ensuring the service always works even without caching.
     """
     sa_repo = SQLAlchemyURLRepository()
     repository: IURLRepository | CachedURLRepository | SQLAlchemyURLRepository = sa_repo
-    analytics_repo = SQLAlchemyClickAnalyticsRepository()
+    sa_analytics = SQLAlchemyClickAnalyticsRepository()
+    analytics_repo: (
+        IClickAnalyticsRepository | CachedAnalyticsRepository | SQLAlchemyClickAnalyticsRepository
+    ) = sa_analytics
 
     try:
         redis_client = get_redis_client()
@@ -40,6 +47,10 @@ def build_url_service() -> URLShortenerService:
         if redis_client.ping():
             repository = CachedURLRepository(
                 orm_repository=sa_repo,
+                redis_client=redis_client,
+            )
+            analytics_repo = CachedAnalyticsRepository(
+                orm_repository=sa_analytics,
                 redis_client=redis_client,
             )
             logger.info("url_service.using_cached_repository")

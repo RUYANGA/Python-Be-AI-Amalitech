@@ -116,3 +116,11 @@ class IURLRepository(ABC):
     def get_click_time_series(self, url: URLModel, days: int = 30) -> list[tuple[str, int]]:
         """Return daily click counts as ``(YYYY-MM-DD, count)`` tuples."""
         raise NotImplementedError
+
+    def invalidate(self, url: URLModel) -> None:  # noqa: B027
+        """Invalidate all cache entries for ``url``.
+
+        The base (non-cached) implementation is a no-op.  Cached
+        repositories override this to evict stale entries after
+        external writes (e.g. click recording).
+        """

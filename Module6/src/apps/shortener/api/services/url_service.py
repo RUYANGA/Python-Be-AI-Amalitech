@@ -87,7 +87,7 @@ class URLShortenerService:
         referer: str = "",
         country: str = "",
     ) -> None:
-        """Record a click event if an analytics repository is available."""
+        """Record a click event and invalidate cached URL data."""
         if self._analytics is not None:
             self._analytics.record_click(
                 url,
@@ -96,6 +96,7 @@ class URLShortenerService:
                 referer=referer,
                 country=country,
             )
+            self._repository.invalidate(url)
 
     def list_owned(self, owner) -> Iterable[URLModel]:
         """Return every URL owned by ``owner``."""

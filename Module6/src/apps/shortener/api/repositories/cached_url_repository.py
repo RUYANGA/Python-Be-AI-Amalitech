@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 _URL_CACHE_TTL: int = 600  # 10 minutes
 _EXISTS_CACHE_TTL: int = 300  # 5 minutes
 _LIST_CACHE_TTL: int = 120  # 2 minutes
+_STATS_CACHE_TTL: int = 60  # 1 minute — analytics change frequently
 
 
 class CachedURLRepository(IURLRepository):
@@ -142,14 +143,56 @@ class CachedURLRepository(IURLRepository):
         return urls
 
     # ------------------------------------------------------------------
-    # Advanced query methods (delegate to SA repo — not cached)
+    # Advanced query methods (cached with short TTL)
     # ------------------------------------------------------------------
 
     def get_aggregate_stats(self, url: URLModel) -> URLAggregateStats:
-        return self._orm.get_aggregate_stats(url)
+        cache_key = f"url:stats:{url.id}"
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            from datetime import datetime
+
+            return URLAggregateStats(
+                total_clicks=cached["total_clicks"],
+                unique_countries=cached["unique_countries"],
+                top_referer=cached["top_referer"],
+                last_clicked_at=(
+                    datetime.fromisoformat(cached["last_clicked_at"])
+                    if cached.get("last_clicked_at")
+                    else None
+                ),
+            )
+        stats = self._orm.get_aggregate_stats(url)
+        self._cache.set(
+            cache_key,
+            {
+                "total_clicks": stats.total_clicks,
+                "unique_countries": stats.unique_countries,
+                "top_referer": stats.top_referer,
+                "last_clicked_at": (
+                    stats.last_clicked_at.isoformat() if stats.last_clicked_at else None
+                ),
+            },
+            ttl=_STATS_CACHE_TTL,
+        )
+        return stats
 
     def get_top_urls(self, owner, limit: int = 10) -> list[tuple[URLModel, int]]:
-        return self._orm.get_top_urls(owner, limit=limit)
+        cache_key = f"url:top:{owner.id}:{limit}"
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            results = []
+            for entry in cached:
+                url = self._dict_to_url(entry["url"])
+                results.append((url, entry["total_clicks"]))
+            return results
+        rows = self._orm.get_top_urls(owner, limit=limit)
+        self._cache.set(
+            cache_key,
+            [{"url": self._url_to_dict(url), "total_clicks": clicks} for url, clicks in rows],
+            ttl=_STATS_CACHE_TTL,
+        )
+        return rows
 
     def list_with_filters(
         self, filters: URLListFilters, limit: int = 10, cursor: str | None = None
@@ -157,11 +200,31 @@ class CachedURLRepository(IURLRepository):
         return self._orm.list_with_filters(filters, limit=limit, cursor=cursor)
 
     def get_click_time_series(self, url: URLModel, days: int = 30) -> list[tuple[str, int]]:
-        return self._orm.get_click_time_series(url, days=days)
+        cache_key = f"url:ts:{url.id}:{days}"
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            return [(entry["date"], entry["clicks"]) for entry in cached]
+        rows = self._orm.get_click_time_series(url, days=days)
+        self._cache.set(
+            cache_key,
+            [{"date": d, "clicks": c} for d, c in rows],
+            ttl=_STATS_CACHE_TTL,
+        )
+        return rows
 
     # ------------------------------------------------------------------
     # Cache invalidation
     # ------------------------------------------------------------------
+
+    def invalidate(self, url: URLModel) -> None:
+        """Evict all cached entries for ``url`` after external writes."""
+        self._invalidate(url.short_code, url.id)
+        if url.owner_id is not None:
+            self._cache.delete(f"url:list:{url.owner_id}")
+            self._cache.delete(f"url:top:{url.owner_id}:10")
+        self._cache.delete(f"url:stats:{url.id}")
+        self._cache.delete(f"url:ts:{url.id}:30")
+        logger.debug("cache.invalidated_external id=%s short_code=%s", url.id, url.short_code)
 
     def _invalidate(self, short_code: str, pk: int) -> None:
         self._cache.delete(f"url:code:{short_code}")
@@ -199,12 +262,15 @@ class CachedURLRepository(IURLRepository):
             "last_accessed_at": url.last_accessed_at.isoformat() if url.last_accessed_at else None,
             "created_at": url.created_at.isoformat(),
             "updated_at": url.updated_at.isoformat(),
+            "tags": [t.name for t in url.tags] if hasattr(url, "tags") and url.tags else [],
         }
 
     def _dict_to_url(self, data: dict) -> URLModel:
         from datetime import datetime
 
-        return URLModel(
+        from database.shortener.models import TagModel
+
+        url = URLModel(
             id=data["id"],
             original_url=data["original_url"],
             short_code=data["short_code"],
@@ -223,3 +289,7 @@ class CachedURLRepository(IURLRepository):
             created_at=datetime.fromisoformat(data["created_at"]),
             updated_at=datetime.fromisoformat(data["updated_at"]),
         )
+        tag_names = data.get("tags", [])
+        if tag_names:
+            url.tags = [TagModel(name=name) for name in tag_names]
+        return url

@@ -91,5 +91,7 @@ class URLCreateView(BaseURLView):
             finally:
                 session.close()
 
+            self.service._repository.invalidate(url)
+
         response = URLResponseSerializer(url, context={"request": request})
         return Response(response.data, status=status.HTTP_201_CREATED)
