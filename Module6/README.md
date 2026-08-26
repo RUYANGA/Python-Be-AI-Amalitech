@@ -1,8 +1,8 @@
 # Enterprise-Grade URL Shortener Microservice
 
-A production-style URL shortening service built with Django REST Framework. It provides JWT-authenticated user accounts and a short-link API: create, list, update, and delete your own links, and resolve any short code back to its original URL.
+A production-style URL shortening service built with Django REST Framework and SQLAlchemy. It provides JWT-authenticated user accounts, a short-link API with tagging and analytics, and a Redis read-through cache — all backed by SQLAlchemy as the sole data-access layer.
 
-Built as an AmaliTech Training Academy project to demonstrate a clean, layered Django/DRF architecture — not just "make the endpoint work," but views, serializers, services, and repositories each with a single, testable responsibility.
+Built as an AmaliTech Training Academy project to demonstrate a clean, layered architecture with Dependency Inversion — views, serializers, services, and repositories each with a single, testable responsibility.
 
 ## Contents
 
@@ -23,11 +23,15 @@ Built as an AmaliTech Training Academy project to demonstrate a clean, layered D
 
 - **JWT authentication** — register, login, logout (with refresh-token blacklisting), and access-token refresh.
 - **URL shortening** — generate a unique, collision-safe short code (base62, CSPRNG) for any URL.
+- **Tagging** — assign tags to shortened URLs for categorization and filtering.
 - **Owner-scoped management** — list, update, and delete only the short links you created; anyone else's return `404`, not `403`, so link IDs can't be probed.
 - **Public resolution** — look up the original URL for any short code, no login required.
+- **Click analytics** — country breakdown, referrer stats, hourly distribution, time-series data, and recent click history.
+- **Top URLs leaderboard** — ranked list of a user's most-clicked links.
 - **Redis caching** — read-through cache with write-through invalidation, TTL-based expiry, and graceful fallback to PostgreSQL when Redis is unavailable.
+- **Keyset pagination** — cursor-based pagination on the list endpoint for O(1) page navigation and consistent results under concurrent writes.
+- **Dynamic filtering** — search, filter by tag, active status, click count range, or creation date.
 - **OpenAPI 3 schema** — full interactive documentation via Swagger UI and Redoc, generated from the code (`drf-spectacular`).
-- **100% test coverage** on both apps, enforced via `pytest-cov`.
 
 ## Tech stack
 
@@ -36,8 +40,11 @@ Built as an AmaliTech Training Academy project to demonstrate a clean, layered D
 | Language / runtime | Python 3.12 |
 | Framework | Django 6.1, Django REST Framework |
 | Auth | `djangorestframework-simplejwt` (JWT, with token blacklisting) |
+| ORM (primary) | **SQLAlchemy** — all data access goes through SA models |
+| ORM (stubs) | Django models (`managed=False`) — exist only to prevent DROP TABLE |
 | Database | PostgreSQL |
 | Cache | Redis (`redis`, `django-redis`) |
+| Migration | Alembic (SQLAlchemy schema management) |
 | API docs | `drf-spectacular` (OpenAPI 3, Swagger UI, Redoc) |
 | Server | Uvicorn (ASGI) |
 | Testing | pytest, pytest-django, pytest-cov |
@@ -50,30 +57,42 @@ Each Django app (`apps/users`, `apps/shortener`) follows the same layered struct
 
 ```
 api/
-├── views/         # Thin HTTP layer: parse request, call a service, shape the response
+├── views/          # Thin HTTP layer: parse request, call a service, shape the response
 ├── serializers/    # Validate input / shape output — no business logic
 ├── services/       # Business logic, framework-agnostic where practical
-├── interfaces/      # Abstract contracts services depend on (Dependency Inversion)
-├── repositories/    # Only place that touches the Django ORM directly
-├── cache/           # Redis client wrapper and connection management
-├── exceptions/      # Domain errors, translated to HTTP status codes by views
+├── interfaces/     # Abstract contracts services depend on (Dependency Inversion)
+├── repositories/   # SQLAlchemy implementations — the only place that touches the DB
+├── cache/          # Redis client wrapper and connection management
+├── exceptions/     # Domain errors, translated to HTTP status codes by views
 └── urls.py
+
+database/            # SQLAlchemy models and connection management
+├── __init__.py      # Re-exports all SA models from subpackages
+├── connection.py    # Engine, session factory, Base class
+├── shortener/
+│   └── models.py    # URLModel, ClickModel, TagModel, URLTagModel
+└── users/
+    └── models.py    # UserModel (read-only; writes go through Django auth)
 ```
 
 This keeps the ORM at a single boundary (the repository), lets services be unit-tested with mock repositories instead of a database, and means swapping a data store or generation algorithm later doesn't ripple through the views.
 
-`apps/shortener`'s ownership check lives in the **service** layer (`update_owned` / `delete_owned`), not the view — so "is this actually yours?" is enforced in exactly one place, and it deliberately raises the same "not found" error for both "doesn't exist" and "exists but isn't yours," so a caller can't use the API to enumerate other users' link IDs.
+### SQLAlchemy as the primary data layer
+
+All queries, inserts, updates, and deletes go through SQLAlchemy models in `database/`. Django models in `apps/shortener/models.py` are `managed=False` stubs that exist solely to prevent Django from issuing `DROP TABLE` migrations against tables it doesn't own. The `UserModel` is read-only — user creation and authentication always goes through Django's auth system.
+
+The `CachedURLRepository` wraps the SA repository, adding Redis caching transparently. The service layer depends only on `IURLRepository`, so the cache can be toggled on or off without changing any business logic.
 
 ## Redis caching
 
-A `CachedURLRepository` wraps the Django ORM repository, adding a Redis read-through cache. The service layer is unaware of the caching — it depends only on `IURLRepository`, so the cache can be toggled on or off without changing any business logic.
+A `CachedURLRepository` wraps the SQLAlchemy repository, adding a Redis read-through cache. The service layer is unaware of the caching — it depends only on `IURLRepository`, so the cache can be toggled on or off without changing any business logic.
 
 ### Data flow
 
 ```
 View → Service → CachedURLRepository → Redis (reads)
                                           ↓ (miss)
-                                    DjangoURLRepository → PostgreSQL
+                                    SQLAlchemyURLRepository → PostgreSQL
 ```
 
 Writes always go to PostgreSQL first, then invalidate the affected cache keys so the next read repopulates with fresh data.
@@ -103,37 +122,45 @@ Writes always go to PostgreSQL first, then invalidate the affected cache keys so
 2. **Write-through invalidation** — every write deletes the relevant cache keys. The next read repopulates them. This avoids stale reads without write amplification.
 3. **Cache-aside (lazy population)** — each repository method explicitly manages `get` / `set` rather than relying on an automatic cache layer.
 4. **TTL-based expiry** — every key has a hard TTL so stale data self-destructs even without explicit invalidation.
-5. **Graceful degradation** — if Redis is unreachable at startup, the factory falls back to the plain ORM repository. The API continues to work with zero downtime; only caching is lost.
+5. **Graceful degradation** — if Redis is unreachable at startup, the factory falls back to the plain SA repository. The API continues to work with zero downtime; only caching is lost.
 
 ## Project structure
 
 ```
-Module5/
+Module6/
 ├── manage.py
 ├── requirements.txt
 ├── pyproject.toml          # ruff / black / mypy / pytest / coverage config
 ├── docker-compose.yml
 ├── Dockerfile
 ├── .env.example
+├── alembic/                # SQLAlchemy migrations (Alembic)
+│   ├── env.py
+│   └── versions/
 └── src/
     ├── config/             # settings, root urls, asgi/wsgi entrypoints
+    ├── database/           # SQLAlchemy models and connection management
+    │   ├── __init__.py
+    │   ├── connection.py
+    │   ├── shortener/
+    │   │   └── models.py
+    │   └── users/
+    │       └── models.py
     └── apps/
         ├── users/          # accounts + JWT auth
         │   ├── api/
-        │   ├── models.py
-        │   ├── admin.py
+        │   ├── models.py   # Django managed=False stub
         │   └── tests/
-        └── shortener/      # URL shortening + resolution
+        └── shortener/      # URL shortening + resolution + analytics
             ├── api/
             │   ├── cache/       # Redis client wrapper
             │   ├── interfaces/  # repository + generator contracts
-            │   ├── repositories/ # Django ORM + cached implementations
+            │   ├── repositories/ # SA + cached implementations
             │   ├── services/    # business logic + factory
             │   ├── views/       # HTTP layer
             │   ├── serializers/ # input/output validation
             │   └── exceptions/  # domain errors
-            ├── models.py
-            ├── admin.py
+            ├── models.py   # Django managed=False stubs
             └── tests/
 ```
 
@@ -150,7 +177,7 @@ Module5/
 
 ```bash
 git clone <this-repo>
-cd Module5
+cd Module6
 cp .env.example .env
 # edit .env — at minimum set SECRET_KEY and your PostgreSQL credentials
 ```
@@ -171,7 +198,6 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
 python manage.py migrate
-python manage.py createsuperuser   # optional, for /admin/
 python manage.py runserver 0.0.0.0:8000
 ```
 
@@ -183,7 +209,6 @@ Either way, once it's running:
 
 - API base URL: `http://localhost:8000/api/v1/`
 - Interactive docs: `http://localhost:8000/api/v1/docs/`
-- Admin site: `http://localhost:8000/admin/`
 
 ## Environment variables
 
@@ -204,7 +229,7 @@ Set these in `.env` (see `.env.example`):
 
 ## API reference
 
-All routes are versioned under `/api/v1/`. Endpoints marked 🔒 require `Authorization: Bearer <access-token>`.
+All routes are versioned under `/api/v1/`. Endpoints marked require `Authorization: Bearer <access-token>`.
 
 ### Auth (`apps/users`)
 
@@ -212,75 +237,25 @@ All routes are versioned under `/api/v1/`. Endpoints marked 🔒 require `Author
 |---|---|---|
 | `POST` | `/api/v1/auth/register/` | Create a new user account |
 | `POST` | `/api/v1/auth/login/` | Authenticate, receive `access` + `refresh` tokens |
-| `POST` | `/api/v1/auth/logout/` 🔒 | Blacklist a refresh token |
+| `POST` | `/api/v1/auth/logout/` | Blacklist a refresh token |
 | `POST` | `/api/v1/auth/token/refresh/` | Exchange a refresh token for a new access token |
 
 ### URLs (`apps/shortener`)
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/api/v1/urls/` 🔒 | Shorten a URL (owned by the caller) |
-| `GET` | `/api/v1/urls/mine/` 🔒 | List the caller's own shortened URLs |
-| `PATCH` | `/api/v1/urls/{id}/` 🔒 | Update one of the caller's URLs — `404` if it isn't theirs |
-| `DELETE` | `/api/v1/urls/{id}/` 🔒 | Delete one of the caller's URLs — `404` if it isn't theirs |
-| `GET` | `/api/v1/{short_code}/` | Look up the original URL for a short code — public, no auth |
+| `POST` | `/api/v1/urls/` | Shorten a URL with optional title, tags, and expiry |
+| `GET` | `/api/v1/urls/mine/` | List the caller's own shortened URLs (keyset pagination) |
+| `GET` | `/api/v1/urls/top/` | Leaderboard of the caller's most-clicked URLs |
+| `PATCH` | `/api/v1/urls/{id}/` | Update one of the caller's URLs |
+| `DELETE` | `/api/v1/urls/{id}/` | Delete one of the caller's URLs |
+| `GET` | `/api/v1/urls/{id}/analytics/` | Click analytics (countries, referrers, hourly distribution) |
+| `GET` | `/api/v1/urls/{id}/analytics/timeseries/` | Daily click counts over the last N days |
+| `GET` | `/api/v1/{short_code}/` | Look up the original URL — public, no auth, records a click |
 
 ### Sample requests & responses
 
-**Register**
-
-```
-POST /api/v1/auth/register/
-Content-Type: application/json
-
-{
-  "username": "jane_doe",
-  "first_name": "Jane",
-  "last_name": "Doe",
-  "email": "jane@example.com",
-  "password": "StrongPass123"
-}
-```
-```json
-{
-  "message": "User registered successfully.",
-  "user": {
-    "id": 6,
-    "username": "jane_doe",
-    "first_name": "Jane",
-    "last_name": "Doe",
-    "email": "jane@example.com"
-  }
-}
-```
-
-**Login**
-
-```
-POST /api/v1/auth/login/
-Content-Type: application/json
-
-{
-  "username": "jane_doe",
-  "password": "StrongPass123"
-}
-```
-```json
-{
-  "message": "Login successful.",
-  "user": {
-    "id": 6,
-    "username": "jane_doe",
-    "first_name": "Jane",
-    "last_name": "Doe",
-    "email": "jane@example.com"
-  },
-  "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}
-```
-
-**Create a short URL** 🔒
+**Create a short URL** (with tags)
 
 ```
 POST /api/v1/urls/
@@ -288,41 +263,76 @@ Content-Type: application/json
 Authorization: Bearer <access-token>
 
 {
-  "original_url": "https://github.com/AmaliTech-Training-Academy/BackEnd-Labs"
+  "original_url": "https://github.com/AmaliTech-Training-Academy/BackEnd-Labs",
+  "title": "BackEnd Labs Repo",
+  "tags": ["github", "backend"]
 }
 ```
 ```json
 {
-  "id": 14,
+  "id": 10,
   "original_url": "https://github.com/AmaliTech-Training-Academy/BackEnd-Labs",
-  "short_code": "8Sy6Xqy",
-  "short_url": "http://127.0.0.1:8000/api/v1/8Sy6Xqy/",
-  "created_at": "2026-08-09T19:45:51.236693+02:00"
+  "short_code": "VGQVRJx",
+  "short_url": "http://localhost:8000/api/v1/VGQVRJx/",
+  "title": "BackEnd Labs Repo",
+  "tags": ["github", "backend"],
+  "click_count": 0,
+  "is_active": true,
+  "expires_at": null,
+  "last_accessed_at": null,
+  "created_at": "2026-08-26T22:46:29.583176+02:00",
+  "updated_at": "2026-08-26T22:46:29.621860+02:00"
 }
 ```
 
-**List my URLs** 🔒
+**List my URLs** (with keyset pagination)
 
 ```
-GET /api/v1/urls/mine/
+GET /api/v1/urls/mine/?limit=20
 Authorization: Bearer <access-token>
 ```
 ```json
-[
-  {
-    "id": 14,
-    "original_url": "https://github.com/AmaliTech-Training-Academy/BackEnd-Labs",
-    "short_code": "8Sy6Xqy",
-    "short_url": "http://127.0.0.1:8000/api/v1/8Sy6Xqy/",
-    "created_at": "2026-08-09T19:45:51.236693+02:00"
-  }
-]
+{
+  "results": [
+    {
+      "id": 10,
+      "original_url": "https://github.com/AmaliTech-Training-Academy/BackEnd-Labs",
+      "short_code": "VGQVRJx",
+      "short_url": "http://localhost:8000/api/v1/VGQVRJx/",
+      "title": "BackEnd Labs Repo",
+      "tags": ["github", "backend"],
+      "click_count": 5,
+      "is_active": true,
+      "expires_at": null,
+      "last_accessed_at": "2026-08-26T22:50:00.000000+02:00",
+      "created_at": "2026-08-26T22:46:29.583176+02:00",
+      "updated_at": "2026-08-26T22:46:29.621860+02:00"
+    }
+  ],
+  "next_cursor": "eyJpZCI6IDEwLCAiY3JlYXRlZF9hdCI6ICIyMDI2LTA4LTI2VDIyOjQ2OjI5LjU4MzE3NiswMjowMCJ9",
+  "has_more": false
+}
 ```
 
-**Resolve a short code** (public — no `Authorization` header needed)
+Query parameters for filtering:
+
+| Param | Type | Description |
+|---|---|---|
+| `search` | string | Search in short_code, title, or original_url |
+| `is_active` | boolean | Filter by active status |
+| `tag` | string | Filter by tag name |
+| `created_after` | datetime | Only URLs created after this datetime |
+| `created_before` | datetime | Only URLs created before this datetime |
+| `min_clicks` | int | Minimum click count |
+| `max_clicks` | int | Maximum click count |
+| `ordering` | string | Sort by: `created_at`, `-created_at`, `click_count`, `-click_count`, `title`, `-title` |
+| `cursor` | string | Keyset pagination cursor from a previous response |
+| `limit` | int | Results per page (1–100, default 20) |
+
+**Resolve a short code** (public — records a click)
 
 ```
-GET /api/v1/8Sy6Xqy/
+GET /api/v1/VGQVRJx/
 ```
 ```json
 {
@@ -330,10 +340,10 @@ GET /api/v1/8Sy6Xqy/
 }
 ```
 
-**Update one of my URLs** 🔒
+**Update one of my URLs**
 
 ```
-PATCH /api/v1/urls/14/
+PATCH /api/v1/urls/10/
 Content-Type: application/json
 Authorization: Bearer <access-token>
 
@@ -343,23 +353,72 @@ Authorization: Bearer <access-token>
 ```
 ```json
 {
-  "id": 14,
+  "id": 10,
   "original_url": "https://github.com/AmaliTech-Training-Academy",
-  "short_code": "8Sy6Xqy",
-  "short_url": "http://127.0.0.1:8000/api/v1/8Sy6Xqy/",
-  "created_at": "2026-08-09T19:45:51.236693+02:00"
+  "short_code": "VGQVRJx",
+  "short_url": "http://localhost:8000/api/v1/VGQVRJx/",
+  "title": "BackEnd Labs Repo",
+  "tags": ["github", "backend"],
+  "click_count": 5,
+  "is_active": true,
+  "expires_at": null,
+  "last_accessed_at": "2026-08-26T22:50:00.000000+02:00",
+  "created_at": "2026-08-26T22:46:29.583176+02:00",
+  "updated_at": "2026-08-26T22:55:00.000000+02:00"
 }
 ```
 
-**Delete one of my URLs** 🔒
+**Delete one of my URLs**
 
 ```
-DELETE /api/v1/urls/14/
+DELETE /api/v1/urls/10/
 Authorization: Bearer <access-token>
 ```
 ```json
 {
   "message": "URL deleted successfully."
+}
+```
+
+**Click analytics**
+
+```
+GET /api/v1/urls/10/analytics/
+Authorization: Bearer <access-token>
+```
+```json
+{
+  "url_id": 10,
+  "short_code": "VGQVRJx",
+  "stats": {
+    "total_clicks": 5,
+    "unique_countries": 2,
+    "top_referer": "https://github.com",
+    "last_clicked_at": "2026-08-26T22:50:00.000000+02:00"
+  },
+  "countries": [
+    {"country": "US", "clicks": 3, "percentage": 60.0},
+    {"country": "GH", "clicks": 2, "percentage": 40.0}
+  ],
+  "referrers": [
+    {"referer": "https://github.com", "clicks": 4, "percentage": 80.0}
+  ],
+  "hourly_distribution": [
+    {"hour": 0, "clicks": 0},
+    {"hour": 1, "clicks": 0},
+    "...",
+    {"hour": 22, "clicks": 5},
+    {"hour": 23, "clicks": 0}
+  ],
+  "recent_clicks": [
+    {
+      "id": 5,
+      "ip_address": "172.22.0.1",
+      "country": "US",
+      "referer": "https://github.com",
+      "clicked_at": "2026-08-26T22:50:00.000000+02:00"
+    }
+  ]
 }
 ```
 
@@ -401,26 +460,6 @@ pytest --cov=apps --cov-report=term-missing
 
 (`pythonpath` and `DJANGO_SETTINGS_MODULE` are already configured in `pyproject.toml`, so no environment variables are needed — plain `pytest` works too.)
 
-Sample output:
-
-```
-.......................................................................  [100%]
-
-Name                                              Stmts   Miss  Cover
----------------------------------------------------------------------
-...
----------------------------------------------------------------------
-TOTAL                                               468      0   100%
-71 passed in 39.66s
-```
-
-For a browsable, line-by-line report instead of a terminal summary:
-
-```bash
-pytest --cov=apps --cov-report=html
-xdg-open htmlcov/index.html   # macOS: open htmlcov/index.html
-```
-
 ## Code quality
 
 This project uses `pre-commit` to run formatting/linting/type-checking before every commit:
@@ -430,7 +469,7 @@ pip install pre-commit
 pre-commit install
 ```
 
-Hooks: `black` (format), `ruff` (lint), `mypy` (type-check). Run them all manually with:
+Hooks: `black` (format), `ruff` (lint + format), `mypy` (type-check), trailing whitespace. Run them all manually with:
 
 ```bash
 pre-commit run --all-files
@@ -440,6 +479,8 @@ pre-commit run --all-files
 
 A couple of deliberate trade-offs worth knowing about:
 
-- **`GET /api/v1/{short_code}/` returns `200` with `{"original_url": ...}` rather than a real `302` redirect.** This makes the endpoint testable from any client — including Swagger UI's "Try it out," which can't meaningfully follow a redirect to a cross-origin target (the browser's `fetch()` follows the `302` and then gets CORS-blocked by the destination site). The trade-off: a real browser hitting a short link sees this JSON instead of landing on the target page. If this service needs to work as actual clickable short links later, this endpoint is the one to change back to a redirect.
+- **SQLAlchemy as the sole data layer.** Django models are minimal `managed=False` stubs. All business logic, queries, and serialization go through SQLAlchemy models. This was chosen because SA gives more control over session management, eager loading (`selectinload`), and query composition — and avoids Django ORM's implicit lazy-loading pitfalls across session boundaries.
+- **`GET /api/v1/{short_code}/` returns `200` with `{"original_url": ...}` rather than a real `302` redirect.** This makes the endpoint testable from any client — including Swagger UI's "Try it out," which can't meaningfully follow a redirect to a cross-origin target. If this service needs to work as actual clickable short links later, this endpoint is the one to change back to a redirect.
 - **Ownership failures return `404`, not `403`.** Trying to update or delete a URL you don't own is indistinguishable from that URL not existing at all — this avoids leaking which IDs belong to other users.
 - **`POST /api/v1/urls/` requires authentication**, so every created URL has a real owner (no anonymous links).
+- **Alembic for SA migrations.** Schema changes are managed through Alembic rather than Django's migration framework, keeping the two ORMs cleanly separated.
