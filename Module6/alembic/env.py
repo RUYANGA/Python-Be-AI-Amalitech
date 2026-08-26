@@ -11,14 +11,18 @@ import sys
 from logging.config import fileConfig
 
 from alembic import context
+from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
+
+# Load .env from project root so os.getenv() picks up DB credentials.
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 # Ensure the src package is importable.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-import database.shortener.models  # noqa: F401 — registers SA models with Base
-import database.users.models  # noqa: F401 — registers UserModel with Base
-from database.connection import Base
+import database.shortener.models  # noqa: E402, F401
+import database.users.models  # noqa: E402, F401
+from database.connection import Base  # noqa: E402
 
 config = context.config
 
