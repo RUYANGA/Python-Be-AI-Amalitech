@@ -1,0 +1,6 @@
+-r requirements.txt
+
+pytest>=8.0
+pytest-django>=4.13
+pytest-cov>=7.0
+coverage>=7.0

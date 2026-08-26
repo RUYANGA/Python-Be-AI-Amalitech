@@ -1,0 +1,287 @@
+"""SQLAlchemy implementation of :class:`IURLRepository`.
+
+This is the only module in the shortener app that performs database
+writes — all queries go through SQLAlchemy sessions, keeping the ORM
+dependency at a single boundary.
+
+Demonstrates SQLAlchemy patterns:
+- Aggregate functions (func.count, func.max, func.count.distinct())
+- Keyset (cursor-based) pagination with ``filter()`` chains
+- Dynamic filtering with ``or_()`` / ``and_()``
+- Time-series bucketing with ``func.date_trunc()``
+- Session-scoped transactions with explicit commit/rollback
+"""
+
+from __future__ import annotations
+
+import base64
+import json
+from collections.abc import Iterable
+from datetime import UTC, datetime, timedelta
+
+from sqlalchemy import and_, func, or_
+
+from apps.shortener.api.interfaces.repository import (
+    IURLRepository,
+    KeysetPage,
+    URLAggregateStats,
+    URLListFilters,
+)
+from database.connection import get_session
+from database.shortener.models import ClickModel, TagModel, URLModel
+
+
+class SQLAlchemyURLRepository(IURLRepository):
+    # ── CRUD ──────────────────────────────────────────────────────────
+
+    def create(
+        self,
+        original_url: str,
+        short_code: str,
+        owner=None,
+    ) -> URLModel:
+        session = get_session()
+        try:
+            sa_url = URLModel(
+                original_url=original_url,
+                short_code=short_code,
+                owner_id=getattr(owner, "id", None),
+            )
+            session.add(sa_url)
+            session.commit()
+            session.refresh(sa_url)
+            return sa_url
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    def get_by_short_code(self, short_code: str) -> URLModel | None:
+        session = get_session()
+        try:
+            return session.query(URLModel).filter(URLModel.short_code == short_code).first()
+        finally:
+            session.close()
+
+    def exists_by_short_code(self, short_code: str) -> bool:
+        session = get_session()
+        try:
+            return session.query(
+                session.query(URLModel).filter(URLModel.short_code == short_code).exists()
+            ).scalar()
+        finally:
+            session.close()
+
+    def get_by_id(self, pk: int) -> URLModel | None:
+        session = get_session()
+        try:
+            return session.query(URLModel).filter(URLModel.id == pk).first()
+        finally:
+            session.close()
+
+    def list_by_owner(self, owner) -> Iterable[URLModel]:
+        session = get_session()
+        try:
+            return session.query(URLModel).filter(URLModel.owner_id == owner.id).all()
+        finally:
+            session.close()
+
+    def update(self, url: URLModel, original_url: str) -> URLModel:
+        session = get_session()
+        try:
+            sa_url = session.query(URLModel).filter(URLModel.id == url.id).one()
+            sa_url.original_url = original_url
+            session.commit()
+            session.refresh(sa_url)
+            return sa_url
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    def delete(self, url: URLModel) -> None:
+        session = get_session()
+        try:
+            sa_url = session.query(URLModel).filter(URLModel.id == url.id).first()
+            if sa_url:
+                session.delete(sa_url)
+                session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    # ── Aggregations ──────────────────────────────────────────────────
+
+    def get_aggregate_stats(self, url: URLModel) -> URLAggregateStats:
+        session = get_session()
+        try:
+            total_clicks = (
+                session.query(func.count(ClickModel.id))
+                .filter(ClickModel.url_id == url.id)
+                .scalar()
+            )
+
+            unique_countries = (
+                session.query(func.count(ClickModel.country.distinct()))
+                .filter(
+                    ClickModel.url_id == url.id,
+                    ClickModel.country != "",
+                )
+                .scalar()
+            )
+
+            last_clicked_at = (
+                session.query(func.max(ClickModel.clicked_at))
+                .filter(ClickModel.url_id == url.id)
+                .scalar()
+            )
+
+            top_referer_row = (
+                session.query(ClickModel.referer, func.count(ClickModel.id).label("cnt"))
+                .filter(
+                    ClickModel.url_id == url.id,
+                    ClickModel.referer != "",
+                )
+                .group_by(ClickModel.referer)
+                .order_by(func.count(ClickModel.id).desc())
+                .first()
+            )
+
+            return URLAggregateStats(
+                total_clicks=total_clicks or 0,
+                unique_countries=unique_countries or 0,
+                top_referer=top_referer_row[0] if top_referer_row else "",
+                last_clicked_at=last_clicked_at,
+            )
+        finally:
+            session.close()
+
+    def get_top_urls(self, owner, limit: int = 10) -> list[tuple[URLModel, int]]:
+        session = get_session()
+        try:
+            rows = (
+                session.query(URLModel, func.count(ClickModel.id).label("total_clicks"))
+                .outerjoin(ClickModel, URLModel.id == ClickModel.url_id)
+                .filter(URLModel.owner_id == owner.id)
+                .group_by(URLModel.id)
+                .order_by(func.count(ClickModel.id).desc(), URLModel.created_at.desc())
+                .limit(limit)
+                .all()
+            )
+            return [(sa_url, clicks) for sa_url, clicks in rows]
+        finally:
+            session.close()
+
+    # ── Keyset pagination + dynamic filtering ─────────────────────────
+
+    def list_with_filters(
+        self, filters: URLListFilters, limit: int = 10, cursor: str | None = None
+    ) -> KeysetPage:
+        session = get_session()
+        try:
+            query = session.query(URLModel)
+
+            if filters.search:
+                like_term = f"%{filters.search}%"
+                query = query.filter(
+                    or_(
+                        URLModel.short_code.ilike(like_term),
+                        URLModel.original_url.ilike(like_term),
+                        URLModel.title.ilike(like_term),
+                    )
+                )
+
+            if filters.is_active is not None:
+                query = query.filter(URLModel.is_active == filters.is_active)
+
+            if filters.tag:
+                query = query.join(URLModel.tags).filter(TagModel.name == filters.tag)
+
+            if filters.owner_id is not None:
+                query = query.filter(URLModel.owner_id == filters.owner_id)
+
+            if filters.created_after:
+                query = query.filter(URLModel.created_at >= filters.created_after)
+
+            if filters.created_before:
+                query = query.filter(URLModel.created_at <= filters.created_before)
+
+            if filters.min_clicks is not None:
+                query = query.filter(URLModel.click_count >= filters.min_clicks)
+
+            if filters.max_clicks is not None:
+                query = query.filter(URLModel.click_count <= filters.max_clicks)
+
+            if cursor:
+                try:
+                    decoded = json.loads(base64.b64decode(cursor).decode())
+                    cursor_dt = datetime.fromisoformat(decoded["created_at"])
+                    query = query.filter(
+                        or_(
+                            URLModel.created_at < cursor_dt,
+                            and_(
+                                URLModel.created_at == cursor_dt,
+                                URLModel.id < decoded["pk"],
+                            ),
+                        )
+                    )
+                except (ValueError, KeyError):
+                    pass
+
+            order_map = {
+                "created_at": URLModel.created_at.asc(),
+                "-created_at": URLModel.created_at.desc(),
+                "click_count": URLModel.click_count.asc(),
+                "-click_count": URLModel.click_count.desc(),
+                "title": URLModel.title.asc(),
+                "-title": URLModel.title.desc(),
+                "short_code": URLModel.short_code.asc(),
+                "-short_code": URLModel.short_code.desc(),
+            }
+            order = order_map.get(filters.ordering, URLModel.created_at.desc())
+            query = query.order_by(order, URLModel.id.desc())
+
+            items_sa = query.limit(limit + 1).all()
+            has_more = len(items_sa) > limit
+            items_sa = items_sa[:limit]
+
+            next_cursor = None
+            if has_more and items_sa:
+                last_sa = items_sa[-1]
+                next_cursor = base64.b64encode(
+                    json.dumps(
+                        {
+                            "pk": last_sa.id,
+                            "created_at": last_sa.created_at.isoformat(),
+                        }
+                    ).encode()
+                ).decode()
+
+            return KeysetPage(items=items_sa, next_cursor=next_cursor, has_more=has_more)
+        finally:
+            session.close()
+
+    # ── Time-series analytics ─────────────────────────────────────────
+
+    def get_click_time_series(self, url: URLModel, days: int = 30) -> list[tuple[str, int]]:
+        since = datetime.now(UTC) - timedelta(days=days)
+        session = get_session()
+        try:
+            day_col = func.date_trunc("day", ClickModel.clicked_at).label("day")
+            rows = (
+                session.query(day_col, func.count(ClickModel.id).label("count"))
+                .filter(
+                    ClickModel.url_id == url.id,
+                    ClickModel.clicked_at >= since,
+                )
+                .group_by(day_col)
+                .order_by(day_col)
+                .all()
+            )
+            return [(row.day.strftime("%Y-%m-%d"), row.count) for row in rows]
+        finally:
+            session.close()

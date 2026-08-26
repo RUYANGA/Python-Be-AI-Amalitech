@@ -1,0 +1,12 @@
+Django>=6.1
+djangorestframework>=3.18
+djangorestframework-simplejwt>=5.5
+drf-spectacular>=0.30
+python-decouple>=3.8
+psycopg2-binary>=2.9.9
+gunicorn>=23.0
+uvicorn>=0.30
+redis>=5.0
+django-redis>=5.4
+sqlalchemy>=2.0
+alembic>=1.13
