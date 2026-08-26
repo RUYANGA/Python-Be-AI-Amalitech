@@ -81,11 +81,16 @@ This keeps the ORM at a single boundary (the repository), lets services be unit-
 
 All queries, inserts, updates, and deletes go through SQLAlchemy models in `database/`. Django models in `apps/shortener/models.py` are `managed=False` stubs that exist solely to prevent Django from issuing `DROP TABLE` migrations against tables it doesn't own. The `UserModel` is read-only — user creation and authentication always goes through Django's auth system.
 
-The `CachedURLRepository` wraps the SA repository, adding Redis caching transparently. The service layer depends only on `IURLRepository`, so the cache can be toggled on or off without changing any business logic.
+The `CachedURLRepository` wraps the SA URL repository, and `CachedAnalyticsRepository` wraps the SA analytics repository. Both add Redis caching transparently. The service layer depends only on `IURLRepository` and `IClickAnalyticsRepository`, so the cache can be toggled on or off without changing any business logic.
 
 ## Redis caching
 
-A `CachedURLRepository` wraps the SQLAlchemy repository, adding a Redis read-through cache. The service layer is unaware of the caching — it depends only on `IURLRepository`, so the cache can be toggled on or off without changing any business logic.
+Two decorator repositories wrap the SQLAlchemy data-access layer with Redis caching:
+
+- **`CachedURLRepository`** — wraps `SQLAlchemyURLRepository` with read-through caching for URL entities and write-through invalidation.
+- **`CachedAnalyticsRepository`** — wraps `SQLAlchemyClickAnalyticsRepository` with short-TTL caching for expensive aggregation queries.
+
+The service layer depends only on abstract interfaces (`IURLRepository`, `IClickAnalyticsRepository`), so the cache can be toggled on or off without changing any business logic.
 
 ### Data flow
 
@@ -93,36 +98,60 @@ A `CachedURLRepository` wraps the SQLAlchemy repository, adding a Redis read-thr
 View → Service → CachedURLRepository → Redis (reads)
                                           ↓ (miss)
                                     SQLAlchemyURLRepository → PostgreSQL
+
+View → Service → CachedAnalyticsRepository → Redis (reads)
+                                                  ↓ (miss)
+                                        SQLAlchemyClickAnalyticsRepository → PostgreSQL
 ```
 
 Writes always go to PostgreSQL first, then invalidate the affected cache keys so the next read repopulates with fresh data.
 
 ### Cache key scheme
 
+#### URL entity keys
+
 | Key pattern | Stores | TTL |
 |---|---|---|
-| `url:code:{short_code}` | URL data by short code | 10 min |
-| `url:id:{pk}` | URL data by primary key | 10 min |
+| `url:code:{short_code}` | URL data (with tags) by short code | 10 min |
+| `url:id:{pk}` | URL data (with tags) by primary key | 10 min |
 | `url:exists:{short_code}` | Existence check result | 5 min |
 | `url:list:{owner_id}` | List of URL IDs for an owner | 2 min |
+| `url:stats:{pk}` | Aggregate stats (total clicks, countries, referrer) | 30 sec |
+| `url:top:{owner_id}:{limit}` | Top URLs leaderboard | 30 sec |
+| `url:ts:{pk}:{days}` | Daily click time series | 30 sec |
+
+#### Analytics keys
+
+| Key pattern | Stores | TTL |
+|---|---|---|
+| `analytics:countries:{pk}:{limit}` | Country breakdown | 30 sec |
+| `analytics:referrers:{pk}:{limit}` | Referrer breakdown | 30 sec |
+| `analytics:hourly:{pk}` | Hourly click distribution | 30 sec |
 
 ### Endpoint behaviour
 
 | Endpoint | Cache action |
 |---|---|
-| `POST /urls/` | Write DB → invalidate `url:code:`, `url:id:`, `url:exists:`, `url:list:{owner}` |
-| `GET /urls/mine/` | Read `url:list:{owner_id}`, each individual URL from `url:id:{pk}` |
-| `PATCH /urls/{id}/` | Write DB → invalidate all related keys including `url:list:` |
-| `DELETE /urls/{id}/` | Write DB → invalidate all related keys including `url:list:` |
-| `GET /{short_code}/` | Read `url:code:{short_code}` — zero DB queries on hit |
+| `POST /urls/` | Write DB → invalidate URL entity keys + list; re-invalidate after tag/title writes |
+| `GET /urls/mine/` | Read `url:list:{owner_id}`, each URL from `url:id:{pk}` |
+| `GET /urls/top/` | Read `url:top:{owner_id}:{limit}` |
+| `PATCH /urls/{id}/` | Write DB → invalidate all related URL keys |
+| `DELETE /urls/{id}/` | Write DB → invalidate all related URL keys |
+| `GET /{short_code}/` | Read `url:code:{short_code}` → record click → invalidate URL entity keys |
+| `GET /urls/{id}/analytics/` | Read `url:stats:`, `analytics:countries:`, `analytics:referrers:`, `analytics:hourly:` |
+| `GET /urls/{id}/analytics/timeseries/` | Read `url:ts:{pk}:{days}` |
+
+### Cache invalidation on clicks
+
+When a short code is resolved, the analytics repository records the click and atomically increments `click_count` in PostgreSQL. The service then calls `invalidate()` on the URL repository, which evicts `url:code:`, `url:id:`, `url:stats:`, and `url:list:` keys — so the next read always reflects the fresh `click_count`.
 
 ### Caching strategies
 
 1. **Read-through** — the repository checks Redis first; on miss it queries PostgreSQL and populates the cache automatically.
 2. **Write-through invalidation** — every write deletes the relevant cache keys. The next read repopulates them. This avoids stale reads without write amplification.
 3. **Cache-aside (lazy population)** — each repository method explicitly manages `get` / `set` rather than relying on an automatic cache layer.
-4. **TTL-based expiry** — every key has a hard TTL so stale data self-destructs even without explicit invalidation.
-5. **Graceful degradation** — if Redis is unreachable at startup, the factory falls back to the plain SA repository. The API continues to work with zero downtime; only caching is lost.
+4. **TTL-based expiry** — entity keys have longer TTLs (5–10 min), analytics keys have short TTLs (30 sec) since they change frequently.
+5. **Graceful degradation** — if Redis is unreachable at startup, the factory falls back to plain SA repositories. The API continues to work with zero downtime; only caching is lost.
 
 ## Project structure
 
