@@ -20,6 +20,7 @@ from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import and_, func, or_
+from sqlalchemy.orm import selectinload
 
 from apps.shortener.api.interfaces.repository import (
     IURLRepository,
@@ -60,7 +61,12 @@ class SQLAlchemyURLRepository(IURLRepository):
     def get_by_short_code(self, short_code: str) -> URLModel | None:
         session = get_session()
         try:
-            return session.query(URLModel).filter(URLModel.short_code == short_code).first()
+            return (
+                session.query(URLModel)
+                .options(selectinload(URLModel.tags))
+                .filter(URLModel.short_code == short_code)
+                .first()
+            )
         finally:
             session.close()
 
@@ -76,21 +82,36 @@ class SQLAlchemyURLRepository(IURLRepository):
     def get_by_id(self, pk: int) -> URLModel | None:
         session = get_session()
         try:
-            return session.query(URLModel).filter(URLModel.id == pk).first()
+            return (
+                session.query(URLModel)
+                .options(selectinload(URLModel.tags))
+                .filter(URLModel.id == pk)
+                .first()
+            )
         finally:
             session.close()
 
     def list_by_owner(self, owner) -> Iterable[URLModel]:
         session = get_session()
         try:
-            return session.query(URLModel).filter(URLModel.owner_id == owner.id).all()
+            return (
+                session.query(URLModel)
+                .options(selectinload(URLModel.tags))
+                .filter(URLModel.owner_id == owner.id)
+                .all()
+            )
         finally:
             session.close()
 
     def update(self, url: URLModel, original_url: str) -> URLModel:
         session = get_session()
         try:
-            sa_url = session.query(URLModel).filter(URLModel.id == url.id).one()
+            sa_url = (
+                session.query(URLModel)
+                .options(selectinload(URLModel.tags))
+                .filter(URLModel.id == url.id)
+                .one()
+            )
             sa_url.original_url = original_url
             session.commit()
             session.refresh(sa_url)
@@ -166,6 +187,7 @@ class SQLAlchemyURLRepository(IURLRepository):
             rows = (
                 session.query(URLModel, func.count(ClickModel.id).label("total_clicks"))
                 .outerjoin(ClickModel, URLModel.id == ClickModel.url_id)
+                .options(selectinload(URLModel.tags))
                 .filter(URLModel.owner_id == owner.id)
                 .group_by(URLModel.id)
                 .order_by(func.count(ClickModel.id).desc(), URLModel.created_at.desc())
@@ -183,7 +205,7 @@ class SQLAlchemyURLRepository(IURLRepository):
     ) -> KeysetPage:
         session = get_session()
         try:
-            query = session.query(URLModel)
+            query = session.query(URLModel).options(selectinload(URLModel.tags))
 
             if filters.search:
                 like_term = f"%{filters.search}%"

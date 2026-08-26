@@ -26,6 +26,9 @@ class URLResponseSerializer(serializers.Serializer):
         return request.build_absolute_uri(path)
 
     def get_tags(self, obj) -> list[str]:
-        if hasattr(obj, "tags"):
-            return [t.name for t in obj.tags]
+        try:
+            if hasattr(obj, "tags"):
+                return [t.name for t in obj.tags]
+        except Exception:
+            pass
         return []

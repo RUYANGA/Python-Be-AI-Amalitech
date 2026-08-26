@@ -12,6 +12,8 @@ class URLListFilterSerializer(serializers.Serializer):
     )
     is_active = serializers.BooleanField(
         required=False,
+        default=None,
+        allow_null=True,
         help_text="Filter by active status.",
     )
     tag = serializers.CharField(

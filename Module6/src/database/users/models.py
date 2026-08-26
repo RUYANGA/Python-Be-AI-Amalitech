@@ -8,7 +8,6 @@ Django's ``AbstractUser`` to keep password hashing and auth in sync.
 from __future__ import annotations
 
 from sqlalchemy import Boolean, Column, DateTime, Integer, String
-from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from database.connection import Base
@@ -25,8 +24,6 @@ class UserModel(Base):
     is_active = Column(Boolean, nullable=False, server_default="1")
     is_staff = Column(Boolean, nullable=False, server_default="0")
     date_joined = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-
-    urls = relationship("URLModel", back_populates=None)
 
     def __repr__(self) -> str:
         return f"<User(id={self.id}, username='{self.username}')>"

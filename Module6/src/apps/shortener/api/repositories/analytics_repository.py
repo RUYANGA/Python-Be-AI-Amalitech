@@ -47,6 +47,7 @@ class SQLAlchemyClickAnalyticsRepository(IClickAnalyticsRepository):
                 user_agent=user_agent,
                 referer=referer,
                 country=country,
+                clicked_at=datetime.now(UTC),
             )
             session.add(click)
 

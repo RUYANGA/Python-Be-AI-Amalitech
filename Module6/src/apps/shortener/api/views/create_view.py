@@ -10,7 +10,7 @@ from apps.shortener.api.exceptions import ShortCodeGenerationError
 from apps.shortener.api.serializers import URLCreateSerializer, URLResponseSerializer
 from apps.shortener.api.views.base_view import BaseURLView
 from database.connection import get_session
-from database.shortener.models import TagModel
+from database.shortener.models import TagModel, URLModel
 
 logger = logging.getLogger(__name__)
 
@@ -56,10 +56,11 @@ class URLCreateView(BaseURLView):
         if title or tag_names or expires_at:
             session = get_session()
             try:
+                sa_url = session.merge(url)
                 if title:
-                    url.title = title
+                    sa_url.title = title
                 if expires_at:
-                    url.expires_at = expires_at
+                    sa_url.expires_at = expires_at
                 if tag_names:
                     tags = []
                     for name in tag_names:
@@ -73,9 +74,17 @@ class URLCreateView(BaseURLView):
                             session.add(tag)
                             session.flush()
                         tags.append(tag)
-                    url.tags = tags
+                    sa_url.tags = tags
                 session.commit()
-                session.refresh(url)
+                session.refresh(sa_url)
+                from sqlalchemy.orm import selectinload
+
+                url = (
+                    session.query(URLModel)
+                    .options(selectinload(URLModel.tags))
+                    .filter(URLModel.id == sa_url.id)
+                    .one()
+                )
             except Exception:
                 session.rollback()
                 raise

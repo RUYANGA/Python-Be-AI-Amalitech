@@ -29,20 +29,20 @@ class TagModel(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(64), unique=True, index=True, nullable=False)
 
-    urls = relationship("URLTagModel", back_populates="tag")
+    tag_assocs = relationship("URLTagModel", back_populates="tag")
 
     def __repr__(self) -> str:
         return f"<Tag(id={self.id}, name='{self.name}')>"
 
 
 class URLTagModel(Base):
-    __tablename__ = "url_tags"
+    __tablename__ = "urls_tags"
 
     url_id = Column(Integer, ForeignKey("urls.id", ondelete="CASCADE"), primary_key=True)
     tag_id = Column(Integer, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True)
 
     url = relationship("URLModel", back_populates="tag_assocs")
-    tag = relationship("TagModel", back_populates="urls")
+    tag = relationship("TagModel", back_populates="tag_assocs")
 
 
 class URLModel(Base):
@@ -51,31 +51,31 @@ class URLModel(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     original_url = Column(String(2048), nullable=False)
     short_code = Column(String(10), unique=True, index=True, nullable=False)
-    title = Column(String(255), nullable=False, server_default="")
+    title = Column(String(255), nullable=False, default="")
     owner_id = Column(
         Integer,
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=True,
         index=True,
     )
-    click_count = Column(Integer, nullable=False, server_default="0", index=True)
-    is_active = Column(Boolean, nullable=False, server_default="1", index=True)
+    click_count = Column(Integer, nullable=False, default=0, index=True)
+    is_active = Column(Boolean, nullable=False, default=True, index=True)
     expires_at = Column(DateTime(timezone=True), nullable=True, index=True)
     last_accessed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=func.now(),
     )
     updated_at = Column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=func.now(),
         onupdate=func.now(),
     )
 
     tag_assocs = relationship("URLTagModel", back_populates="url")
-    tags = relationship("TagModel", secondary="url_tags", back_populates="urls")
+    tags = relationship("TagModel", secondary="urls_tags")
     clicks = relationship("ClickModel", back_populates="url")
 
     __table_args__ = (
