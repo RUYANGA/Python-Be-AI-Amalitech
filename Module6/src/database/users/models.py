@@ -23,6 +23,8 @@ class UserModel(Base):
     last_name = Column(String(150), nullable=False, server_default="")
     is_active = Column(Boolean, nullable=False, server_default="1")
     is_staff = Column(Boolean, nullable=False, server_default="0")
+    is_premium = Column(Boolean, nullable=False, default=False)
+    tier = Column(String(20), nullable=False, default="free")
     date_joined = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     def __repr__(self) -> str:

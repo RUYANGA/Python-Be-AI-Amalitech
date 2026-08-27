@@ -38,8 +38,9 @@ class TagModel(Base):
 class URLTagModel(Base):
     __tablename__ = "urls_tags"
 
-    url_id = Column(Integer, ForeignKey("urls.id", ondelete="CASCADE"), primary_key=True)
-    tag_id = Column(Integer, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    url_id = Column(Integer, ForeignKey("urls.id", ondelete="CASCADE"), nullable=False)
+    tag_id = Column(Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False)
 
     url = relationship("URLModel", back_populates="tag_assocs")
     tag = relationship("TagModel", back_populates="tag_assocs")
@@ -74,9 +75,10 @@ class URLModel(Base):
         onupdate=func.now(),
     )
 
-    tag_assocs = relationship("URLTagModel", back_populates="url")
-    tags = relationship("TagModel", secondary="urls_tags")
-    clicks = relationship("ClickModel", back_populates="url")
+    tag_assocs = relationship("URLTagModel", back_populates="url", cascade="all, delete-orphan")
+    tags = relationship("TagModel", secondary="urls_tags", passive_deletes=True)
+    clicks = relationship("ClickModel", back_populates="url", passive_deletes=True)
+    owner = relationship("UserModel", foreign_keys=[owner_id], lazy="select")
 
     __table_args__ = (
         Index("ix_urls_owner_created", "owner_id", created_at.desc()),
@@ -102,6 +104,7 @@ class ClickModel(Base):
     user_agent = Column(Text, nullable=False, server_default="")
     referer = Column(String(2048), nullable=False, server_default="")
     country = Column(String(2), nullable=False, server_default="", index=True)
+    city = Column(String(100), nullable=False, server_default="")
     clicked_at = Column(
         DateTime(timezone=True),
         nullable=False,

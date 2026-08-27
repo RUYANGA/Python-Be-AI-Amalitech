@@ -6,6 +6,27 @@ tables alone.  All data access goes through SQLAlchemy models in
 from django.db import models
 
 
+class URLManager(models.Manager):
+    def active_urls(self):
+        """Return only active, non-expired URLs."""
+        from django.utils import timezone
+
+        now = timezone.now()
+        return self.filter(is_active=True).filter(
+            models.Q(expires_at__isnull=True) | models.Q(expires_at__gt=now)
+        )
+
+    def expired_urls(self):
+        """Return URLs past their ``expires_at``."""
+        from django.utils import timezone
+
+        return self.filter(expires_at__isnull=False, expires_at__lte=timezone.now())
+
+    def popular_urls(self):
+        """Return URLs ordered by ``click_count`` descending."""
+        return self.order_by("-click_count")
+
+
 class URL(models.Model):
     original_url = models.URLField(max_length=2048)
     short_code = models.CharField(max_length=10, unique=True, db_index=True)
@@ -14,6 +35,8 @@ class URL(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = URLManager()
 
     class Meta:
         db_table = "urls"
@@ -27,6 +50,7 @@ class Click(models.Model):
     url = models.ForeignKey(URL, on_delete=models.CASCADE, related_name="clicks")
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     country = models.CharField(max_length=2, blank=True, default="")
+    city = models.CharField(max_length=100, blank=True, default="")
     referer = models.URLField(max_length=2048, blank=True, default="")
     clicked_at = models.DateTimeField(auto_now_add=True)
 

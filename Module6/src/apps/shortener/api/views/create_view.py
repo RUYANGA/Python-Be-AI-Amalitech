@@ -81,7 +81,7 @@ class URLCreateView(BaseURLView):
 
                 url = (
                     session.query(URLModel)
-                    .options(selectinload(URLModel.tags))
+                    .options(selectinload(URLModel.tags), selectinload(URLModel.owner))
                     .filter(URLModel.id == sa_url.id)
                     .one()
                 )
