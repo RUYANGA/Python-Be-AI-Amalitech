@@ -9,6 +9,7 @@ Built as an AmaliTech Training Academy project to demonstrate a clean, layered a
 - [Features](#features)
 - [Tech stack](#tech-stack)
 - [Architecture](#architecture)
+- [Module 6: Advanced modeling & query optimization](#module-6-advanced-modeling--query-optimization)
 - [Redis caching](#redis-caching)
 - [Project structure](#project-structure)
 - [Getting started](#getting-started)
@@ -82,6 +83,50 @@ This keeps the ORM at a single boundary (the repository), lets services be unit-
 All queries, inserts, updates, and deletes go through SQLAlchemy models in `database/`. Django models in `apps/shortener/models.py` are `managed=False` stubs that exist solely to prevent Django from issuing `DROP TABLE` migrations against tables it doesn't own. The `UserModel` is read-only — user creation and authentication always goes through Django's auth system.
 
 The `CachedURLRepository` wraps the SA URL repository, and `CachedAnalyticsRepository` wraps the SA analytics repository. Both add Redis caching transparently. The service layer depends only on `IURLRepository` and `IClickAnalyticsRepository`, so the cache can be toggled on or off without changing any business logic.
+
+## Module 6: Advanced modeling & query optimization
+
+This module expands the data model with users, relationships, and deep analytics, with a focus on efficient database access and query optimization.
+
+### 3.1 Advanced modeling
+
+| Model | Fields / relationship | Notes |
+|---|---|---|
+| `User` (`apps/users/models.py`) | extends `AbstractUser`; adds `is_premium` (Boolean), `tier` (CharField with `free`/`basic`/`pro`/`enterprise` choices) | Mirrored read-only in SA `UserModel` |
+| `URL` | `owner` (FK → User), `click_count`, `is_active`, `expires_at`, `last_accessed_at` | `owner` is nullable; `click_count` indexed desc for leaderboards |
+| `Click` | `ip_address`, `user_agent`, `country`, `city`, `referer`, `clicked_at` | `city` added to model to track geographic detail |
+| `Tag` | `name` (unique) | Many-to-many with `URL` via `urls_tags` intermediate table |
+
+### 3.2 Migrations
+
+- **Django migrations** manage all schema changes (`0001`–`0006`), including the new `is_premium`/`tier` user fields (`users/0003`) and the `city` click field.
+- **Data migration** `shortener/0006_seed_default_tags.py` seeds 8 default tags (`marketing`, `social`, `campaign`, `product`, `blog`, `newsletter`, `partner`, `internal`) idempotently via `get_or_create`, with a matching reverse-migration.
+- **Alembic migrations** keep the SQLAlchemy schema in sync: `001_initial_sa`, `002_premium_tier_city`, `003_fix_fk_cascade`.
+
+### 3.3 Custom managers & query sets
+
+`URLManager` (in `apps/shortener/models.py`) provides domain-specific query sets:
+
+- `active_urls()` — active and not expired (`is_active=True` and (`expires_at IS NULL` or `expires_at > now`))
+- `expired_urls()` — past their `expires_at`
+- `popular_urls()` — ordered by `click_count` descending
+
+These are declared on the Django stub model as documentation and are mirrored by SQLAlchemy repository methods (`list_with_filters` with `is_active`, `get_top_urls`).
+
+### 3.4 Query optimization
+
+- **N+1 prevention** — every URL query eagerly loads relationships:
+  - `selectinload(URLModel.tags)` — avoids N+1 on Many-to-Many tag access
+  - `selectinload(URLModel.owner)` — avoids N+1 on the `owner` ForeignKey
+- **Database indexing** — composite and descending indexes are defined on both SA models and Django migrations:
+  - unique index on `short_code`
+  - `ix_urls_owner_created (owner_id, created_at DESC)`
+  - `ix_urls_click_count_desc (click_count DESC)`
+  - `ix_urls_active_expires (is_active, expires_at)`
+  - `ix_clicks_url_clicked (url_id, clicked_at DESC)` and `ix_clicks_country_clicked (country, clicked_at DESC)`
+- **Aggregations computed in SQL** (`func.count` / `group_by` / `date_trunc`):
+  - total clicks per country (`get_country_breakdown`)
+  - referrer breakdown, hourly distribution, daily time series, and top-URLs leaderboard
 
 ## Redis caching
 
