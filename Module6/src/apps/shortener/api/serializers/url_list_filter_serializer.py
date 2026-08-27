@@ -61,6 +61,16 @@ class URLListFilterSerializer(serializers.Serializer):
         default=20,
         help_text="Maximum number of results to return per page (1-100).",
     )
+    cursor = serializers.CharField(
+        required=False,
+        allow_blank=False,
+        trim_whitespace=True,
+        help_text=(
+            "Pagination token for the next page. Leave empty to fetch the "
+            "first page, then copy the response's 'next_cursor' value here to "
+            "advance to the following page. Continue until 'has_more' is false."
+        ),
+    )
 
     def validate(self, attrs):
         attrs = super().validate(attrs)

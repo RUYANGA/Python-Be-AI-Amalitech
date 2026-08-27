@@ -50,7 +50,11 @@ class URLListMixin:
 
         limit = data.get("limit", 20)
 
-        page = self.service.list_with_filters(filters, limit=limit)
+        page = self.service.list_with_filters(
+            filters,
+            limit=limit,
+            cursor=data.get("cursor"),
+        )
 
         serializer = URLResponseSerializer(page.items, many=True, context={"request": request})
         logger.info(
@@ -65,5 +69,6 @@ class URLListMixin:
                 "count": len(page.items),
                 "limit": limit,
                 "has_more": page.has_more,
+                "next_cursor": page.next_cursor,
             }
         )
