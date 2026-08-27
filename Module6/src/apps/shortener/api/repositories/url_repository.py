@@ -23,6 +23,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import selectinload
 
+from apps.shortener.api.exceptions import RepositoryError
 from apps.shortener.api.interfaces.repository import (
     IURLRepository,
     KeysetPage,
@@ -61,10 +62,10 @@ class SQLAlchemyURLRepository(IURLRepository):
                 sa_url.owner_id,
             )
             return sa_url
-        except Exception:
+        except Exception as exc:
             logger.exception("url.create_failed short_code=%s", short_code)
             session.rollback()
-            raise
+            raise RepositoryError("create", short_code=short_code) from exc
         finally:
             session.close()
 
@@ -77,9 +78,9 @@ class SQLAlchemyURLRepository(IURLRepository):
                 .filter(URLModel.short_code == short_code)
                 .first()
             )
-        except Exception:
+        except Exception as exc:
             logger.exception("url.get_by_short_code_failed short_code=%s", short_code)
-            raise
+            raise RepositoryError("get_by_short_code", short_code=short_code) from exc
         finally:
             session.close()
 
@@ -101,9 +102,9 @@ class SQLAlchemyURLRepository(IURLRepository):
                 .filter(URLModel.id == pk)
                 .first()
             )
-        except Exception:
+        except Exception as exc:
             logger.exception("url.get_by_id_failed pk=%s", pk)
-            raise
+            raise RepositoryError("get_by_id", pk=pk) from exc
         finally:
             session.close()
 
@@ -118,9 +119,9 @@ class SQLAlchemyURLRepository(IURLRepository):
             )
             logger.debug("url.list_by_owner owner_id=%s count=%d", owner.id, len(urls))
             return urls
-        except Exception:
+        except Exception as exc:
             logger.exception("url.list_by_owner_failed owner_id=%s", owner.id)
-            raise
+            raise RepositoryError("list_by_owner", owner_id=owner.id) from exc
         finally:
             session.close()
 
@@ -138,10 +139,10 @@ class SQLAlchemyURLRepository(IURLRepository):
             session.refresh(sa_url)
             logger.info("url.updated id=%s short_code=%s", sa_url.id, sa_url.short_code)
             return sa_url
-        except Exception:
+        except Exception as exc:
             logger.exception("url.update_failed id=%s", url.id)
             session.rollback()
-            raise
+            raise RepositoryError("update", id=url.id) from exc
         finally:
             session.close()
 
@@ -155,10 +156,10 @@ class SQLAlchemyURLRepository(IURLRepository):
                 logger.info("url.deleted id=%s short_code=%s", sa_url.id, sa_url.short_code)
             else:
                 logger.warning("url.delete_missing id=%s", url.id)
-        except Exception:
+        except Exception as exc:
             logger.exception("url.delete_failed id=%s", url.id)
             session.rollback()
-            raise
+            raise RepositoryError("delete", id=url.id) from exc
         finally:
             session.close()
 
