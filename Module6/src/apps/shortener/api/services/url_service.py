@@ -119,27 +119,6 @@ class URLShortenerService:
         """
         return self._get_owned_by_code_or_raise(short_code, owner)
 
-    def update_owned_by_code(
-        self,
-        short_code: str,
-        owner,
-        original_url: str | None = None,
-        title: str | None = None,
-        tags: list[str] | None = None,
-        expires_at=None,
-    ) -> URLModel:
-        """Apply optional partial fields to the URL ``short_code``, if owned by ``owner``."""
-        url = self._get_owned_by_code_or_raise(short_code, owner)
-        updated = self._repository.update(
-            url,
-            original_url=original_url,
-            title=title,
-            tags=tags,
-            expires_at=expires_at,
-        )
-        logger.info("url.updated_by_code short_code=%s owner_id=%s", short_code, owner.id)
-        return updated
-
     def partial_update_by_code(
         self,
         short_code: str,
@@ -150,15 +129,21 @@ class URLShortenerService:
         tags: list[str] | None = None,
         expires_at=None,
     ) -> URLModel:
-        """Update only the provided fields on the URL ``short_code``, if owned by ``owner``."""
-        return self.update_owned_by_code(
-            short_code,
-            owner,
+        """Update only the provided fields on the URL ``short_code``, if owned by ``owner``.
+
+        Any of ``original_url``, ``title``, ``tags`` and ``expires_at`` that is
+        provided is persisted; omitted fields are left unchanged.
+        """
+        url = self._get_owned_by_code_or_raise(short_code, owner)
+        updated = self._repository.update(
+            url,
             original_url=original_url,
             title=title,
             tags=tags,
             expires_at=expires_at,
         )
+        logger.info("url.updated_by_code short_code=%s owner_id=%s", short_code, owner.id)
+        return updated
 
     def delete_owned_by_code(self, short_code: str, owner) -> None:
         """Delete the URL ``short_code``, if owned by ``owner``."""
