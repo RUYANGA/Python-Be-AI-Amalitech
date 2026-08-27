@@ -9,11 +9,11 @@ import logging
 
 from django.http import Http404
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 
 from apps.shortener.api.exceptions import URLNotOwnedError
+from apps.shortener.api.permissions import IsPremiumUser
 from apps.shortener.api.serializers import (
     AnalyticsSummarySerializer,
 )
@@ -30,9 +30,12 @@ SHORT_CODE_PARAMETER = OpenApiParameter(
 
 
 class URLAnalyticsByCodeView(BaseURLView):
-    """``GET /api/v1/analytics/{short_code}/`` — geo + time-series analytics."""
+    """``GET /api/v1/analytics/{short_code}/`` — geo + time-series analytics.
 
-    permission_classes = [IsAuthenticated]
+    Premium-only (see :class:`IsPremiumUser`).
+    """
+
+    permission_classes = [IsPremiumUser]
 
     @extend_schema(
         operation_id="analytics_by_code",
@@ -40,10 +43,12 @@ class URLAnalyticsByCodeView(BaseURLView):
         responses={
             200: AnalyticsSummarySerializer,
             401: OpenApiResponse(description="Authentication required."),
+            403: OpenApiResponse(description="Premium account required."),
             404: OpenApiResponse(description="URL not found."),
         },
         summary="Get time-series and geo analytics for a URL by short code",
         tags=["Analytics"],
+        description="Premium-only: the caller must be a premium user.",
     )
     def get(self, request: Request, short_code: str) -> Response:
         try:
