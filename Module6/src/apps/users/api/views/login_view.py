@@ -2,8 +2,10 @@ import logging
 
 from drf_spectacular.utils import OpenApiExample, extend_schema
 from rest_framework import status
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.response import Response
 
+from apps.users.api.exceptions import AuthenticationError, InactiveAccountError
 from apps.users.api.serializers import LoginSerializer, UserSerializer
 from apps.users.api.views.base_view import BaseAuthView
 
@@ -29,10 +31,17 @@ class LoginView(BaseAuthView):
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        result = self.auth_service.login(
-            serializer.validated_data["username"],
-            serializer.validated_data["password"],
-        )
+        try:
+            result = self.auth_service.login(
+                serializer.validated_data["username"],
+                serializer.validated_data["password"],
+            )
+        except InactiveAccountError as exc:
+            logger.warning("auth.login_inactive username=%s", serializer.validated_data["username"])
+            raise AuthenticationFailed(str(exc), code=exc.code) from exc
+        except AuthenticationError as exc:
+            logger.warning("auth.login_failed username=%s", serializer.validated_data["username"])
+            raise AuthenticationFailed(str(exc), code=exc.code) from exc
         logger.info(
             "auth.login_success user_id=%s username=%s",
             result["user"].id,

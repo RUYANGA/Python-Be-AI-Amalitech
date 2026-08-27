@@ -3,6 +3,8 @@ import logging
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
+from apps.users.api.exceptions import EmailTakenError, UsernameTakenError
+
 User = get_user_model()
 
 logger = logging.getLogger(__name__)
@@ -23,11 +25,11 @@ class RegisterSerializer(serializers.ModelSerializer):
     def validate_username(self, value):
         if User.objects.filter(username=value).exists():
             logger.warning("serializer.register.username_taken username=%s", value)
-            raise serializers.ValidationError("A user with this username already exists.")
+            raise UsernameTakenError(value)
         return value
 
     def validate_email(self, value):
         if value and User.objects.filter(email=value).exists():
             logger.warning("serializer.register.email_taken email=%s", value)
-            raise serializers.ValidationError("A user with this email already exists.")
+            raise EmailTakenError(value)
         return value

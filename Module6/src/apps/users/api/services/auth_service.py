@@ -1,8 +1,8 @@
 import logging
 
 from django.contrib.auth import get_user_model
-from rest_framework.exceptions import ValidationError
 
+from apps.users.api.exceptions import AuthenticationError, InactiveAccountError
 from apps.users.api.interfaces import AuthService, TokenService
 from apps.users.api.services.token_service import JWTTokenService
 
@@ -29,10 +29,10 @@ class UserAuthService(AuthService):
         user = User.objects.filter(username=username).first()
         if user is None or not user.check_password(password):
             logger.warning("Failed login attempt for username: %s", username)
-            raise ValidationError({"detail": "Invalid username or password."})
+            raise AuthenticationError()
         if not user.is_active:
             logger.warning("Login attempt for inactive account: %s", username)
-            raise ValidationError({"detail": "This account is inactive."})
+            raise InactiveAccountError()
         logger.info("User '%s' logged in successfully.", username)
         return {"user": user, "tokens": self.token_service.generate_tokens(user)}
 

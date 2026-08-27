@@ -1,9 +1,10 @@
 import logging
 
 from drf_spectacular.utils import OpenApiExample, extend_schema
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.response import Response
 
+from apps.users.api.exceptions import EmailTakenError, UsernameTakenError
 from apps.users.api.serializers import RegisterSerializer, UserSerializer
 from apps.users.api.views.base_view import BaseAuthView
 
@@ -34,7 +35,14 @@ class RegisterView(BaseAuthView):
     )
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except UsernameTakenError as exc:
+            logger.warning("auth.register_username_taken username=%s", exc.username)
+            raise serializers.ValidationError({"username": str(exc)}) from exc
+        except EmailTakenError as exc:
+            logger.warning("auth.register_email_taken email=%s", exc.email)
+            raise serializers.ValidationError({"email": str(exc)}) from exc
         user = self.auth_service.register(serializer.validated_data)
         logger.info("auth.register_success user_id=%s username=%s", user.id, user.username)
         return Response(
