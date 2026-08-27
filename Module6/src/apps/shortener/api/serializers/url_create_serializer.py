@@ -1,6 +1,24 @@
 from rest_framework import serializers
 
 
+class TagsField(serializers.Field):
+    """Accepts tags as a JSON list OR a comma-separated string.
+
+    ``["marketing", "social"]`` and ``"marketing, social"`` both produce
+    the list ``["marketing", "social"]``.
+    """
+
+    def to_internal_value(self, data):
+        if isinstance(data, str):
+            return [tag.strip() for tag in data.split(",") if tag.strip()]
+        if isinstance(data, (list | tuple)):
+            return [str(tag).strip() for tag in data if str(tag).strip()]
+        raise serializers.ValidationError("Tags must be a list or a comma-separated string.")
+
+    def to_representation(self, value):
+        return value
+
+
 class URLCreateSerializer(serializers.Serializer):
     """Payload for ``POST /api/urls/``."""
 
@@ -14,11 +32,10 @@ class URLCreateSerializer(serializers.Serializer):
         default="",
         help_text="Optional human-readable title for the short URL.",
     )
-    tags = serializers.ListField(
-        child=serializers.CharField(max_length=64),
+    tags = TagsField(
         required=False,
         default=[],
-        help_text="List of tag names to assign to this URL.",
+        help_text='List of tag names OR a comma-separated string, e.g. "marketing, social".',
     )
     expires_at = serializers.DateTimeField(
         required=False,
