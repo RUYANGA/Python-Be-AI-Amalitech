@@ -109,8 +109,21 @@ class CachedURLRepository(IURLRepository):
             self._cache.delete(f"url:list:{owner.id}")
         return url
 
-    def update(self, url: URLModel, original_url: str) -> URLModel:
-        updated = self._orm.update(url, original_url=original_url)
+    def update(
+        self,
+        url: URLModel,
+        original_url: str | None = None,
+        title: str | None = None,
+        tags: list[str] | None = None,
+        expires_at=None,
+    ) -> URLModel:
+        updated = self._orm.update(
+            url,
+            original_url=original_url,
+            title=title,
+            tags=tags,
+            expires_at=expires_at,
+        )
         self._invalidate(updated.short_code, updated.id)
         if updated.owner_id is not None:
             self._cache.delete(f"url:list:{updated.owner_id}")

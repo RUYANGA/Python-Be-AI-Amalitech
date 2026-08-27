@@ -3,7 +3,7 @@
 Implements the Module 6 spec endpoints:
 
 - ``GET /api/v1/urls/{short_code}/``   retrieve one of my URLs
-- ``PUT /api/v1/urls/{short_code}/``   update one of my URLs
+- ``PATCH /api/v1/urls/{short_code}/``  partially update one of my URLs
 - ``DELETE /api/v1/urls/{short_code}/`` delete one of my URLs
 """
 
@@ -17,7 +17,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from apps.shortener.api.exceptions import URLNotOwnedError
-from apps.shortener.api.serializers import URLCreateSerializer, URLResponseSerializer
+from apps.shortener.api.serializers import URLResponseSerializer, URLUpdateSerializer
 from apps.shortener.api.services.url_service import URLShortenerService
 from apps.shortener.api.views.base_view import BaseURLView
 
@@ -32,7 +32,7 @@ SHORT_CODE_PARAMETER = OpenApiParameter(
 
 
 class URLShortCodeDetailView(BaseURLView):
-    """``GET/PUT/DELETE /api/v1/urls/{short_code}/`` — a URL you own, by code."""
+    """``GET/PATCH/DELETE /api/v1/urls/{short_code}/`` — a URL you own, by code."""
 
     permission_classes = [IsAuthenticated]
 
@@ -58,30 +58,34 @@ class URLShortCodeDetailView(BaseURLView):
         return Response(serializer.data)
 
     @extend_schema(
-        operation_id="urls_update_by_code",
+        operation_id="urls_partial_update_by_code",
         parameters=[SHORT_CODE_PARAMETER],
-        request=URLCreateSerializer,
+        request=URLUpdateSerializer,
         responses={
             200: URLResponseSerializer,
             400: OpenApiResponse(description="Invalid input."),
             401: OpenApiResponse(description="Authentication required."),
             404: OpenApiResponse(description="URL not found."),
         },
-        summary="Update one of my URLs by short code",
+        summary="Partially update one of my URLs by short code",
         tags=["URLs"],
     )
-    def put(self, request: Request, short_code: str) -> Response:
-        serializer = URLCreateSerializer(data=request.data)
+    def patch(self, request: Request, short_code: str) -> Response:
+        serializer = URLUpdateSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
+        validated = serializer.validated_data
         try:
-            url = self.service.update_owned_by_code(
+            url = self.service.partial_update_by_code(
                 short_code,
                 request.user,
-                original_url=serializer.validated_data["original_url"],
+                original_url=validated.get("original_url"),
+                title=validated.get("title"),
+                tags=validated.get("tags"),
+                expires_at=validated.get("expires_at"),
             )
         except URLNotOwnedError as exc:
             logger.warning(
-                "urls.update_not_owned short_code=%s owner_id=%s",
+                "urls.patch_not_owned short_code=%s owner_id=%s",
                 short_code,
                 request.user.id,
             )

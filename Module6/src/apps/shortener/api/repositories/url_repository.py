@@ -125,7 +125,19 @@ class SQLAlchemyURLRepository(IURLRepository):
         finally:
             session.close()
 
-    def update(self, url: URLModel, original_url: str) -> URLModel:
+    def update(
+        self,
+        url: URLModel,
+        original_url: str | None = None,
+        title: str | None = None,
+        tags: list[str] | None = None,
+        expires_at=None,
+    ) -> URLModel:
+        """Apply optional partial fields to ``url``.
+
+        Any of ``original_url``, ``title``, ``tags`` and ``expires_at`` that is
+        provided is persisted; omitted fields are left unchanged.
+        """
         session = get_session()
         try:
             sa_url = (
@@ -134,7 +146,23 @@ class SQLAlchemyURLRepository(IURLRepository):
                 .filter(URLModel.id == url.id)
                 .one()
             )
-            sa_url.original_url = original_url
+            if original_url is not None:
+                sa_url.original_url = original_url
+            if title is not None:
+                sa_url.title = title
+            if expires_at is not None:
+                sa_url.expires_at = expires_at
+            if tags is not None:
+                tag_objects = []
+                for name in tags:
+                    normalized = name.lower().strip()
+                    tag = session.query(TagModel).filter(TagModel.name == normalized).first()
+                    if tag is None:
+                        tag = TagModel(name=normalized)
+                        session.add(tag)
+                        session.flush()
+                    tag_objects.append(tag)
+                sa_url.tags = tag_objects
             session.commit()
             session.refresh(sa_url)
             logger.info("url.updated id=%s short_code=%s", sa_url.id, sa_url.short_code)

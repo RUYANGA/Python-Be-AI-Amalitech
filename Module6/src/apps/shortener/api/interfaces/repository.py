@@ -84,8 +84,19 @@ class IURLRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def update(self, url: URLModel, original_url: str) -> URLModel:
-        """Persist a new ``original_url`` for ``url`` and return it."""
+    def update(
+        self,
+        url: URLModel,
+        original_url: str | None = None,
+        title: str | None = None,
+        tags: list[str] | None = None,
+        expires_at=None,
+    ) -> URLModel:
+        """Apply optional partial fields to ``url`` and return it.
+
+        Only the fields that are provided (not ``None``) are persisted;
+        omitted fields are left unchanged.
+        """
         raise NotImplementedError
 
     @abstractmethod
