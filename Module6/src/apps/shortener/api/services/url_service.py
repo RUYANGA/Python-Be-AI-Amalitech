@@ -10,7 +10,6 @@ the async layer in Module 8.
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable
 
 from apps.shortener.api.exceptions import (
     ShortCodeGenerationError,
@@ -98,10 +97,6 @@ class URLShortenerService:
             )
             self._repository.invalidate(url)
 
-    def list_owned(self, owner) -> Iterable[URLModel]:
-        """Return every URL owned by ``owner``."""
-        return self._repository.list_by_owner(owner)
-
     def list_with_filters(
         self, filters: URLListFilters, limit: int = 10, cursor: str | None = None
     ) -> KeysetPage:
@@ -112,34 +107,9 @@ class URLShortenerService:
         """Return click analytics for a URL."""
         return self._repository.get_aggregate_stats(url)
 
-    def get_top_urls(self, owner, limit: int = 10) -> list[tuple[URLModel, int]]:
-        """Return top URLs by click count for an owner."""
-        return self._repository.get_top_urls(owner, limit=limit)
-
     def get_click_time_series(self, url: URLModel, days: int = 30) -> list[tuple[str, int]]:
         """Return daily click counts for a URL."""
         return self._repository.get_click_time_series(url, days=days)
-
-    def update_owned(self, pk: int, owner, original_url: str) -> URLModel:
-        """Update ``original_url`` on the URL ``pk``, if owned by ``owner``.
-
-        Raises :class:`URLNotOwnedError` if it doesn't exist or belongs to
-        someone else.
-        """
-        url = self._get_owned_or_raise(pk, owner)
-        updated = self._repository.update(url, original_url=original_url)
-        logger.info("url.updated id=%s owner_id=%s", pk, owner.id)
-        return updated
-
-    def delete_owned(self, pk: int, owner) -> None:
-        """Delete the URL ``pk``, if owned by ``owner``.
-
-        Raises :class:`URLNotOwnedError` if it doesn't exist or belongs to
-        someone else.
-        """
-        url = self._get_owned_or_raise(pk, owner)
-        self._repository.delete(url)
-        logger.info("url.deleted id=%s owner_id=%s", pk, owner.id)
 
     def get_owned_by_code(self, short_code: str, owner) -> URLModel:
         """Return the URL for ``short_code``, if owned by ``owner``.
@@ -199,13 +169,6 @@ class URLShortenerService:
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
-    def _get_owned_or_raise(self, pk: int, owner) -> URLModel:
-        url = self._repository.get_by_id(pk)
-        if url is None or url.owner_id != owner.id:
-            logger.warning("url.not_owned id=%s owner_id=%s", pk, owner.id)
-            raise URLNotOwnedError(pk)
-        return url
-
     def _get_owned_by_code_or_raise(self, short_code: str, owner) -> URLModel:
         url = self._repository.get_by_short_code(short_code)
         if url is None or url.owner_id != owner.id:

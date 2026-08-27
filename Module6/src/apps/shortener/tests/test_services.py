@@ -13,7 +13,6 @@ import pytest
 from apps.shortener.api.exceptions import (
     ShortCodeGenerationError,
     URLNotFoundError,
-    URLNotOwnedError,
 )
 from apps.shortener.api.services.url_service import URLShortenerService
 
@@ -92,95 +91,3 @@ class TestURLShortenerServiceResolve:
             self.service.resolve("missing")
 
         assert excinfo.value.short_code == "missing"
-
-
-class TestURLShortenerServiceListOwned:
-    def setup_method(self) -> None:
-        self.repository = Mock()
-        self.generator = Mock()
-        self.service = URLShortenerService(repository=self.repository, generator=self.generator)
-
-    def test_delegates_to_repository(self):
-        owner = Mock(id=1)
-        expected = [Mock(), Mock()]
-        self.repository.list_by_owner.return_value = expected
-
-        assert self.service.list_owned(owner) is expected
-        self.repository.list_by_owner.assert_called_once_with(owner)
-
-
-class TestURLShortenerServiceUpdateOwned:
-    def setup_method(self) -> None:
-        self.repository = Mock()
-        self.generator = Mock()
-        self.service = URLShortenerService(repository=self.repository, generator=self.generator)
-
-    def test_updates_when_owned(self):
-        owner = Mock(id=1)
-        existing = Mock(owner_id=1)
-        updated = Mock()
-        self.repository.get_by_id.return_value = existing
-        self.repository.update.return_value = updated
-
-        result = self.service.update_owned(
-            pk=5, owner=owner, original_url="https://new.example.com"
-        )
-
-        assert result is updated
-        self.repository.update.assert_called_once_with(
-            existing, original_url="https://new.example.com"
-        )
-
-    def test_raises_when_missing(self):
-        owner = Mock(id=1)
-        self.repository.get_by_id.return_value = None
-
-        with pytest.raises(URLNotOwnedError):
-            self.service.update_owned(pk=5, owner=owner, original_url="https://new.example.com")
-
-        self.repository.update.assert_not_called()
-
-    def test_raises_when_owned_by_someone_else(self):
-        owner = Mock(id=1)
-        existing = Mock(owner_id=2)
-        self.repository.get_by_id.return_value = existing
-
-        with pytest.raises(URLNotOwnedError):
-            self.service.update_owned(pk=5, owner=owner, original_url="https://new.example.com")
-
-        self.repository.update.assert_not_called()
-
-
-class TestURLShortenerServiceDeleteOwned:
-    def setup_method(self) -> None:
-        self.repository = Mock()
-        self.generator = Mock()
-        self.service = URLShortenerService(repository=self.repository, generator=self.generator)
-
-    def test_deletes_when_owned(self):
-        owner = Mock(id=1)
-        existing = Mock(owner_id=1)
-        self.repository.get_by_id.return_value = existing
-
-        self.service.delete_owned(pk=5, owner=owner)
-
-        self.repository.delete.assert_called_once_with(existing)
-
-    def test_raises_when_missing(self):
-        owner = Mock(id=1)
-        self.repository.get_by_id.return_value = None
-
-        with pytest.raises(URLNotOwnedError):
-            self.service.delete_owned(pk=5, owner=owner)
-
-        self.repository.delete.assert_not_called()
-
-    def test_raises_when_owned_by_someone_else(self):
-        owner = Mock(id=1)
-        existing = Mock(owner_id=2)
-        self.repository.get_by_id.return_value = existing
-
-        with pytest.raises(URLNotOwnedError):
-            self.service.delete_owned(pk=5, owner=owner)
-
-        self.repository.delete.assert_not_called()

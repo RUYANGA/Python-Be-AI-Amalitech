@@ -9,7 +9,6 @@ a documented data-access contract.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -74,16 +73,6 @@ class IURLRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_by_id(self, pk: int) -> URLModel | None:
-        """Return the URL with primary key ``pk`` or ``None`` if absent."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def list_by_owner(self, owner) -> Iterable[URLModel]:
-        """Return every URL owned by ``owner``."""
-        raise NotImplementedError
-
-    @abstractmethod
     def update(
         self,
         url: URLModel,
@@ -109,11 +98,6 @@ class IURLRepository(ABC):
     @abstractmethod
     def get_aggregate_stats(self, url: URLModel) -> URLAggregateStats:
         """Return click analytics aggregations for a single URL."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_top_urls(self, owner, limit: int = 10) -> list[tuple[URLModel, int]]:
-        """Return top URLs by click count for ``owner`` as ``(url, clicks)`` tuples."""
         raise NotImplementedError
 
     @abstractmethod

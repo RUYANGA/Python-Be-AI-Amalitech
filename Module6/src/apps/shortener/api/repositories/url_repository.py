@@ -17,7 +17,6 @@ from __future__ import annotations
 import base64
 import json
 import logging
-from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import and_, func, or_
@@ -90,38 +89,6 @@ class SQLAlchemyURLRepository(IURLRepository):
             return session.query(
                 session.query(URLModel).filter(URLModel.short_code == short_code).exists()
             ).scalar()
-        finally:
-            session.close()
-
-    def get_by_id(self, pk: int) -> URLModel | None:
-        session = get_session()
-        try:
-            return (
-                session.query(URLModel)
-                .options(selectinload(URLModel.tags), selectinload(URLModel.owner))
-                .filter(URLModel.id == pk)
-                .first()
-            )
-        except Exception as exc:
-            logger.exception("url.get_by_id_failed pk=%s", pk)
-            raise RepositoryError("get_by_id", pk=pk) from exc
-        finally:
-            session.close()
-
-    def list_by_owner(self, owner) -> Iterable[URLModel]:
-        session = get_session()
-        try:
-            urls = (
-                session.query(URLModel)
-                .options(selectinload(URLModel.tags), selectinload(URLModel.owner))
-                .filter(URLModel.owner_id == owner.id)
-                .all()
-            )
-            logger.debug("url.list_by_owner owner_id=%s count=%d", owner.id, len(urls))
-            return urls
-        except Exception as exc:
-            logger.exception("url.list_by_owner_failed owner_id=%s", owner.id)
-            raise RepositoryError("list_by_owner", owner_id=owner.id) from exc
         finally:
             session.close()
 
@@ -234,23 +201,6 @@ class SQLAlchemyURLRepository(IURLRepository):
                 top_referer=top_referer_row[0] if top_referer_row else "",
                 last_clicked_at=last_clicked_at,
             )
-        finally:
-            session.close()
-
-    def get_top_urls(self, owner, limit: int = 10) -> list[tuple[URLModel, int]]:
-        session = get_session()
-        try:
-            rows = (
-                session.query(URLModel, func.count(ClickModel.id).label("total_clicks"))
-                .outerjoin(ClickModel, URLModel.id == ClickModel.url_id)
-                .options(selectinload(URLModel.tags), selectinload(URLModel.owner))
-                .filter(URLModel.owner_id == owner.id)
-                .group_by(URLModel.id)
-                .order_by(func.count(ClickModel.id).desc(), URLModel.created_at.desc())
-                .limit(limit)
-                .all()
-            )
-            return [(sa_url, clicks) for sa_url, clicks in rows]
         finally:
             session.close()
 

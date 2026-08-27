@@ -8,13 +8,11 @@ Cache key scheme:
     - ``url:code:{short_code}``  -> cached URL dict by short code
     - ``url:id:{pk}``            -> cached URL dict by primary key
     - ``url:exists:{short_code}``-> existence check result
-    - ``url:list:{owner_id}``    -> cached list of URL IDs for an owner
 """
 
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable
 
 from apps.shortener.api.cache.redis_client import RedisClient, get_redis_client
 from apps.shortener.api.interfaces.repository import (
@@ -30,7 +28,6 @@ logger = logging.getLogger(__name__)
 
 _URL_CACHE_TTL: int = 600  # 10 minutes
 _EXISTS_CACHE_TTL: int = 300  # 5 minutes
-_LIST_CACHE_TTL: int = 120  # 2 minutes
 _STATS_CACHE_TTL: int = 60  # 1 minute — analytics change frequently
 
 
@@ -79,20 +76,6 @@ class CachedURLRepository(IURLRepository):
         self._cache.set(cache_key, result, ttl=_EXISTS_CACHE_TTL)
         return result
 
-    def get_by_id(self, pk: int) -> URLModel | None:
-        cache_key = f"url:id:{pk}"
-
-        cached = self._cache.get(cache_key)
-        if cached is not None:
-            logger.debug("cache.hit key=%s", cache_key)
-            return self._dict_to_url(cached)
-
-        logger.debug("cache.miss key=%s", cache_key)
-        url = self._orm.get_by_id(pk)
-        if url is not None:
-            self._cache.set(cache_key, self._url_to_dict(url), ttl=_URL_CACHE_TTL)
-        return url
-
     # ------------------------------------------------------------------
     # Write operations (invalidate cache)
     # ------------------------------------------------------------------
@@ -105,8 +88,6 @@ class CachedURLRepository(IURLRepository):
     ) -> URLModel:
         url = self._orm.create(original_url=original_url, short_code=short_code, owner=owner)
         self._invalidate(short_code, url.id)
-        if owner is not None:
-            self._cache.delete(f"url:list:{owner.id}")
         return url
 
     def update(
@@ -125,39 +106,11 @@ class CachedURLRepository(IURLRepository):
             expires_at=expires_at,
         )
         self._invalidate(updated.short_code, updated.id)
-        if updated.owner_id is not None:
-            self._cache.delete(f"url:list:{updated.owner_id}")
         return updated
 
     def delete(self, url: URLModel) -> None:
-        owner_id = url.owner_id
         self._invalidate(url.short_code, url.id)
         self._orm.delete(url)
-        if owner_id is not None:
-            self._cache.delete(f"url:list:{owner_id}")
-
-    def list_by_owner(self, owner) -> Iterable[URLModel]:
-        cache_key = f"url:list:{owner.id}"
-
-        cached_ids = self._cache.get(cache_key)
-        if cached_ids is not None:
-            logger.debug("cache.hit key=%s", cache_key)
-            return [
-                url for url in (self._get_by_id_cached(pk) for pk in cached_ids) if url is not None
-            ]
-
-        logger.debug("cache.miss key=%s", cache_key)
-        urls = list(self._orm.list_by_owner(owner))
-        self._cache.set(
-            cache_key,
-            [url.id for url in urls],
-            ttl=_LIST_CACHE_TTL,
-        )
-        return urls
-
-    # ------------------------------------------------------------------
-    # Advanced query methods (cached with short TTL)
-    # ------------------------------------------------------------------
 
     def get_aggregate_stats(self, url: URLModel) -> URLAggregateStats:
         cache_key = f"url:stats:{url.id}"
@@ -190,23 +143,6 @@ class CachedURLRepository(IURLRepository):
         )
         return stats
 
-    def get_top_urls(self, owner, limit: int = 10) -> list[tuple[URLModel, int]]:
-        cache_key = f"url:top:{owner.id}:{limit}"
-        cached = self._cache.get(cache_key)
-        if cached is not None:
-            results = []
-            for entry in cached:
-                url = self._dict_to_url(entry["url"])
-                results.append((url, entry["total_clicks"]))
-            return results
-        rows = self._orm.get_top_urls(owner, limit=limit)
-        self._cache.set(
-            cache_key,
-            [{"url": self._url_to_dict(url), "total_clicks": clicks} for url, clicks in rows],
-            ttl=_STATS_CACHE_TTL,
-        )
-        return rows
-
     def list_with_filters(
         self, filters: URLListFilters, limit: int = 10, cursor: str | None = None
     ) -> KeysetPage:
@@ -232,9 +168,6 @@ class CachedURLRepository(IURLRepository):
     def invalidate(self, url: URLModel) -> None:
         """Evict all cached entries for ``url`` after external writes."""
         self._invalidate(url.short_code, url.id)
-        if url.owner_id is not None:
-            self._cache.delete(f"url:list:{url.owner_id}")
-            self._cache.delete(f"url:top:{url.owner_id}:10")
         self._cache.delete(f"url:stats:{url.id}")
         self._cache.delete(f"url:ts:{url.id}:30")
         logger.debug("cache.invalidated_external id=%s short_code=%s", url.id, url.short_code)
@@ -244,18 +177,6 @@ class CachedURLRepository(IURLRepository):
         self._cache.delete(f"url:id:{pk}")
         self._cache.delete(f"url:exists:{short_code}")
         logger.debug("cache.invalidated short_code=%s pk=%s", short_code, pk)
-
-    def _get_by_id_cached(self, pk: int) -> URLModel | None:
-        cache_key = f"url:id:{pk}"
-
-        cached = self._cache.get(cache_key)
-        if cached is not None:
-            return self._dict_to_url(cached)
-
-        url = self._orm.get_by_id(pk)
-        if url is not None:
-            self._cache.set(cache_key, self._url_to_dict(url), ttl=_URL_CACHE_TTL)
-        return url
 
     # ------------------------------------------------------------------
     # Serialization helpers
