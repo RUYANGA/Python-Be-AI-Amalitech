@@ -11,6 +11,6 @@ class URLNotOwnedError(ShortenerError):
     belong to other users.
     """
 
-    def __init__(self, pk: int) -> None:
-        super().__init__(f"URL with id '{pk}' was not found.")
-        self.pk = pk
+    def __init__(self, identifier: int | str) -> None:
+        super().__init__(f"URL with identifier '{identifier}' was not found.")
+        self.identifier = identifier

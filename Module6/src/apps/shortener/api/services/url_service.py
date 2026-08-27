@@ -141,6 +141,27 @@ class URLShortenerService:
         self._repository.delete(url)
         logger.info("url.deleted id=%s owner_id=%s", pk, owner.id)
 
+    def get_owned_by_code(self, short_code: str, owner) -> URLModel:
+        """Return the URL for ``short_code``, if owned by ``owner``.
+
+        Raises :class:`URLNotOwnedError` if it doesn't exist or belongs to
+        someone else.
+        """
+        return self._get_owned_by_code_or_raise(short_code, owner)
+
+    def update_owned_by_code(self, short_code: str, owner, original_url: str) -> URLModel:
+        """Update ``original_url`` on the URL ``short_code``, if owned by ``owner``."""
+        url = self._get_owned_by_code_or_raise(short_code, owner)
+        updated = self._repository.update(url, original_url=original_url)
+        logger.info("url.updated_by_code short_code=%s owner_id=%s", short_code, owner.id)
+        return updated
+
+    def delete_owned_by_code(self, short_code: str, owner) -> None:
+        """Delete the URL ``short_code``, if owned by ``owner``."""
+        url = self._get_owned_by_code_or_raise(short_code, owner)
+        self._repository.delete(url)
+        logger.info("url.deleted_by_code short_code=%s owner_id=%s", short_code, owner.id)
+
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
@@ -149,6 +170,13 @@ class URLShortenerService:
         if url is None or url.owner_id != owner.id:
             logger.warning("url.not_owned id=%s owner_id=%s", pk, owner.id)
             raise URLNotOwnedError(pk)
+        return url
+
+    def _get_owned_by_code_or_raise(self, short_code: str, owner) -> URLModel:
+        url = self._repository.get_by_short_code(short_code)
+        if url is None or url.owner_id != owner.id:
+            logger.warning("url.not_owned short_code=%s owner_id=%s", short_code, owner.id)
+            raise URLNotOwnedError(short_code)
         return url
 
     def _generate_unique_code(self) -> str:
