@@ -15,6 +15,7 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, update
 
+from apps.shortener.api.exceptions import RepositoryError
 from apps.shortener.api.interfaces.analytics import (
     CountryStats,
     HourlyDistribution,
@@ -69,10 +70,10 @@ class SQLAlchemyClickAnalyticsRepository(IClickAnalyticsRepository):
                 ip_address,
                 country,
             )
-        except Exception:
+        except Exception as exc:
             logger.exception("click.record_failed url_id=%s", url.id)
             session.rollback()
-            raise
+            raise RepositoryError("record_click", url_id=url.id) from exc
         finally:
             session.close()
 
