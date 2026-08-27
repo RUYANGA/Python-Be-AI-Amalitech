@@ -103,6 +103,60 @@ This module expands the data model with users, relationships, and deep analytics
 - **Data migration** `shortener/0006_seed_default_tags.py` seeds 8 default tags (`marketing`, `social`, `campaign`, `product`, `blog`, `newsletter`, `partner`, `internal`) idempotently via `get_or_create`, with a matching reverse-migration.
 - **Alembic migrations** keep the SQLAlchemy schema in sync: `001_initial_sa`, `002_premium_tier_city`, `003_fix_fk_cascade`.
 
+#### Alembic & SQLAlchemy commands
+
+All commands run inside the running `web` container, from the project root:
+
+**Apply all Alembic migrations:**
+```bash
+docker compose exec web alembic upgrade head
+```
+
+**Inspect migration state:**
+```bash
+docker compose exec web alembic current   # DB's current revision
+docker compose exec web alembic history   # full chain of revisions
+```
+
+**Generate a new migration by diffing the SQLAlchemy models** (`src/database/` models are the source of truth):
+```bash
+docker compose exec web alembic revision --autogenerate -m "describe the change"
+```
+This creates a new file under `alembic/versions/`. You must edit its `upgrade()` / `downgrade()` before running it.
+
+**Step through / roll back:**
+```bash
+docker compose exec web alembic upgrade +1            # forward one revision
+docker compose exec web alembic upgrade 002_premium_tier_city   # to a specific revision
+docker compose exec web alembic downgrade -1          # back one revision
+docker compose exec web alembic downgrade base        # back to empty schema (destructive)
+```
+
+**Interact with models at runtime** (SQLAlchemy is the sole data-access layer):
+```bash
+docker compose exec web python manage.py shell
+```
+```python
+from database.shortener.models import URLModel
+from database.connection import get_session
+
+session = get_session()
+for url in session.query(URLModel).all():
+    print(url.id, url.short_code, url.original_url)
+session.close()
+```
+
+**One-liner examples (no shell prompt):**
+```bash
+# Mark a user premium (is_premium=True or tier in {pro, enterprise})
+docker compose exec web python -c "from apps.users.models import User; u=User.objects.get(username='merci'); u.is_premium=True; u.tier='pro'; u.save()"
+
+# Set a short URL's tags (PATCH semantics)
+docker compose exec web python -c "from apps.shortener.api.serializers import URLUpdateSerializer; s=URLUpdateSerializer(data={'tags':['marketing','social']}, partial=True); print(s.is_valid(), s.errors, s.validated_data)"
+```
+
+**Core workflow:** edit the SA models under `src/database/*/models.py` → `alembic revision --autogenerate` → edit the generated migration → `alembic upgrade head`.
+
 ### 3.3 Custom managers & query sets
 
 `URLManager` (in `apps/shortener/models.py`) provides domain-specific query sets:
