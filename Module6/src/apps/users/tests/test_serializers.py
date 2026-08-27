@@ -40,7 +40,15 @@ class TestLogoutSerializer:
 class TestUserSerializer:
     def test_serializes_expected_fields(self, user):
         data = UserSerializer(user).data
-        assert set(data.keys()) == {"id", "username", "first_name", "last_name", "email"}
+        assert set(data.keys()) == {
+            "id",
+            "username",
+            "first_name",
+            "last_name",
+            "email",
+            "is_premium",
+            "tier",
+        }
         assert data["username"] == "alice"
 
 

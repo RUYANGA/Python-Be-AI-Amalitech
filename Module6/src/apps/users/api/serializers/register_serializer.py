@@ -25,11 +25,11 @@ class RegisterSerializer(serializers.ModelSerializer):
     def validate_username(self, value):
         if User.objects.filter(username=value).exists():
             logger.warning("serializer.register.username_taken username=%s", value)
-            raise UsernameTakenError(value)
+            raise serializers.ValidationError(str(UsernameTakenError(value)), code="username_taken")
         return value
 
     def validate_email(self, value):
         if value and User.objects.filter(email=value).exists():
             logger.warning("serializer.register.email_taken email=%s", value)
-            raise EmailTakenError(value)
+            raise serializers.ValidationError(str(EmailTakenError(value)), code="email_taken")
         return value

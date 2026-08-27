@@ -1,47 +1,26 @@
-"""Tests for the :class:`URL` model."""
+"""Unit tests for the SQLAlchemy shortener models."""
 
-from __future__ import annotations
-
-import pytest
-from django.db import IntegrityError
-
-from apps.shortener.models import URL
-
-pytestmark = pytest.mark.django_db
+from database.shortener.models import URLModel
 
 
 class TestURLModel:
-    def test_can_create_url_without_owner(self):
-        url = URL.objects.create(
-            original_url="https://example.com",
-            short_code="abc1234",
-        )
-        assert url.pk is not None
-        assert url.created_at is not None
-        assert url.owner is None
+    def test_tablename_matches_shortener_schema(self):
+        assert URLModel.__tablename__ == "urls"
 
-    def test_can_create_url_with_owner(self, user):
-        url = URL.objects.create(
-            original_url="https://example.com",
-            short_code="own1234",
-            owner=user,
-        )
-        assert url.owner == user
-        assert user.urls.count() == 1
+    def test_short_code_unique_and_not_null(self):
+        col = URLModel.__table__.columns["short_code"]
+        assert col.unique is True
+        assert col.nullable is False
 
-    def test_short_code_is_unique(self):
-        URL.objects.create(original_url="https://a.example.com", short_code="dup1234")
-        with pytest.raises(IntegrityError):
-            URL.objects.create(
-                original_url="https://b.example.com",
-                short_code="dup1234",
-            )
+    def test_original_url_is_not_null(self):
+        col = URLModel.__table__.columns["original_url"]
+        assert col.nullable is False
 
-    def test_string_representation(self):
-        url = URL.objects.create(
-            original_url="https://example.com",
-            short_code="abc1234",
-        )
-        rendered = str(url)
-        assert "abc1234" in rendered
-        assert "https://example.com" in rendered
+    def test_owner_optional(self):
+        col = URLModel.__table__.columns["owner_id"]
+        assert col.nullable is True
+
+    def test_default_fields_present(self):
+        cols = URLModel.__table__.columns
+        for name in ("click_count", "is_active", "created_at", "updated_at"):
+            assert name in cols

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from apps.shortener.api.exceptions import InvalidShortCodeLengthError
 from apps.shortener.api.services.short_code_generator import Base62ShortCodeGenerator
 
 
@@ -22,9 +23,9 @@ class TestBase62ShortCodeGenerator:
         assert code.isalnum()
 
     def test_rejects_non_positive_length(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(InvalidShortCodeLengthError):
             self.generator.generate(length=0)
-        with pytest.raises(ValueError):
+        with pytest.raises(InvalidShortCodeLengthError):
             self.generator.generate(length=-3)
 
     def test_produces_high_entropy(self):

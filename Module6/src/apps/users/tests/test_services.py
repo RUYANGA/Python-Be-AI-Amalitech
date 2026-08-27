@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from unittest.mock import Mock
+from unittest.mock import MagicMock
 
 import pytest
-from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
 
+from apps.users.api.exceptions import AuthenticationError, InactiveAccountError
 from apps.users.api.services import JWTTokenService, UserAuthService
 
 pytestmark = pytest.mark.django_db
@@ -29,7 +29,7 @@ class TestUserAuthServiceRegister:
 
 class TestUserAuthServiceLogin:
     def setup_method(self) -> None:
-        self.token_service = Mock()
+        self.token_service = MagicMock()
         self.token_service.generate_tokens.return_value = {
             "refresh": "refresh-token",
             "access": "access-token",
@@ -43,21 +43,21 @@ class TestUserAuthServiceLogin:
         self.token_service.generate_tokens.assert_called_once_with(user)
 
     def test_raises_for_unknown_username(self):
-        with pytest.raises(ValidationError):
+        with pytest.raises(AuthenticationError):
             self.service.login("nobody", "whatever")
 
     def test_raises_for_wrong_password(self, user):
-        with pytest.raises(ValidationError):
+        with pytest.raises(AuthenticationError):
             self.service.login("alice", "wrongpassword")
 
     def test_raises_for_inactive_account(self, inactive_user):
-        with pytest.raises(ValidationError):
+        with pytest.raises(InactiveAccountError):
             self.service.login("bob", "testpass123")
 
 
 class TestUserAuthServiceLogout:
     def test_delegates_to_token_service(self):
-        token_service = Mock()
+        token_service = MagicMock()
         service = UserAuthService(token_service=token_service)
 
         service.logout("some-refresh-token")

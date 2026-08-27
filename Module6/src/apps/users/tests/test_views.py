@@ -55,7 +55,7 @@ class TestLoginView:
             {"username": "alice", "password": "wrongpassword"},
             format="json",
         )
-        assert response.status_code == 400
+        assert response.status_code == 401
 
     def test_rejects_inactive_account(self, api_client, inactive_user):
         response = api_client.post(
@@ -63,7 +63,7 @@ class TestLoginView:
             {"username": "bob", "password": "testpass123"},
             format="json",
         )
-        assert response.status_code == 400
+        assert response.status_code == 401
 
 
 class TestLogoutView:

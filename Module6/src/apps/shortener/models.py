@@ -3,6 +3,7 @@ tables alone.  All data access goes through SQLAlchemy models in
 ``database.shortener.models``.
 """
 
+from django.conf import settings
 from django.db import models
 
 
@@ -31,8 +32,17 @@ class URL(models.Model):
     original_url = models.URLField(max_length=2048)
     short_code = models.CharField(max_length=10, unique=True, db_index=True)
     title = models.CharField(max_length=255, blank=True, default="")
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="urls",
+    )
     click_count = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    last_accessed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
