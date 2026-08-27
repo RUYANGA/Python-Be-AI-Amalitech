@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -21,9 +21,14 @@ class URLListMixin:
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        operation_id="urls_list",
+        operation_id="urls_list_mine",
         parameters=[URLListFilterSerializer],
-        responses={200: URLResponseSerializer(many=True)},
+        responses={
+            200: OpenApiResponse(
+                response=dict,
+                description="Paginated list of the caller's URLs.",
+            )
+        },
         summary="List my URLs with filtering and pagination",
         tags=["URLs"],
     )
@@ -32,10 +37,11 @@ class URLListMixin:
         filter_serializer.is_valid(raise_exception=True)
         data = filter_serializer.validated_data
 
+        tag = data.get("tag")
         filters = URLListFilters(
             search=data.get("search"),
             is_active=data.get("is_active"),
-            tag=data.get("tag"),
+            tag=tag.strip().lower() if tag else None,
             created_after=data.get("created_after"),
             created_before=data.get("created_before"),
             min_clicks=data.get("min_clicks"),
@@ -59,7 +65,9 @@ class URLListMixin:
         return Response(
             {
                 "results": serializer.data,
-                "next_cursor": page.next_cursor,
+                "count": len(page.items),
+                "limit": limit,
                 "has_more": page.has_more,
+                "next_cursor": page.next_cursor,
             }
         )
