@@ -30,29 +30,12 @@ class Base(DeclarativeBase):
 
 @lru_cache(maxsize=1)
 def _build_url() -> str:
-    """Build the database URL, preferring Django settings when available."""
-    try:
-        from django.conf import settings
-
-        db = settings.DATABASES["default"]
-        engine = db["ENGINE"]
-        # Map django engine name to sqlalchemy driver
-        driver_map = {
-            "django.db.backends.postgresql": "postgresql+psycopg2",
-            "django.db.backends.postgresql_psycopg2": "postgresql+psycopg2",
-            "django.db.backends.mysql": "mysql+pymysql",
-            "django.db.backends.sqlite3": "sqlite",
-        }
-        sa_driver = driver_map.get(engine, engine.replace("django.db.backends.", ""))
-        return f"{sa_driver}://{db['USER']}:{db['PASSWORD']}@{db['HOST']}:{db['PORT']}/{db['NAME']}"
-    except ImportError:
-        pass
-
+    """Build the Postgres URL from environment variables."""
+    password = os.getenv("DB_PASSWORD", "")
     host = os.getenv("DB_HOST", "localhost")
     port = os.getenv("DB_PORT", "5432")
     name = os.getenv("DB_NAME", "url_shortener")
     user = os.getenv("DB_USER", "postgres")
-    password = os.getenv("DB_PASSWORD", "")
     return f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{name}"
 
 
