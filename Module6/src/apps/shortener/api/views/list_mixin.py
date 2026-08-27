@@ -42,18 +42,15 @@ class URLListMixin:
             search=data.get("search"),
             is_active=data.get("is_active"),
             tag=tag.strip().lower() if tag else None,
-            created_after=data.get("created_after"),
-            created_before=data.get("created_before"),
             min_clicks=data.get("min_clicks"),
             max_clicks=data.get("max_clicks"),
             ordering=data.get("ordering", "-created_at"),
             owner_id=request.user.id,
         )
 
-        cursor = data.get("cursor")
         limit = data.get("limit", 20)
 
-        page = self.service.list_with_filters(filters, limit=limit, cursor=cursor)
+        page = self.service.list_with_filters(filters, limit=limit)
 
         serializer = URLResponseSerializer(page.items, many=True, context={"request": request})
         logger.info(
@@ -68,6 +65,5 @@ class URLListMixin:
                 "count": len(page.items),
                 "limit": limit,
                 "has_more": page.has_more,
-                "next_cursor": page.next_cursor,
             }
         )
