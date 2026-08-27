@@ -1,9 +1,13 @@
+import logging
+
 from drf_spectacular.utils import OpenApiExample, extend_schema
 from rest_framework import status
 from rest_framework.response import Response
 
 from apps.users.api.serializers import RegisterSerializer, UserSerializer
 from apps.users.api.views.base_view import BaseAuthView
+
+logger = logging.getLogger(__name__)
 
 
 class RegisterView(BaseAuthView):
@@ -32,6 +36,7 @@ class RegisterView(BaseAuthView):
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = self.auth_service.register(serializer.validated_data)
+        logger.info("auth.register_success user_id=%s username=%s", user.id, user.username)
         return Response(
             {
                 "message": "User registered successfully.",

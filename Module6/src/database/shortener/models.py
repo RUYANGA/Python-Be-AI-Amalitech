@@ -76,7 +76,12 @@ class URLModel(Base):
     )
 
     tag_assocs = relationship("URLTagModel", back_populates="url", cascade="all, delete-orphan")
-    tags = relationship("TagModel", secondary="urls_tags", passive_deletes=True)
+    tags = relationship(
+        "TagModel",
+        secondary="urls_tags",
+        passive_deletes=True,
+        overlaps="tag_assocs,url,tag",
+    )
     clicks = relationship("ClickModel", back_populates="url", passive_deletes=True)
     owner = relationship("UserModel", foreign_keys=[owner_id], lazy="select")
 

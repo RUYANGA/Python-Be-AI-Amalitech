@@ -1,3 +1,5 @@
+import logging
+
 from django.http import Http404
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import status
@@ -7,6 +9,8 @@ from rest_framework.response import Response
 from apps.shortener.api.exceptions import URLNotOwnedError
 from apps.shortener.api.services.url_service import URLShortenerService
 from apps.shortener.api.views.params import ID_PARAMETER
+
+logger = logging.getLogger(__name__)
 
 
 class URLDeleteMixin:
@@ -29,7 +33,9 @@ class URLDeleteMixin:
         try:
             self.service.delete_owned(pk=pk, owner=request.user)
         except URLNotOwnedError as exc:
+            logger.warning("urls.delete_not_owned id=%s owner_id=%s", pk, request.user.id)
             raise Http404(str(exc)) from exc
+        logger.info("urls.deleted id=%s owner_id=%s", pk, request.user.id)
         return Response(
             {"message": "URL deleted successfully."},
             status=status.HTTP_200_OK,

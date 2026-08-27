@@ -13,12 +13,15 @@ Usage::
 
 from __future__ import annotations
 
+import logging
 import os
 from functools import lru_cache
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from sqlalchemy.pool import NullPool
+
+logger = logging.getLogger(__name__)
 
 
 class Base(DeclarativeBase):
@@ -60,11 +63,13 @@ def get_engine(url: str | None = None):
     Uses ``NullPool`` in test / Alembic contexts to avoid holding
     connections open across fixture boundaries.
     """
-    return create_engine(
+    engine = create_engine(
         url or _build_url(),
         poolclass=NullPool,
         echo=os.getenv("SQL_ECHO", "0") == "1",
     )
+    logger.debug("db.engine_initialized url=%s", url or _build_url())
+    return engine
 
 
 @lru_cache(maxsize=1)

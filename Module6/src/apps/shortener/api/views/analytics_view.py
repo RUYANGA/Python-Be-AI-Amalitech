@@ -1,11 +1,6 @@
-"""Analytics view for URL click statistics.
+from __future__ import annotations
 
-Demonstrates:
-- Complex aggregation queries via the repository pattern
-- Conditional expressions for categorised analytics
-- Time-series data with TruncDay bucketing
-- Drill-down views (country, referrer, hourly)
-"""
+import logging
 
 from django.http import Http404
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
@@ -17,6 +12,8 @@ from apps.shortener.api.serializers import (
     AnalyticsSummarySerializer,
 )
 from apps.shortener.api.views.base_view import BaseURLView
+
+logger = logging.getLogger(__name__)
 
 
 class URLAnalyticsView(BaseURLView):
@@ -57,6 +54,12 @@ class URLAnalyticsView(BaseURLView):
             "recent_clicks": recent,
         }
         serializer = AnalyticsSummarySerializer(data)
+        logger.info(
+            "urls.analytics url_id=%s owner_id=%s total_clicks=%s",
+            url.id,
+            request.user.id,
+            getattr(stats, "total_clicks", None),
+        )
         return Response(serializer.data)
 
     def _get_owned_or_404(self, pk: int, user):
@@ -96,6 +99,13 @@ class URLTimeSeriesView(BaseURLView):
         days = int(request.query_params.get("days", 30))
 
         time_series = self.service.get_click_time_series(url, days=days)
+        logger.info(
+            "urls.time_series url_id=%s owner_id=%s days=%d points=%d",
+            url.id,
+            request.user.id,
+            days,
+            len(time_series),
+        )
         return Response(
             {
                 "url_id": url.id,
@@ -135,6 +145,7 @@ class TopURLsView(BaseURLView):
     def get(self, request: Request) -> Response:
         limit = int(request.query_params.get("limit", 10))
         top_urls = self.service.get_top_urls(request.user, limit=limit)
+        logger.info("urls.top owner_id=%s limit=%d count=%d", request.user.id, limit, len(top_urls))
 
         from apps.shortener.api.serializers import URLResponseSerializer
 

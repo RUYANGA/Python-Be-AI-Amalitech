@@ -5,10 +5,13 @@ Uses the ``secrets`` module (CSPRNG) over a base62 alphabet.
 
 from __future__ import annotations
 
+import logging
 import secrets
 import string
 
 from apps.shortener.api.interfaces.shortener import IShortCodeGenerator
+
+logger = logging.getLogger(__name__)
 
 
 class Base62ShortCodeGenerator(IShortCodeGenerator):
@@ -22,5 +25,8 @@ class Base62ShortCodeGenerator(IShortCodeGenerator):
 
     def generate(self, length: int = 7) -> str:
         if length <= 0:
+            logger.error("short_code.generate_invalid_length length=%d", length)
             raise ValueError("length must be a positive integer")
-        return "".join(secrets.choice(self._ALPHABET) for _ in range(length))
+        code = "".join(secrets.choice(self._ALPHABET) for _ in range(length))
+        logger.debug("short_code.generated length=%d", length)
+        return code

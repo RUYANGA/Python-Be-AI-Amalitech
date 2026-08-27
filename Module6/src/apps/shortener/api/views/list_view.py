@@ -1,3 +1,5 @@
+import logging
+
 from drf_spectacular.utils import extend_schema
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
@@ -6,6 +8,8 @@ from rest_framework.response import Response
 from apps.shortener.api.interfaces.repository import URLListFilters
 from apps.shortener.api.serializers import URLListFilterSerializer, URLResponseSerializer
 from apps.shortener.api.views.base_view import BaseURLView
+
+logger = logging.getLogger(__name__)
 
 
 class URLListView(BaseURLView):
@@ -52,6 +56,12 @@ class URLListView(BaseURLView):
         page = self.service.list_with_filters(filters, limit=limit, cursor=cursor)
 
         serializer = URLResponseSerializer(page.items, many=True, context={"request": request})
+        logger.info(
+            "urls.list owner_id=%s count=%d has_more=%s",
+            request.user.id,
+            len(page.items),
+            page.has_more,
+        )
         return Response(
             {
                 "results": serializer.data,

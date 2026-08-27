@@ -10,6 +10,7 @@ Demonstrates SQLAlchemy patterns for analytics:
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, update
@@ -22,6 +23,8 @@ from apps.shortener.api.interfaces.analytics import (
 )
 from database.connection import get_session
 from database.shortener.models import ClickModel, URLModel
+
+logger = logging.getLogger(__name__)
 
 
 class SQLAlchemyClickAnalyticsRepository(IClickAnalyticsRepository):
@@ -60,7 +63,14 @@ class SQLAlchemyClickAnalyticsRepository(IClickAnalyticsRepository):
                 )
             )
             session.commit()
+            logger.info(
+                "click.recorded url_id=%s ip=%s country=%s",
+                url.id,
+                ip_address,
+                country,
+            )
         except Exception:
+            logger.exception("click.record_failed url_id=%s", url.id)
             session.rollback()
             raise
         finally:

@@ -1,5 +1,9 @@
+import logging
+
 from django.urls import reverse
 from rest_framework import serializers
+
+logger = logging.getLogger(__name__)
 
 
 class URLResponseSerializer(serializers.Serializer):
@@ -30,5 +34,9 @@ class URLResponseSerializer(serializers.Serializer):
             if hasattr(obj, "tags"):
                 return [t.name for t in obj.tags]
         except Exception:
-            pass
+            logger.warning(
+                "serializer.tags_read_failed url_id=%s",
+                getattr(obj, "id", None),
+                exc_info=True,
+            )
         return []
