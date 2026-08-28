@@ -5,13 +5,18 @@ Write operations go directly to the database and invalidate the cache.
 Read operations check Redis first, falling back to the SA repo on cache miss.
 
 Cache key scheme:
-    - ``url:code:{short_code}``  -> cached URL dict by short code
-    - ``url:id:{pk}``            -> cached URL dict by primary key
-    - ``url:exists:{short_code}``-> existence check result
+    - ``url:code:{short_code}``       -> cached URL dict by short code
+    - ``url:id:{pk}``                 -> cached URL dict by primary key
+    - ``url:exists:{short_code}``     -> existence check result
+    - ``url:list:{owner_id}:{hash}``  -> cached page of ``list_with_filters``,
+      keyed by a hash of the filter/limit/cursor signature so distinct
+      queries never collide
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 
 from apps.shortener.api.cache.redis_client import RedisClient, get_redis_client
@@ -29,6 +34,7 @@ logger = logging.getLogger(__name__)
 _URL_CACHE_TTL: int = 600  # 10 minutes
 _EXISTS_CACHE_TTL: int = 300  # 5 minutes
 _STATS_CACHE_TTL: int = 60  # 1 minute — analytics change frequently
+_LIST_CACHE_TTL: int = 30  # short — keyset pages are sensitive to inserts/deletes
 
 
 class CachedURLRepository(IURLRepository):
@@ -87,7 +93,7 @@ class CachedURLRepository(IURLRepository):
         owner=None,
     ) -> URLModel:
         url = self._orm.create(original_url=original_url, short_code=short_code, owner=owner)
-        self._invalidate(short_code, url.id)
+        self._invalidate(short_code, url.id, url.owner_id)
         return url
 
     def update(
@@ -105,11 +111,11 @@ class CachedURLRepository(IURLRepository):
             tags=tags,
             expires_at=expires_at,
         )
-        self._invalidate(updated.short_code, updated.id)
+        self._invalidate(updated.short_code, updated.id, updated.owner_id)
         return updated
 
     def delete(self, url: URLModel) -> None:
-        self._invalidate(url.short_code, url.id)
+        self._invalidate(url.short_code, url.id, url.owner_id)
         self._orm.delete(url)
 
     def get_aggregate_stats(self, url: URLModel) -> URLAggregateStats:
@@ -146,7 +152,29 @@ class CachedURLRepository(IURLRepository):
     def list_with_filters(
         self, filters: URLListFilters, limit: int = 10, cursor: str | None = None
     ) -> KeysetPage:
-        return self._orm.list_with_filters(filters, limit=limit, cursor=cursor)
+        cache_key = self._list_cache_key(filters, limit, cursor)
+
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            logger.debug("cache.hit key=%s", cache_key)
+            return KeysetPage(
+                items=[self._dict_to_url(item) for item in cached["items"]],
+                next_cursor=cached["next_cursor"],
+                has_more=cached["has_more"],
+            )
+
+        logger.debug("cache.miss key=%s", cache_key)
+        page = self._orm.list_with_filters(filters, limit=limit, cursor=cursor)
+        self._cache.set(
+            cache_key,
+            {
+                "items": [self._url_to_dict(url) for url in page.items],
+                "next_cursor": page.next_cursor,
+                "has_more": page.has_more,
+            },
+            ttl=_LIST_CACHE_TTL,
+        )
+        return page
 
     def get_click_time_series(self, url: URLModel, days: int = 30) -> list[tuple[str, int]]:
         cache_key = f"url:ts:{url.id}:{days}"
@@ -167,16 +195,42 @@ class CachedURLRepository(IURLRepository):
 
     def invalidate(self, url: URLModel) -> None:
         """Evict all cached entries for ``url`` after external writes."""
-        self._invalidate(url.short_code, url.id)
+        self._invalidate(url.short_code, url.id, url.owner_id)
         self._cache.delete(f"url:stats:{url.id}")
         self._cache.delete(f"url:ts:{url.id}:30")
         logger.debug("cache.invalidated_external id=%s short_code=%s", url.id, url.short_code)
 
-    def _invalidate(self, short_code: str, pk: int) -> None:
+    def _invalidate(self, short_code: str, pk: int, owner_id: int | None = None) -> None:
         self._cache.delete(f"url:code:{short_code}")
         self._cache.delete(f"url:id:{pk}")
         self._cache.delete(f"url:exists:{short_code}")
-        logger.debug("cache.invalidated short_code=%s pk=%s", short_code, pk)
+        removed = self._cache.flush_pattern(f"url:list:{owner_id}:*") if owner_id is not None else 0
+        logger.debug(
+            "cache.invalidated short_code=%s pk=%s owner_id=%s list_removed=%d",
+            short_code,
+            pk,
+            owner_id,
+            removed,
+        )
+
+    @staticmethod
+    def _list_cache_key(filters: URLListFilters, limit: int, cursor: str | None) -> str:
+        signature = {
+            "search": filters.search,
+            "is_active": filters.is_active,
+            "tag": filters.tag,
+            "created_after": filters.created_after.isoformat() if filters.created_after else None,
+            "created_before": (
+                filters.created_before.isoformat() if filters.created_before else None
+            ),
+            "min_clicks": filters.min_clicks,
+            "max_clicks": filters.max_clicks,
+            "ordering": filters.ordering,
+            "limit": limit,
+            "cursor": cursor,
+        }
+        digest = hashlib.sha256(json.dumps(signature, sort_keys=True).encode()).hexdigest()
+        return f"url:list:{filters.owner_id}:{digest}"
 
     # ------------------------------------------------------------------
     # Serialization helpers

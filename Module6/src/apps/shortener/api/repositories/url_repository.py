@@ -292,6 +292,9 @@ class SQLAlchemyURLRepository(IURLRepository):
                 ).decode()
 
             return KeysetPage(items=items_sa, next_cursor=next_cursor, has_more=has_more)
+        except Exception as exc:
+            logger.exception("url.list_with_filters_failed owner_id=%s", filters.owner_id)
+            raise RepositoryError("list_with_filters", owner_id=filters.owner_id) from exc
         finally:
             session.close()
 

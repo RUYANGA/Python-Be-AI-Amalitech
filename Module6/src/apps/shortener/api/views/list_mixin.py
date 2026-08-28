@@ -5,10 +5,12 @@ from __future__ import annotations
 import logging
 
 from drf_spectacular.utils import OpenApiResponse, extend_schema
+from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from apps.shortener.api.exceptions import RepositoryError
 from apps.shortener.api.interfaces.repository import URLListFilters
 from apps.shortener.api.serializers import URLListFilterSerializer, URLResponseSerializer
 
@@ -27,7 +29,8 @@ class URLListMixin:
             200: OpenApiResponse(
                 response=dict,
                 description="Paginated list of the caller's URLs.",
-            )
+            ),
+            500: OpenApiResponse(description="Could not list URLs."),
         },
         summary="List my URLs with filtering and pagination",
         tags=["URLs"],
@@ -50,11 +53,18 @@ class URLListMixin:
 
         limit = data.get("limit", 20)
 
-        page = self.service.list_with_filters(
-            filters,
-            limit=limit,
-            cursor=data.get("cursor"),
-        )
+        try:
+            page = self.service.list_with_filters(
+                filters,
+                limit=limit,
+                cursor=data.get("cursor"),
+            )
+        except RepositoryError:
+            logger.exception("urls.list_failed owner_id=%s", request.user.id)
+            return Response(
+                {"detail": "Could not list URLs. Please retry."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
         serializer = URLResponseSerializer(page.items, many=True, context={"request": request})
         logger.info(

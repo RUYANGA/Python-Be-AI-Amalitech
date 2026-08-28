@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from apps.shortener.api.exceptions import ShortCodeGenerationError
+from apps.shortener.api.exceptions import RepositoryError, ShortCodeGenerationError
 from apps.shortener.models import URL
 from database.connection import clear_session_factory_override, set_session_factory_override
 
@@ -170,6 +170,18 @@ class TestURLListView:
         body = response.json()
         assert len(body["results"]) == 1
         assert body["results"][0]["short_code"] == "mine001"
+
+    def test_returns_500_when_listing_fails(self, api_client, user):
+        api_client.force_authenticate(user=user)
+
+        with patch("apps.shortener.api.views.base_view.build_url_service") as mock_build:
+            mock_build.return_value.list_with_filters.side_effect = RepositoryError(
+                "list_with_filters"
+            )
+
+            response = api_client.get("/api/v1/urls/mine/")
+
+        assert response.status_code == 500
 
 
 class TestURLByCodeUpdate:
