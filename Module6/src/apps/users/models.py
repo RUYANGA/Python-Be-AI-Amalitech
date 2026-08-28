@@ -19,6 +19,7 @@ class User(AbstractUser):
 
     is_premium = models.BooleanField(default=False)
     tier = models.CharField(max_length=20, choices=TIER_CHOICES, default="free")
+    email = models.EmailField(unique=True)
 
     class Meta:
         db_table = "users"
