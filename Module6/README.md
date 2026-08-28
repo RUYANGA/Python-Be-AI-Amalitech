@@ -28,7 +28,6 @@ Built as an AmaliTech Training Academy project to demonstrate a clean, layered a
 - **Owner-scoped management** — list, update, and delete only the short links you created; anyone else's return `404`, not `403`, so link IDs can't be probed.
 - **Public resolution** — look up the original URL for any short code, no login required.
 - **Click analytics** — country breakdown, referrer stats, hourly distribution, time-series data, and recent click history.
-- **Top URLs leaderboard** — ranked list of a user's most-clicked links.
 - **Redis caching** — read-through cache with write-through invalidation, TTL-based expiry, and graceful fallback to PostgreSQL when Redis is unavailable.
 - **Keyset pagination** — cursor-based pagination on the list endpoint for O(1) page navigation and consistent results under concurrent writes.
 - **Dynamic filtering** — search, filter by tag, active status, click count range, or creation date.
@@ -165,7 +164,7 @@ docker compose exec web python -c "from apps.shortener.api.serializers import UR
 - `expired_urls()` — past their `expires_at`
 - `popular_urls()` — ordered by `click_count` descending
 
-These are declared on the Django stub model as documentation and are mirrored by SQLAlchemy repository methods (`list_with_filters` with `is_active`, `get_top_urls`).
+These are declared on the Django stub model as documentation and are mirrored by SQLAlchemy repository methods (`list_with_filters` with `is_active`).
 
 ### 3.4 Query optimization
 
@@ -180,7 +179,7 @@ These are declared on the Django stub model as documentation and are mirrored by
   - `ix_clicks_url_clicked (url_id, clicked_at DESC)` and `ix_clicks_country_clicked (country, clicked_at DESC)`
 - **Aggregations computed in SQL** (`func.count` / `group_by` / `date_trunc`):
   - total clicks per country (`get_country_breakdown`)
-  - referrer breakdown, hourly distribution, daily time series, and top-URLs leaderboard
+  - referrer breakdown, hourly distribution, and daily time series
 
 ## Redis caching
 
@@ -214,9 +213,7 @@ Writes always go to PostgreSQL first, then invalidate the affected cache keys so
 | `url:code:{short_code}` | URL data (with tags) by short code | 10 min |
 | `url:id:{pk}` | URL data (with tags) by primary key | 10 min |
 | `url:exists:{short_code}` | Existence check result | 5 min |
-| `url:list:{owner_id}` | List of URL IDs for an owner | 2 min |
 | `url:stats:{pk}` | Aggregate stats (total clicks, countries, referrer) | 30 sec |
-| `url:top:{owner_id}:{limit}` | Top URLs leaderboard | 30 sec |
 | `url:ts:{pk}:{days}` | Daily click time series | 30 sec |
 
 #### Analytics keys
@@ -231,18 +228,16 @@ Writes always go to PostgreSQL first, then invalidate the affected cache keys so
 
 | Endpoint | Cache action |
 |---|---|
-| `POST /urls/` | Write DB → invalidate URL entity keys + list; re-invalidate after tag/title writes |
-| `GET /urls/mine/` | Read `url:list:{owner_id}`, each URL from `url:id:{pk}` |
-| `GET /urls/top/` | Read `url:top:{owner_id}:{limit}` |
-| `PATCH /urls/{id}/` | Write DB → invalidate all related URL keys |
-| `DELETE /urls/{id}/` | Write DB → invalidate all related URL keys |
+| `POST /urls/` | Write DB → invalidate URL entity keys; re-invalidate after tag/title writes |
+| `GET /urls/mine/` | Uncached — queries PostgreSQL directly via `list_with_filters` |
+| `PATCH /urls/{short_code}/` | Write DB → invalidate all related URL keys |
+| `DELETE /urls/{short_code}/` | Write DB → invalidate all related URL keys |
 | `GET /{short_code}/` | Read `url:code:{short_code}` → record click → invalidate URL entity keys |
-| `GET /urls/{id}/analytics/` | Read `url:stats:`, `analytics:countries:`, `analytics:referrers:`, `analytics:hourly:` |
-| `GET /urls/{id}/analytics/timeseries/` | Read `url:ts:{pk}:{days}` |
+| `GET /analytics/{short_code}/` | Read `url:stats:`, `analytics:countries:`, `analytics:referrers:`, `analytics:hourly:`, `url:ts:{pk}:{days}` |
 
 ### Cache invalidation on clicks
 
-When a short code is resolved, the analytics repository records the click and atomically increments `click_count` in PostgreSQL. The service then calls `invalidate()` on the URL repository, which evicts `url:code:`, `url:id:`, `url:stats:`, and `url:list:` keys — so the next read always reflects the fresh `click_count`.
+When a short code is resolved, the analytics repository records the click and atomically increments `click_count` in PostgreSQL. The service then calls `invalidate()` on the URL repository, which evicts `url:code:`, `url:id:`, and `url:stats:` keys — so the next read always reflects the fresh `click_count`.
 
 ### Caching strategies
 
@@ -374,11 +369,10 @@ All routes are versioned under `/api/v1/`. Endpoints marked require `Authorizati
 |---|---|---|
 | `POST` | `/api/v1/urls/` | Shorten a URL with optional title, tags, and expiry |
 | `GET` | `/api/v1/urls/mine/` | List the caller's own shortened URLs (keyset pagination) |
-| `GET` | `/api/v1/urls/top/` | Leaderboard of the caller's most-clicked URLs |
-| `PATCH` | `/api/v1/urls/{id}/` | Update one of the caller's URLs |
-| `DELETE` | `/api/v1/urls/{id}/` | Delete one of the caller's URLs |
-| `GET` | `/api/v1/urls/{id}/analytics/` | Click analytics (countries, referrers, hourly distribution) |
-| `GET` | `/api/v1/urls/{id}/analytics/timeseries/` | Daily click counts over the last N days |
+| `GET` | `/api/v1/urls/{short_code}/` | Retrieve one of the caller's URLs |
+| `PATCH` | `/api/v1/urls/{short_code}/` | Update one of the caller's URLs |
+| `DELETE` | `/api/v1/urls/{short_code}/` | Delete one of the caller's URLs |
+| `GET` | `/api/v1/analytics/{short_code}/` | Geo + time-series analytics for one of the caller's URLs — **premium accounts only** |
 | `GET` | `/api/v1/{short_code}/` | Look up the original URL — public, no auth, records a click |
 
 ### Sample requests & responses
@@ -449,8 +443,6 @@ Query parameters for filtering:
 | `search` | string | Search in short_code, title, or original_url |
 | `is_active` | boolean | Filter by active status |
 | `tag` | string | Filter by tag name |
-| `created_after` | datetime | Only URLs created after this datetime |
-| `created_before` | datetime | Only URLs created before this datetime |
 | `min_clicks` | int | Minimum click count |
 | `max_clicks` | int | Maximum click count |
 | `ordering` | string | Sort by: `created_at`, `-created_at`, `click_count`, `-click_count`, `title`, `-title` |
@@ -471,7 +463,7 @@ GET /api/v1/VGQVRJx/
 **Update one of my URLs**
 
 ```
-PATCH /api/v1/urls/10/
+PATCH /api/v1/urls/VGQVRJx/
 Content-Type: application/json
 Authorization: Bearer <access-token>
 
@@ -499,7 +491,7 @@ Authorization: Bearer <access-token>
 **Delete one of my URLs**
 
 ```
-DELETE /api/v1/urls/10/
+DELETE /api/v1/urls/VGQVRJx/
 Authorization: Bearer <access-token>
 ```
 ```json
@@ -508,10 +500,10 @@ Authorization: Bearer <access-token>
 }
 ```
 
-**Click analytics**
+**Click analytics** (premium accounts only)
 
 ```
-GET /api/v1/urls/10/analytics/
+GET /api/v1/analytics/VGQVRJx/
 Authorization: Bearer <access-token>
 ```
 ```json
