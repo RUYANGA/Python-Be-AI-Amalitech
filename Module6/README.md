@@ -1,6 +1,6 @@
 # Enterprise-Grade URL Shortener Microservice
 
-A production-style URL shortening service built with Django REST Framework and SQLAlchemy. It provides JWT-authenticated user accounts, a short-link API with tagging and analytics, and a Redis read-through cache — all backed by SQLAlchemy as the sole data-access layer.
+A production-style URL shortening service built with Django REST Framework and Django's built-in ORM. It provides JWT-authenticated user accounts, a short-link API with tagging and analytics, and a Redis read-through cache — all backed by Django's ORM as the sole data-access layer.
 
 Built as an AmaliTech Training Academy project to demonstrate a clean, layered architecture with Dependency Inversion — views, serializers, services, and repositories each with a single, testable responsibility.
 
@@ -40,11 +40,10 @@ Built as an AmaliTech Training Academy project to demonstrate a clean, layered a
 | Language / runtime | Python 3.12 |
 | Framework | Django 6.1, Django REST Framework |
 | Auth | `djangorestframework-simplejwt` (JWT, with token blacklisting) |
-| ORM (primary) | **SQLAlchemy** — all data access goes through SA models |
-| ORM (stubs) | Django models (`managed=False`) — exist only to prevent DROP TABLE |
+| ORM | **Django's built-in ORM** — all data access goes through Django models |
 | Database | PostgreSQL |
 | Cache | Redis (`redis`, `django-redis`) |
-| Migration | Alembic (SQLAlchemy schema management) |
+| Migration | Django migrations |
 | API docs | `drf-spectacular` (OpenAPI 3, Swagger UI, Redoc) |
 | Server | Uvicorn (ASGI) |
 | Testing | pytest, pytest-django, pytest-cov |
@@ -61,27 +60,19 @@ api/
 ├── serializers/    # Validate input / shape output — no business logic
 ├── services/       # Business logic, framework-agnostic where practical
 ├── interfaces/     # Abstract contracts services depend on (Dependency Inversion)
-├── repositories/   # SQLAlchemy implementations — the only place that touches the DB
+├── repositories/   # Django ORM implementations — the only place that touches the DB
 ├── cache/          # Redis client wrapper and connection management
 ├── exceptions/     # Domain errors, translated to HTTP status codes by views
 └── urls.py
-
-database/            # SQLAlchemy models and connection management
-├── __init__.py      # Re-exports all SA models from subpackages
-├── connection.py    # Engine, session factory, Base class
-├── shortener/
-│   └── models.py    # URLModel, ClickModel, TagModel, URLTagModel
-└── users/
-    └── models.py    # UserModel (read-only; writes go through Django auth)
 ```
 
-This keeps the ORM at a single boundary (the repository), lets services be unit-tested with mock repositories instead of a database, and means swapping a data store or generation algorithm later doesn't ripple through the views.
+The Django models in `apps/*/models.py` are the single source of truth for the database schema. All data access lives behind the repository interface, letting services be unit-tested with mock repositories instead of a database, and means swapping a data store or generation algorithm later doesn't ripple through the views.
 
-### SQLAlchemy as the primary data layer
+### Django ORM as the primary data layer
 
-All queries, inserts, updates, and deletes go through SQLAlchemy models in `database/`. Django models in `apps/shortener/models.py` are `managed=False` stubs that exist solely to prevent Django from issuing `DROP TABLE` migrations against tables it doesn't own. The `UserModel` is read-only — user creation and authentication always goes through Django's auth system.
+All queries, inserts, updates, and deletes go through the Django models in `apps/shortener/models.py` and `apps/users/models.py`. The repository layer is the only place that touches the database, keeping the ORM at a single boundary. Schema is fully owned by Django migrations.
 
-The `CachedURLRepository` wraps the SA URL repository, and `CachedAnalyticsRepository` wraps the SA analytics repository. Both add Redis caching transparently. The service layer depends only on `IURLRepository` and `IClickAnalyticsRepository`, so the cache can be toggled on or off without changing any business logic.
+The `CachedURLRepository` wraps the ORM URL repository, and `CachedAnalyticsRepository` wraps the ORM analytics repository. Both add Redis caching transparently. The service layer depends only on `IURLRepository` and `IClickAnalyticsRepository`, so the cache can be toggled on or off without changing any business logic.
 
 ## Module 6: Advanced modeling & query optimization
 
@@ -91,58 +82,54 @@ This module expands the data model with users, relationships, and deep analytics
 
 | Model | Fields / relationship | Notes |
 |---|---|---|
-| `User` (`apps/users/models.py`) | extends `AbstractUser`; adds `is_premium` (Boolean), `tier` (CharField with `free`/`basic`/`pro`/`enterprise` choices) | Mirrored read-only in SA `UserModel` |
+| `User` (`apps/users/models.py`) | extends `AbstractUser`; adds `is_premium` (Boolean), `tier` (CharField with `free`/`basic`/`pro`/`enterprise` choices) | |
 | `URL` | `owner` (FK → User), `click_count`, `is_active`, `expires_at`, `last_accessed_at` | `owner` is nullable; `click_count` indexed desc for leaderboards |
 | `Click` | `ip_address`, `user_agent`, `country`, `city`, `referer`, `clicked_at` | `city` added to model to track geographic detail |
 | `Tag` | `name` (unique) | Many-to-many with `URL` via `urls_tags` intermediate table |
 
 ### 3.2 Migrations
 
-- **Django migrations** manage all schema changes (`0001`–`0006`), including the new `is_premium`/`tier` user fields (`users/0003`) and the `city` click field.
-- **Data migration** `shortener/0006_seed_default_tags.py` seeds 8 default tags (`marketing`, `social`, `campaign`, `product`, `blog`, `newsletter`, `partner`, `internal`) idempotently via `get_or_create`, with a matching reverse-migration.
-- **Alembic migrations** keep the SQLAlchemy schema in sync: `001_initial_sa`, `002_premium_tier_city`, `003_fix_fk_cascade`.
+All schema changes are managed by **Django migrations** and applied with `python manage.py migrate`. The shortener tables are fully Django-managed (`managed = True`).
 
-#### Alembic & SQLAlchemy commands
+- **Django migrations** `0001`–`0008` own the whole schema, including the `is_premium`/`tier` user fields (`users/0003`), the `city` click field, and the composite indexes.
+- **Data migration** `shortener/0006_seed_default_tags.py` seeds 8 default tags (`marketing`, `social`, `campaign`, `product`, `blog`, `newsletter`, `partner`, `internal`) idempotently via `get_or_create`, with a matching reverse-migration.
+- Migrations `0007`/`0008` adopt the shortener tables as Django-managed (previously created by Alembic) and add the `city` click field, using idempotent `database_operations` so they apply cleanly to an existing database.
+
+#### Django migration commands
 
 All commands run inside the running `web` container, from the project root:
 
-**Apply all Alembic migrations:**
+**Apply all migrations:**
 ```bash
-docker compose exec web alembic upgrade head
+docker compose exec web python manage.py migrate
 ```
 
 **Inspect migration state:**
 ```bash
-docker compose exec web alembic current   # DB's current revision
-docker compose exec web alembic history   # full chain of revisions
+docker compose exec web python manage.py showmigrations
 ```
 
-**Generate a new migration by diffing the SQLAlchemy models** (`src/database/` models are the source of truth):
+**Generate a new migration after editing a model** (the Django models in `apps/*/models.py` are the source of truth):
 ```bash
-docker compose exec web alembic revision --autogenerate -m "describe the change"
+docker compose exec web python manage.py makemigrations
 ```
-This creates a new file under `alembic/versions/`. You must edit its `upgrade()` / `downgrade()` before running it.
+Then review the generated file under `apps/*/migrations/` before running `migrate`.
 
-**Step through / roll back:**
+**Create a migration + apply it:**
 ```bash
-docker compose exec web alembic upgrade +1            # forward one revision
-docker compose exec web alembic upgrade 002_premium_tier_city   # to a specific revision
-docker compose exec web alembic downgrade -1          # back one revision
-docker compose exec web alembic downgrade base        # back to empty schema (destructive)
+docker compose exec web python manage.py makemigrations -n "describe the change"
+docker compose exec web python manage.py migrate
 ```
 
-**Interact with models at runtime** (SQLAlchemy is the sole data-access layer):
+**Interact with models at runtime** (Django ORM is the sole data-access layer):
 ```bash
 docker compose exec web python manage.py shell
 ```
 ```python
-from database.shortener.models import URLModel
-from database.connection import get_session
+from apps.shortener.models import URL
 
-session = get_session()
-for url in session.query(URLModel).all():
+for url in URL.objects.all():
     print(url.id, url.short_code, url.original_url)
-session.close()
 ```
 
 **One-liner examples (no shell prompt):**
@@ -154,7 +141,7 @@ docker compose exec web python -c "from apps.users.models import User; u=User.ob
 docker compose exec web python -c "from apps.shortener.api.serializers import URLUpdateSerializer; s=URLUpdateSerializer(data={'tags':['marketing','social']}, partial=True); print(s.is_valid(), s.errors, s.validated_data)"
 ```
 
-**Core workflow:** edit the SA models under `src/database/*/models.py` → `alembic revision --autogenerate` → edit the generated migration → `alembic upgrade head`.
+**Core workflow:** edit the Django models in `apps/*/models.py` → `python manage.py makemigrations` → review the generated migration → `python manage.py migrate`.
 
 ### 3.3 Custom managers & query sets
 
@@ -164,29 +151,29 @@ docker compose exec web python -c "from apps.shortener.api.serializers import UR
 - `expired_urls()` — past their `expires_at`
 - `popular_urls()` — ordered by `click_count` descending
 
-These are declared on the Django stub model as documentation and are mirrored by SQLAlchemy repository methods (`list_with_filters` with `is_active`).
+These are provided by the `URLManager` on the Django model (in `apps/shortener/models.py`) and used by the repository's `list_with_filters` (with `is_active`).
 
 ### 3.4 Query optimization
 
 - **N+1 prevention** — every URL query eagerly loads relationships:
-  - `selectinload(URLModel.tags)` — avoids N+1 on Many-to-Many tag access
-  - `selectinload(URLModel.owner)` — avoids N+1 on the `owner` ForeignKey
-- **Database indexing** — composite and descending indexes are defined on both SA models and Django migrations:
+  - `prefetch_related("tags")` — avoids N+1 on the Many-to-Many tag access
+  - `select_related("owner")` — avoids N+1 on the `owner` ForeignKey
+- **Database indexing** — composite and descending indexes are defined on the Django models and created by migrations:
   - unique index on `short_code`
-  - `ix_urls_owner_created (owner_id, created_at DESC)`
-  - `ix_urls_click_count_desc (click_count DESC)`
-  - `ix_urls_active_expires (is_active, expires_at)`
-  - `ix_clicks_url_clicked (url_id, clicked_at DESC)` and `ix_clicks_country_clicked (country, clicked_at DESC)`
-- **Aggregations computed in SQL** (`func.count` / `group_by` / `date_trunc`):
+  - `urls_owner_i_513c55_idx (owner, created_at DESC)`
+  - `urls_click_c_0828dc_idx (click_count DESC)`
+  - `urls_is_acti_847f2f_idx (is_active, expires_at)`
+  - `clicks_url_id_afa311_idx (url, clicked_at DESC)` and `clicks_country_4a798f_idx (country, clicked_at DESC)`
+- **Aggregations computed in SQL** (`Count` / `values`/`annotate` / `date_trunc`):
   - total clicks per country (`get_country_breakdown`)
   - referrer breakdown, hourly distribution, and daily time series
 
 ## Redis caching
 
-Two decorator repositories wrap the SQLAlchemy data-access layer with Redis caching:
+Two decorator repositories wrap the Django ORM data-access layer with Redis caching:
 
-- **`CachedURLRepository`** — wraps `SQLAlchemyURLRepository` with read-through caching for URL entities and write-through invalidation.
-- **`CachedAnalyticsRepository`** — wraps `SQLAlchemyClickAnalyticsRepository` with short-TTL caching for expensive aggregation queries.
+- **`CachedURLRepository`** — wraps `DjangoURLRepository` with read-through caching for URL entities and write-through invalidation.
+- **`CachedAnalyticsRepository`** — wraps `DjangoClickAnalyticsRepository` with short-TTL caching for expensive aggregation queries.
 
 The service layer depends only on abstract interfaces (`IURLRepository`, `IClickAnalyticsRepository`), so the cache can be toggled on or off without changing any business logic.
 
@@ -195,11 +182,11 @@ The service layer depends only on abstract interfaces (`IURLRepository`, `IClick
 ```
 View → Service → CachedURLRepository → Redis (reads)
                                           ↓ (miss)
-                                    SQLAlchemyURLRepository → PostgreSQL
+                                    DjangoURLRepository → PostgreSQL
 
 View → Service → CachedAnalyticsRepository → Redis (reads)
                                                   ↓ (miss)
-                                        SQLAlchemyClickAnalyticsRepository → PostgreSQL
+                                        DjangoClickAnalyticsRepository → PostgreSQL
 ```
 
 Writes always go to PostgreSQL first, then invalidate the affected cache keys so the next read repopulates with fresh data.
@@ -245,7 +232,7 @@ When a short code is resolved, the analytics repository records the click and at
 2. **Write-through invalidation** — every write deletes the relevant cache keys. The next read repopulates them. This avoids stale reads without write amplification.
 3. **Cache-aside (lazy population)** — each repository method explicitly manages `get` / `set` rather than relying on an automatic cache layer.
 4. **TTL-based expiry** — entity keys have longer TTLs (5–10 min), analytics keys have short TTLs (30 sec) since they change frequently.
-5. **Graceful degradation** — if Redis is unreachable at startup, the factory falls back to plain SA repositories. The API continues to work with zero downtime; only caching is lost.
+5. **Graceful degradation** — if Redis is unreachable at startup, the factory falls back to plain ORM repositories. The API continues to work with zero downtime; only caching is lost.
 
 ## Project structure
 
@@ -257,33 +244,23 @@ Module6/
 ├── docker-compose.yml
 ├── Dockerfile
 ├── .env.example
-├── alembic/                # SQLAlchemy migrations (Alembic)
-│   ├── env.py
-│   └── versions/
 └── src/
     ├── config/             # settings, root urls, asgi/wsgi entrypoints
-    ├── database/           # SQLAlchemy models and connection management
-    │   ├── __init__.py
-    │   ├── connection.py
-    │   ├── shortener/
-    │   │   └── models.py
-    │   └── users/
-    │       └── models.py
     └── apps/
         ├── users/          # accounts + JWT auth
         │   ├── api/
-        │   ├── models.py   # Django managed=False stub
+        │   ├── models.py   # custom User (AbstractUser + premium/tier fields)
         │   └── tests/
         └── shortener/      # URL shortening + resolution + analytics
             ├── api/
             │   ├── cache/       # Redis client wrapper
             │   ├── interfaces/  # repository + generator contracts
-            │   ├── repositories/ # SA + cached implementations
+            │   ├── repositories/ # Django ORM + cached implementations
             │   ├── services/    # business logic + factory
             │   ├── views/       # HTTP layer
             │   ├── serializers/ # input/output validation
             │   └── exceptions/  # domain errors
-            ├── models.py   # Django managed=False stubs
+            ├── models.py   # Django models: URL, Click, Tag
             └── tests/
 ```
 
@@ -599,8 +576,7 @@ pre-commit run --all-files
 
 A couple of deliberate trade-offs worth knowing about:
 
-- **SQLAlchemy as the sole data layer.** Django models are minimal `managed=False` stubs. All business logic, queries, and serialization go through SQLAlchemy models. This was chosen because SA gives more control over session management, eager loading (`selectinload`), and query composition — and avoids Django ORM's implicit lazy-loading pitfalls across session boundaries.
+- **Django's built-in ORM as the sole data layer.** The Django models in `apps/*/models.py` are the source of truth for the schema. All business logic, queries, and serialization go through Django ORM, with schema managed entirely by Django migrations. This avoids maintaining two ORMs and gives a single, well-integrated data layer that stays in sync with the framework.
 - **`GET /api/v1/{short_code}/` returns `200` with `{"original_url": ...}` rather than a real `302` redirect.** This makes the endpoint testable from any client — including Swagger UI's "Try it out," which can't meaningfully follow a redirect to a cross-origin target. If this service needs to work as actual clickable short links later, this endpoint is the one to change back to a redirect.
 - **Ownership failures return `404`, not `403`.** Trying to update or delete a URL you don't own is indistinguishable from that URL not existing at all — this avoids leaking which IDs belong to other users.
 - **`POST /api/v1/urls/` requires authentication**, so every created URL has a real owner (no anonymous links).
-- **Alembic for SA migrations.** Schema changes are managed through Alembic rather than Django's migration framework, keeping the two ORMs cleanly separated.

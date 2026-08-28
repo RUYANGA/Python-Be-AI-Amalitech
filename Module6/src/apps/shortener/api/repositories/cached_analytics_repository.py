@@ -1,6 +1,6 @@
 """Redis-cached implementation of :class:`IClickAnalyticsRepository`.
 
-Decorates the SQLAlchemy analytics repository with Redis caching for
+Decorates the Django ORM analytics repository with Redis caching for
 expensive aggregation queries.  Write operations (``record_click``)
 always hit the database and invalidate related URL cache keys.
 """
@@ -17,9 +17,9 @@ from apps.shortener.api.interfaces.analytics import (
     ReferrerStats,
 )
 from apps.shortener.api.repositories.analytics_repository import (
-    SQLAlchemyClickAnalyticsRepository,
+    DjangoClickAnalyticsRepository,
 )
-from database.shortener.models import URLModel
+from apps.shortener.models import URL
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ _ANALYTICS_CACHE_TTL: int = 30  # 30 seconds — analytics change fast
 
 
 class CachedAnalyticsRepository(IClickAnalyticsRepository):
-    """Decorates :class:`SQLAlchemyClickAnalyticsRepository` with Redis caching.
+    """Decorates :class:`DjangoClickAnalyticsRepository` with Redis caching.
 
     Only read methods are cached.  ``record_click`` writes through to
     the database and invalidates URL entity cache keys so the
@@ -36,10 +36,10 @@ class CachedAnalyticsRepository(IClickAnalyticsRepository):
 
     def __init__(
         self,
-        orm_repository: SQLAlchemyClickAnalyticsRepository | None = None,
+        orm_repository: DjangoClickAnalyticsRepository | None = None,
         redis_client: RedisClient | None = None,
     ) -> None:
-        self._orm = orm_repository or SQLAlchemyClickAnalyticsRepository()
+        self._orm = orm_repository or DjangoClickAnalyticsRepository()
         self._cache = redis_client or get_redis_client()
 
     # ------------------------------------------------------------------
@@ -48,7 +48,7 @@ class CachedAnalyticsRepository(IClickAnalyticsRepository):
 
     def record_click(
         self,
-        url: URLModel,
+        url: URL,
         ip_address: str | None = None,
         user_agent: str = "",
         referer: str = "",
@@ -67,7 +67,7 @@ class CachedAnalyticsRepository(IClickAnalyticsRepository):
     # Read (cached with short TTL)
     # ------------------------------------------------------------------
 
-    def get_country_breakdown(self, url: URLModel, limit: int = 10) -> list[CountryStats]:
+    def get_country_breakdown(self, url: URL, limit: int = 10) -> list[CountryStats]:
         cache_key = f"analytics:countries:{url.id}:{limit}"
         cached = self._cache.get(cache_key)
         if cached is not None:
@@ -83,7 +83,7 @@ class CachedAnalyticsRepository(IClickAnalyticsRepository):
         )
         return result
 
-    def get_referrer_breakdown(self, url: URLModel, limit: int = 10) -> list[ReferrerStats]:
+    def get_referrer_breakdown(self, url: URL, limit: int = 10) -> list[ReferrerStats]:
         cache_key = f"analytics:referrers:{url.id}:{limit}"
         cached = self._cache.get(cache_key)
         if cached is not None:
@@ -99,7 +99,7 @@ class CachedAnalyticsRepository(IClickAnalyticsRepository):
         )
         return result
 
-    def get_hourly_distribution(self, url: URLModel) -> list[HourlyDistribution]:
+    def get_hourly_distribution(self, url: URL) -> list[HourlyDistribution]:
         cache_key = f"analytics:hourly:{url.id}"
         cached = self._cache.get(cache_key)
         if cached is not None:
@@ -112,7 +112,7 @@ class CachedAnalyticsRepository(IClickAnalyticsRepository):
         )
         return result
 
-    def get_recent_clicks(self, url: URLModel, limit: int = 20) -> list[dict]:
+    def get_recent_clicks(self, url: URL, limit: int = 20) -> list[dict]:
         return self._orm.get_recent_clicks(url, limit=limit)
 
     # ------------------------------------------------------------------

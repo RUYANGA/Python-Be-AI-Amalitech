@@ -10,7 +10,7 @@ import pytest
 
 from apps.shortener.api.interfaces.repository import KeysetPage, URLListFilters
 from apps.shortener.api.repositories.cached_url_repository import CachedURLRepository
-from database.shortener.models import URLModel
+from apps.shortener.models import URL
 
 
 class FakeRedisClient:
@@ -36,9 +36,9 @@ class FakeRedisClient:
         return len(matched)
 
 
-def _make_url(pk: int, owner_id: int, short_code: str) -> URLModel:
+def _make_url(pk: int, owner_id: int, short_code: str) -> URL:
     now = datetime.now(UTC)
-    return URLModel(
+    return URL(
         id=pk,
         original_url="https://example.com",
         short_code=short_code,

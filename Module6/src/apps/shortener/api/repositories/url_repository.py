@@ -1,15 +1,15 @@
-"""SQLAlchemy implementation of :class:`IURLRepository`.
+"""Django ORM implementation of :class:`IURLRepository`.
 
 This is the only module in the shortener app that performs database
-writes — all queries go through SQLAlchemy sessions, keeping the ORM
-dependency at a single boundary.
+writes for URL entities — all queries go through Django's built-in ORM,
+keeping data access at a single boundary.
 
-Demonstrates SQLAlchemy patterns:
-- Aggregate functions (func.count, func.max, func.count.distinct())
+Demonstrates Django ORM patterns:
+- Aggregate functions (``Count``, ``Max``, ``Sum``)
 - Keyset (cursor-based) pagination with ``filter()`` chains
-- Dynamic filtering with ``or_()`` / ``and_()``
-- Time-series bucketing with ``func.date_trunc()``
-- Session-scoped transactions with explicit commit/rollback
+- Dynamic filtering with ``Q`` objects
+- Atomic counter updates via ``F()`` expressions
+- ``select_related`` / ``prefetch_related`` to avoid N+1 queries
 """
 
 from __future__ import annotations
@@ -19,8 +19,7 @@ import json
 import logging
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import and_, func, or_
-from sqlalchemy.orm import selectinload
+from django.db.models import Count, Max, Q
 
 from apps.shortener.api.exceptions import RepositoryError
 from apps.shortener.api.interfaces.repository import (
@@ -29,13 +28,12 @@ from apps.shortener.api.interfaces.repository import (
     URLAggregateStats,
     URLListFilters,
 )
-from database.connection import get_session
-from database.shortener.models import ClickModel, TagModel, URLModel
+from apps.shortener.models import URL, Click
 
 logger = logging.getLogger(__name__)
 
 
-class SQLAlchemyURLRepository(IURLRepository):
+class DjangoURLRepository(IURLRepository):
     # ── CRUD ──────────────────────────────────────────────────────────
 
     def create(
@@ -43,278 +41,221 @@ class SQLAlchemyURLRepository(IURLRepository):
         original_url: str,
         short_code: str,
         owner=None,
-    ) -> URLModel:
-        session = get_session()
+    ) -> URL:
         try:
-            sa_url = URLModel(
+            url = URL.objects.create(
                 original_url=original_url,
                 short_code=short_code,
-                owner_id=getattr(owner, "id", None),
+                owner=owner,
             )
-            session.add(sa_url)
-            session.commit()
-            session.refresh(sa_url)
             logger.info(
                 "url.created id=%s short_code=%s owner_id=%s",
-                sa_url.id,
-                sa_url.short_code,
-                sa_url.owner_id,
+                url.id,
+                url.short_code,
+                url.owner_id,
             )
-            return sa_url
+            return url
         except Exception as exc:
             logger.exception("url.create_failed short_code=%s", short_code)
-            session.rollback()
             raise RepositoryError("create", short_code=short_code) from exc
-        finally:
-            session.close()
 
-    def get_by_short_code(self, short_code: str) -> URLModel | None:
-        session = get_session()
+    def get_by_short_code(self, short_code: str) -> URL | None:
         try:
             return (
-                session.query(URLModel)
-                .options(selectinload(URLModel.tags), selectinload(URLModel.owner))
-                .filter(URLModel.short_code == short_code)
+                URL.objects.select_related("owner")
+                .prefetch_related("tags")
+                .filter(short_code=short_code)
                 .first()
             )
         except Exception as exc:
             logger.exception("url.get_by_short_code_failed short_code=%s", short_code)
             raise RepositoryError("get_by_short_code", short_code=short_code) from exc
-        finally:
-            session.close()
 
     def exists_by_short_code(self, short_code: str) -> bool:
-        session = get_session()
         try:
-            return session.query(
-                session.query(URLModel).filter(URLModel.short_code == short_code).exists()
-            ).scalar()
-        finally:
-            session.close()
+            return URL.objects.filter(short_code=short_code).exists()
+        except Exception as exc:
+            logger.exception("url.exists_by_short_code_failed short_code=%s", short_code)
+            raise RepositoryError("exists_by_short_code", short_code=short_code) from exc
 
     def update(
         self,
-        url: URLModel,
+        url: URL,
         original_url: str | None = None,
         title: str | None = None,
         tags: list[str] | None = None,
         expires_at=None,
-    ) -> URLModel:
+    ) -> URL:
         """Apply optional partial fields to ``url``.
 
         Any of ``original_url``, ``title``, ``tags`` and ``expires_at`` that is
         provided is persisted; omitted fields are left unchanged.
         """
-        session = get_session()
         try:
-            sa_url = (
-                session.query(URLModel)
-                .options(selectinload(URLModel.tags), selectinload(URLModel.owner))
-                .filter(URLModel.id == url.id)
-                .one()
-            )
             if original_url is not None:
-                sa_url.original_url = original_url
+                url.original_url = original_url
             if title is not None:
-                sa_url.title = title
+                url.title = title
             if expires_at is not None:
-                sa_url.expires_at = expires_at
+                url.expires_at = expires_at
             if tags is not None:
-                tag_objects = []
-                for name in tags:
-                    normalized = name.lower().strip()
-                    tag = session.query(TagModel).filter(TagModel.name == normalized).first()
-                    if tag is None:
-                        tag = TagModel(name=normalized)
-                        session.add(tag)
-                        session.flush()
-                    tag_objects.append(tag)
-                sa_url.tags = tag_objects
-            session.commit()
-            session.refresh(sa_url)
-            logger.info("url.updated id=%s short_code=%s", sa_url.id, sa_url.short_code)
-            return sa_url
+                url.tags.set(self._get_or_create_tags(tags))
+            url.save()
+            url.refresh_from_db()
+            url = URL.objects.select_related("owner").prefetch_related("tags").get(pk=url.pk)
+            logger.info("url.updated id=%s short_code=%s", url.id, url.short_code)
+            return url
         except Exception as exc:
             logger.exception("url.update_failed id=%s", url.id)
-            session.rollback()
             raise RepositoryError("update", id=url.id) from exc
-        finally:
-            session.close()
 
-    def delete(self, url: URLModel) -> None:
-        session = get_session()
+    def delete(self, url: URL) -> None:
         try:
-            sa_url = session.query(URLModel).filter(URLModel.id == url.id).first()
-            if sa_url:
-                session.delete(sa_url)
-                session.commit()
-                logger.info("url.deleted id=%s short_code=%s", sa_url.id, sa_url.short_code)
-            else:
-                logger.warning("url.delete_missing id=%s", url.id)
+            url.delete()
+            logger.info("url.deleted id=%s short_code=%s", url.id, url.short_code)
         except Exception as exc:
             logger.exception("url.delete_failed id=%s", url.id)
-            session.rollback()
             raise RepositoryError("delete", id=url.id) from exc
-        finally:
-            session.close()
 
     # ── Aggregations ──────────────────────────────────────────────────
 
-    def get_aggregate_stats(self, url: URLModel) -> URLAggregateStats:
-        session = get_session()
+    def get_aggregate_stats(self, url: URL) -> URLAggregateStats:
         try:
-            total_clicks = (
-                session.query(func.count(ClickModel.id))
-                .filter(ClickModel.url_id == url.id)
-                .scalar()
-            )
-
-            unique_countries = (
-                session.query(func.count(ClickModel.country.distinct()))
-                .filter(
-                    ClickModel.url_id == url.id,
-                    ClickModel.country != "",
-                )
-                .scalar()
-            )
-
-            last_clicked_at = (
-                session.query(func.max(ClickModel.clicked_at))
-                .filter(ClickModel.url_id == url.id)
-                .scalar()
-            )
-
+            clicks = Click.objects.filter(url=url)
+            total_clicks = clicks.count()
+            unique_countries = clicks.exclude(country="").values("country").distinct().count()
+            last_clicked_at = clicks.aggregate(max=Max("clicked_at"))["max"]
             top_referer_row = (
-                session.query(ClickModel.referer, func.count(ClickModel.id).label("cnt"))
-                .filter(
-                    ClickModel.url_id == url.id,
-                    ClickModel.referer != "",
-                )
-                .group_by(ClickModel.referer)
-                .order_by(func.count(ClickModel.id).desc())
+                clicks.exclude(referer="")
+                .values("referer")
+                .annotate(cnt=Count("id"))
+                .order_by("-cnt")
                 .first()
             )
-
             return URLAggregateStats(
-                total_clicks=total_clicks or 0,
-                unique_countries=unique_countries or 0,
-                top_referer=top_referer_row[0] if top_referer_row else "",
+                total_clicks=total_clicks,
+                unique_countries=unique_countries,
+                top_referer=top_referer_row["referer"] if top_referer_row else "",
                 last_clicked_at=last_clicked_at,
             )
-        finally:
-            session.close()
+        except Exception as exc:
+            logger.exception("url.aggregate_stats_failed id=%s", url.id)
+            raise RepositoryError("get_aggregate_stats", id=url.id) from exc
 
     # ── Keyset pagination + dynamic filtering ─────────────────────────
 
     def list_with_filters(
         self, filters: URLListFilters, limit: int = 10, cursor: str | None = None
     ) -> KeysetPage:
-        session = get_session()
         try:
-            query = session.query(URLModel).options(
-                selectinload(URLModel.tags), selectinload(URLModel.owner)
-            )
+            qs = URL.objects.select_related("owner").prefetch_related("tags")
 
             if filters.search:
-                like_term = f"%{filters.search}%"
-                query = query.filter(
-                    or_(
-                        URLModel.short_code.ilike(like_term),
-                        URLModel.original_url.ilike(like_term),
-                        URLModel.title.ilike(like_term),
-                    )
+                qs = qs.filter(
+                    Q(short_code__icontains=filters.search)
+                    | Q(original_url__icontains=filters.search)
+                    | Q(title__icontains=filters.search)
                 )
 
             if filters.is_active is not None:
-                query = query.filter(URLModel.is_active == filters.is_active)
+                qs = qs.filter(is_active=filters.is_active)
 
             if filters.tag:
-                query = query.join(URLModel.tags).filter(TagModel.name == filters.tag)
+                qs = qs.filter(tags__name=filters.tag)
 
             if filters.owner_id is not None:
-                query = query.filter(URLModel.owner_id == filters.owner_id)
+                qs = qs.filter(owner_id=filters.owner_id)
 
             if filters.created_after:
-                query = query.filter(URLModel.created_at >= filters.created_after)
+                qs = qs.filter(created_at__gte=filters.created_after)
 
             if filters.created_before:
-                query = query.filter(URLModel.created_at <= filters.created_before)
+                qs = qs.filter(created_at__lte=filters.created_before)
 
             if filters.min_clicks is not None:
-                query = query.filter(URLModel.click_count >= filters.min_clicks)
+                qs = qs.filter(click_count__gte=filters.min_clicks)
 
             if filters.max_clicks is not None:
-                query = query.filter(URLModel.click_count <= filters.max_clicks)
+                qs = qs.filter(click_count__lte=filters.max_clicks)
 
             if cursor:
                 try:
                     decoded = json.loads(base64.b64decode(cursor).decode())
                     cursor_dt = datetime.fromisoformat(decoded["created_at"])
-                    query = query.filter(
-                        or_(
-                            URLModel.created_at < cursor_dt,
-                            and_(
-                                URLModel.created_at == cursor_dt,
-                                URLModel.id < decoded["pk"],
-                            ),
-                        )
+                    qs = qs.filter(
+                        Q(created_at__lt=cursor_dt)
+                        | (Q(created_at=cursor_dt) & Q(id__lt=decoded["pk"]))
                     )
-                except (ValueError, KeyError):
+                except (ValueError, KeyError, TypeError):
                     pass
 
             order_map = {
-                "created_at": URLModel.created_at.asc(),
-                "-created_at": URLModel.created_at.desc(),
-                "click_count": URLModel.click_count.asc(),
-                "-click_count": URLModel.click_count.desc(),
-                "title": URLModel.title.asc(),
-                "-title": URLModel.title.desc(),
-                "short_code": URLModel.short_code.asc(),
-                "-short_code": URLModel.short_code.desc(),
+                "created_at": "created_at",
+                "-created_at": "-created_at",
+                "click_count": "click_count",
+                "-click_count": "-click_count",
+                "title": "title",
+                "-title": "-title",
+                "short_code": "short_code",
+                "-short_code": "-short_code",
             }
-            order = order_map.get(filters.ordering, URLModel.created_at.desc())
-            query = query.order_by(order, URLModel.id.desc())
+            order = order_map.get(filters.ordering, "-created_at")
+            qs = qs.order_by(order, "-id")
 
-            items_sa = query.limit(limit + 1).all()
-            has_more = len(items_sa) > limit
-            items_sa = items_sa[:limit]
+            item_list = list(qs[: (limit + 1)])
+            has_more = len(item_list) > limit
+            item_list = item_list[:limit]
 
             next_cursor = None
-            if has_more and items_sa:
-                last_sa = items_sa[-1]
+            if has_more and item_list:
+                last = item_list[-1]
                 next_cursor = base64.b64encode(
                     json.dumps(
                         {
-                            "pk": last_sa.id,
-                            "created_at": last_sa.created_at.isoformat(),
+                            "pk": last.id,
+                            "created_at": last.created_at.isoformat(),
                         }
                     ).encode()
                 ).decode()
 
-            return KeysetPage(items=items_sa, next_cursor=next_cursor, has_more=has_more)
+            return KeysetPage(items=item_list, next_cursor=next_cursor, has_more=has_more)
         except Exception as exc:
             logger.exception("url.list_with_filters_failed owner_id=%s", filters.owner_id)
             raise RepositoryError("list_with_filters", owner_id=filters.owner_id) from exc
-        finally:
-            session.close()
 
     # ── Time-series analytics ─────────────────────────────────────────
 
-    def get_click_time_series(self, url: URLModel, days: int = 30) -> list[tuple[str, int]]:
+    def get_click_time_series(self, url: URL, days: int = 30) -> list[tuple[str, int]]:
         since = datetime.now(UTC) - timedelta(days=days)
-        session = get_session()
         try:
-            day_col = func.date_trunc("day", ClickModel.clicked_at).label("day")
             rows = (
-                session.query(day_col, func.count(ClickModel.id).label("count"))
-                .filter(
-                    ClickModel.url_id == url.id,
-                    ClickModel.clicked_at >= since,
-                )
-                .group_by(day_col)
-                .order_by(day_col)
-                .all()
+                Click.objects.filter(url=url, clicked_at__gte=since)
+                .extra(select={"day": "date_trunc('day', clicked_at)"})
+                .values("day")
+                .annotate(count=Count("id"))
             )
-            return [(row.day.strftime("%Y-%m-%d"), row.count) for row in rows]
-        finally:
-            session.close()
+            return [
+                (
+                    row["day"].strftime("%Y-%m-%d") if row["day"] else "",
+                    row["count"],
+                )
+                for row in rows
+            ]
+        except Exception as exc:
+            logger.exception("url.click_time_series_failed id=%s", url.id)
+            raise RepositoryError("get_click_time_series", id=url.id) from exc
+
+    # ── Helpers ───────────────────────────────────────────────────────
+
+    @staticmethod
+    def _get_or_create_tags(tags: list[str]):
+        from apps.shortener.models import Tag
+
+        tag_objects = []
+        for name in tags:
+            normalized = name.lower().strip()
+            if not normalized:
+                continue
+            tag, _ = Tag.objects.get_or_create(name=normalized)
+            tag_objects.append(tag)
+        return tag_objects

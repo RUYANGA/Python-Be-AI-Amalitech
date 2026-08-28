@@ -5,13 +5,9 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from apps.shortener.api.exceptions import RepositoryError, ShortCodeGenerationError
 from apps.shortener.models import URL
-from database.connection import clear_session_factory_override, set_session_factory_override
 
 pytestmark = pytest.mark.django_db
 
@@ -32,49 +28,6 @@ def _clear_url_cache():
     client.flush_pattern("url:*")
     yield
     client.flush_pattern("url:*")
-
-
-@pytest.fixture(autouse=True)
-def _sqlalchemy_shares_django_connection(db):
-    """Bind the SQLAlchemy layer to Django's own test-transaction connection.
-
-    Django's ``db`` fixture wraps each test in an uncommitted transaction
-    that is rolled back afterwards. These view tests read/write through a
-    separate SQLAlchemy engine; without this, that engine opens its own
-    connection and can't see data the other ORM just wrote (or vice
-    versa). Sharing the connection — with SQLAlchemy commits downgraded to
-    SAVEPOINTs via ``join_transaction_mode`` — keeps both ORMs looking at
-    the same in-progress transaction, so no real commit is ever needed.
-
-    ``pool_reset_on_return=None`` stops SQLAlchemy from issuing a
-    ``ROLLBACK``/``COMMIT`` on this connection when checking it in or
-    disposing the pool — Django owns this connection's lifecycle, not us.
-    The sessionmaker is bound to one already-``begin()``'d ``Connection``
-    (not the ``Engine``): binding to the engine would make every new
-    Session check out its own wrapper and, finding no transaction it
-    recognizes, defensively roll back — which would wipe out whatever
-    Django had just written.
-    """
-    from django.db import connection as django_connection
-
-    django_connection.ensure_connection()
-    raw_connection = django_connection.connection
-
-    engine = create_engine(
-        "postgresql+psycopg2://",
-        creator=lambda: raw_connection,
-        poolclass=StaticPool,
-        pool_reset_on_return=None,
-    )
-    sa_connection = engine.connect()
-    sa_connection.begin()
-    factory = sessionmaker(bind=sa_connection, join_transaction_mode="create_savepoint")
-    set_session_factory_override(factory)
-    try:
-        yield
-    finally:
-        clear_session_factory_override()
-        sa_connection.close()
 
 
 class TestURLCreateView:

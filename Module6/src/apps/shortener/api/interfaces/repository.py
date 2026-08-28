@@ -12,7 +12,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
 
-from database.shortener.models import URLModel
+from apps.shortener.models import URL
 
 
 @dataclass(frozen=True)
@@ -44,13 +44,13 @@ class URLListFilters:
 class KeysetPage:
     """A page of results using keyset pagination."""
 
-    items: list[URLModel]
+    items: list[URL]
     next_cursor: str | None
     has_more: bool
 
 
 class IURLRepository(ABC):
-    """Read/write operations for :class:`URLModel` entities."""
+    """Read/write operations for :class:`URL` entities."""
 
     @abstractmethod
     def create(
@@ -58,12 +58,12 @@ class IURLRepository(ABC):
         original_url: str,
         short_code: str,
         owner=None,
-    ) -> URLModel:
+    ) -> URL:
         """Persist a new URL and return the saved instance."""
         raise NotImplementedError
 
     @abstractmethod
-    def get_by_short_code(self, short_code: str) -> URLModel | None:
+    def get_by_short_code(self, short_code: str) -> URL | None:
         """Return the URL for ``short_code`` or ``None`` if absent."""
         raise NotImplementedError
 
@@ -75,12 +75,12 @@ class IURLRepository(ABC):
     @abstractmethod
     def update(
         self,
-        url: URLModel,
+        url: URL,
         original_url: str | None = None,
         title: str | None = None,
         tags: list[str] | None = None,
         expires_at=None,
-    ) -> URLModel:
+    ) -> URL:
         """Apply optional partial fields to ``url`` and return it.
 
         Only the fields that are provided (not ``None``) are persisted;
@@ -89,14 +89,14 @@ class IURLRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def delete(self, url: URLModel) -> None:
+    def delete(self, url: URL) -> None:
         """Permanently remove ``url``."""
         raise NotImplementedError
 
     # ── Advanced query methods ────────────────────────────────────────
 
     @abstractmethod
-    def get_aggregate_stats(self, url: URLModel) -> URLAggregateStats:
+    def get_aggregate_stats(self, url: URL) -> URLAggregateStats:
         """Return click analytics aggregations for a single URL."""
         raise NotImplementedError
 
@@ -108,11 +108,11 @@ class IURLRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_click_time_series(self, url: URLModel, days: int = 30) -> list[tuple[str, int]]:
+    def get_click_time_series(self, url: URL, days: int = 30) -> list[tuple[str, int]]:
         """Return daily click counts as ``(YYYY-MM-DD, count)`` tuples."""
         raise NotImplementedError
 
-    def invalidate(self, url: URLModel) -> None:  # noqa: B027
+    def invalidate(self, url: URL) -> None:  # noqa: B027
         """Invalidate all cache entries for ``url``.
 
         The base (non-cached) implementation is a no-op.  Cached

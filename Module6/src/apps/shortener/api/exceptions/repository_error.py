@@ -6,7 +6,7 @@ from apps.shortener.api.exceptions.base import ShortenerError
 class RepositoryError(ShortenerError):
     """Raised when a persistence-layer operation fails.
 
-    Wraps the underlying database/SQLAlchemy exception so callers handle a
+    Wraps the underlying database/Django ORM exception so callers handle a
     domain exception instead of a framework or built-in ``Exception``.
     """
 

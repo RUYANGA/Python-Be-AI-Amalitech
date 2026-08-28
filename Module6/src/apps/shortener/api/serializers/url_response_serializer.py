@@ -32,7 +32,8 @@ class URLResponseSerializer(serializers.Serializer):
     def get_tags(self, obj) -> list[str]:
         try:
             if hasattr(obj, "tags"):
-                return [t.name for t in obj.tags]
+                tags = obj.tags.all() if hasattr(obj.tags, "all") else obj.tags
+                return [t.name for t in tags]
         except Exception:
             logger.warning(
                 "serializer.tags_read_failed url_id=%s",

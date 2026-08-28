@@ -24,7 +24,7 @@ from apps.shortener.api.interfaces.repository import (
     URLListFilters,
 )
 from apps.shortener.api.interfaces.shortener import IShortCodeGenerator
-from database.shortener.models import URLModel
+from apps.shortener.models import URL
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ class URLShortenerService:
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
-    def shorten(self, original_url: str, owner=None) -> URLModel:
+    def shorten(self, original_url: str, owner=None) -> URL:
         """Create and return a new shortened URL."""
         short_code = self._generate_unique_code()
         url = self._repository.create(
@@ -69,9 +69,9 @@ class URLShortenerService:
         )
         return url
 
-    def resolve(self, short_code: str) -> URLModel:
+    def resolve(self, short_code: str) -> URL:
         """Return the URL for ``short_code`` or raise :class:`URLNotFoundError`."""
-        url: URLModel | None = self._repository.get_by_short_code(short_code)
+        url: URL | None = self._repository.get_by_short_code(short_code)
         if url is None:
             logger.warning("url.resolve_missing short_code=%s", short_code)
             raise URLNotFoundError(short_code)
@@ -80,7 +80,7 @@ class URLShortenerService:
 
     def record_click(
         self,
-        url: URLModel,
+        url: URL,
         ip_address: str | None = None,
         user_agent: str = "",
         referer: str = "",
@@ -103,15 +103,15 @@ class URLShortenerService:
         """Return a keyset-paginated, filtered list of URLs."""
         return self._repository.list_with_filters(filters, limit=limit, cursor=cursor)
 
-    def get_aggregate_stats(self, url: URLModel) -> URLAggregateStats:
+    def get_aggregate_stats(self, url: URL) -> URLAggregateStats:
         """Return click analytics for a URL."""
         return self._repository.get_aggregate_stats(url)
 
-    def get_click_time_series(self, url: URLModel, days: int = 30) -> list[tuple[str, int]]:
+    def get_click_time_series(self, url: URL, days: int = 30) -> list[tuple[str, int]]:
         """Return daily click counts for a URL."""
         return self._repository.get_click_time_series(url, days=days)
 
-    def get_owned_by_code(self, short_code: str, owner) -> URLModel:
+    def get_owned_by_code(self, short_code: str, owner) -> URL:
         """Return the URL for ``short_code``, if owned by ``owner``.
 
         Raises :class:`URLNotOwnedError` if it doesn't exist or belongs to
@@ -128,13 +128,35 @@ class URLShortenerService:
         title: str | None = None,
         tags: list[str] | None = None,
         expires_at=None,
-    ) -> URLModel:
+    ) -> URL:
         """Update only the provided fields on the URL ``short_code``, if owned by ``owner``.
 
         Any of ``original_url``, ``title``, ``tags`` and ``expires_at`` that is
         provided is persisted; omitted fields are left unchanged.
         """
         url = self._get_owned_by_code_or_raise(short_code, owner)
+        return self.update(
+            url,
+            original_url=original_url,
+            title=title,
+            tags=tags,
+            expires_at=expires_at,
+        )
+
+    def update(
+        self,
+        url: URL,
+        *,
+        original_url: str | None = None,
+        title: str | None = None,
+        tags: list[str] | None = None,
+        expires_at=None,
+    ) -> URL:
+        """Update only the provided fields on ``url``.
+
+        Any of ``original_url``, ``title``, ``tags`` and ``expires_at`` that is
+        provided is persisted; omitted fields are left unchanged.
+        """
         updated = self._repository.update(
             url,
             original_url=original_url,
@@ -142,7 +164,13 @@ class URLShortenerService:
             tags=tags,
             expires_at=expires_at,
         )
-        logger.info("url.updated_by_code short_code=%s owner_id=%s", short_code, owner.id)
+        self._repository.invalidate(updated)
+        logger.info(
+            "url.updated id=%s short_code=%s owner_id=%s",
+            updated.id,
+            updated.short_code,
+            updated.owner_id,
+        )
         return updated
 
     def delete_owned_by_code(self, short_code: str, owner) -> None:
@@ -154,7 +182,7 @@ class URLShortenerService:
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
-    def _get_owned_by_code_or_raise(self, short_code: str, owner) -> URLModel:
+    def _get_owned_by_code_or_raise(self, short_code: str, owner) -> URL:
         url = self._repository.get_by_short_code(short_code)
         if url is None or url.owner_id != owner.id:
             logger.warning("url.not_owned short_code=%s owner_id=%s", short_code, owner.id)

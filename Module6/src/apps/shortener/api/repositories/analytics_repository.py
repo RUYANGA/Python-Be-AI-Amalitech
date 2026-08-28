@@ -1,11 +1,10 @@
-"""SQLAlchemy implementation of :class:`IClickAnalyticsRepository`.
+"""Django ORM implementation of :class:`IClickAnalyticsRepository`.
 
-Demonstrates SQLAlchemy patterns for analytics:
-- ``func.count`` with ``group_by`` for aggregations
-- ``func.date_trunc`` for time-bucketed analytics
-- ``func.extract('hour', ...)`` for hourly distribution
-- Atomic counter updates via ``update().values(click_count=...)``
-- Session-scoped transactions
+Demonstrates Django ORM patterns for analytics:
+- ``Count`` with ``values``/``annotate`` for aggregations
+- ``date_trunc`` via ``extra``/``Trunc`` for time-bucketed analytics
+- ``date_part('hour', ...)`` via ``extra`` for hourly distribution
+- Atomic counter updates via ``F()`` expressions to avoid race conditions
 """
 
 from __future__ import annotations
@@ -13,7 +12,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, update
+from django.db.models import Count, F
 
 from apps.shortener.api.exceptions import RepositoryError
 from apps.shortener.api.interfaces.analytics import (
@@ -22,16 +21,15 @@ from apps.shortener.api.interfaces.analytics import (
     IClickAnalyticsRepository,
     ReferrerStats,
 )
-from database.connection import get_session
-from database.shortener.models import ClickModel, URLModel
+from apps.shortener.models import URL, Click
 
 logger = logging.getLogger(__name__)
 
 
-class SQLAlchemyClickAnalyticsRepository(IClickAnalyticsRepository):
+class DjangoClickAnalyticsRepository(IClickAnalyticsRepository):
     def record_click(
         self,
-        url: URLModel,
+        url: URL,
         ip_address: str | None = None,
         user_agent: str = "",
         referer: str = "",
@@ -39,31 +37,22 @@ class SQLAlchemyClickAnalyticsRepository(IClickAnalyticsRepository):
     ) -> None:
         """Record a click and atomically increment the counter.
 
-        Uses SQLAlchemy ``update()`` with a SQL expression to avoid
-        race conditions — the UPDATE is a single
-        ``SET click_count = click_count + 1`` at the database level.
+        Uses Django ``F()`` expressions so the UPDATE is a single
+        ``SET click_count = click_count + 1`` at the database level,
+        avoiding race conditions.
         """
-        session = get_session()
         try:
-            click = ClickModel(
-                url_id=url.id,
+            Click.objects.create(
+                url=url,
                 ip_address=ip_address,
                 user_agent=user_agent,
                 referer=referer,
                 country=country,
-                clicked_at=datetime.now(UTC),
             )
-            session.add(click)
-
-            session.execute(
-                update(URLModel)
-                .where(URLModel.id == url.id)
-                .values(
-                    click_count=URLModel.click_count + 1,
-                    last_accessed_at=datetime.now(UTC),
-                )
+            URL.objects.filter(pk=url.pk).update(
+                click_count=F("click_count") + 1,
+                last_accessed_at=datetime.now(UTC),
             )
-            session.commit()
             logger.info(
                 "click.recorded url_id=%s ip=%s country=%s",
                 url.id,
@@ -72,108 +61,85 @@ class SQLAlchemyClickAnalyticsRepository(IClickAnalyticsRepository):
             )
         except Exception as exc:
             logger.exception("click.record_failed url_id=%s", url.id)
-            session.rollback()
             raise RepositoryError("record_click", url_id=url.id) from exc
-        finally:
-            session.close()
 
-    def get_country_breakdown(self, url: URLModel, limit: int = 10) -> list[CountryStats]:
-        """Aggregate clicks by country using ``func.count`` + ``group_by``."""
-        session = get_session()
+    def get_country_breakdown(self, url: URL, limit: int = 10) -> list[CountryStats]:
+        """Aggregate clicks by country using ``Count`` + ``values``."""
         try:
-            total = (
-                session.query(func.count(ClickModel.id))
-                .filter(ClickModel.url_id == url.id)
-                .scalar()
-            )
+            total = Click.objects.filter(url=url).count()
             if not total:
                 return []
 
             rows = (
-                session.query(ClickModel.country, func.count(ClickModel.id).label("clicks"))
-                .filter(ClickModel.url_id == url.id, ClickModel.country != "")
-                .group_by(ClickModel.country)
-                .order_by(func.count(ClickModel.id).desc())
-                .limit(limit)
-                .all()
+                Click.objects.filter(url=url)
+                .exclude(country="")
+                .values("country")
+                .annotate(clicks=Count("id"))
+                .order_by("-clicks")[:limit]
             )
 
             return [
                 CountryStats(
-                    country=row.country,
-                    clicks=row.clicks,
-                    percentage=round(row.clicks / total * 100, 1),
+                    country=row["country"],
+                    clicks=row["clicks"],
+                    percentage=round(row["clicks"] / total * 100, 1),
                 )
                 for row in rows
             ]
-        finally:
-            session.close()
+        except Exception as exc:
+            logger.exception("click.country_breakdown_failed url_id=%s", url.id)
+            raise RepositoryError("get_country_breakdown", url_id=url.id) from exc
 
-    def get_referrer_breakdown(self, url: URLModel, limit: int = 10) -> list[ReferrerStats]:
-        """Aggregate clicks by referer domain."""
-        session = get_session()
+    def get_referrer_breakdown(self, url: URL, limit: int = 10) -> list[ReferrerStats]:
+        """Aggregate clicks by referer."""
         try:
-            total = (
-                session.query(func.count(ClickModel.id))
-                .filter(ClickModel.url_id == url.id)
-                .scalar()
-            )
+            total = Click.objects.filter(url=url).count()
             if not total:
                 return []
 
             rows = (
-                session.query(ClickModel.referer, func.count(ClickModel.id).label("clicks"))
-                .filter(ClickModel.url_id == url.id, ClickModel.referer != "")
-                .group_by(ClickModel.referer)
-                .order_by(func.count(ClickModel.id).desc())
-                .limit(limit)
-                .all()
+                Click.objects.filter(url=url)
+                .exclude(referer="")
+                .values("referer")
+                .annotate(clicks=Count("id"))
+                .order_by("-clicks")[:limit]
             )
 
             return [
                 ReferrerStats(
-                    referer=row.referer,
-                    clicks=row.clicks,
-                    percentage=round(row.clicks / total * 100, 1),
+                    referer=row["referer"],
+                    clicks=row["clicks"],
+                    percentage=round(row["clicks"] / total * 100, 1),
                 )
                 for row in rows
             ]
-        finally:
-            session.close()
+        except Exception as exc:
+            logger.exception("click.referrer_breakdown_failed url_id=%s", url.id)
+            raise RepositoryError("get_referrer_breakdown", url_id=url.id) from exc
 
-    def get_hourly_distribution(self, url: URLModel) -> list[HourlyDistribution]:
-        """Bucket clicks by hour of day using ``func.extract('hour', ...)``.
-
-        Returns a 24-slot list so the client can render a histogram.
-        """
-        since = datetime.now(UTC) - timedelta(days=30)
-        session = get_session()
+    def get_hourly_distribution(self, url: URL) -> list[HourlyDistribution]:
+        """Bucket clicks by hour of day (0-23) using ``date_part``."""
         try:
-            hour_col = func.extract("hour", ClickModel.clicked_at).label("hour")
+            since = datetime.now(UTC) - timedelta(days=30)
             rows = (
-                session.query(hour_col, func.count(ClickModel.id).label("clicks"))
-                .filter(ClickModel.url_id == url.id, ClickModel.clicked_at >= since)
-                .group_by(hour_col)
-                .order_by(hour_col)
-                .all()
+                Click.objects.filter(url=url, clicked_at__gte=since)
+                .extra(select={"hour": "date_part('hour', clicked_at)"})
+                .values("hour")
+                .annotate(clicks=Count("id"))
             )
 
-            hourly_map = {int(row.hour): row.clicks for row in rows}
+            hourly_map = {
+                int(row["hour"]): row["clicks"] for row in rows if row["hour"] is not None
+            }
             return [HourlyDistribution(hour=h, clicks=hourly_map.get(h, 0)) for h in range(24)]
-        finally:
-            session.close()
+        except Exception as exc:
+            logger.exception("click.hourly_distribution_failed url_id=%s", url.id)
+            raise RepositoryError("get_hourly_distribution", url_id=url.id) from exc
 
-    def get_recent_clicks(self, url: URLModel, limit: int = 20) -> list[dict]:
+    def get_recent_clicks(self, url: URL, limit: int = 20) -> list[dict]:
         """Return recent click records as lightweight dicts."""
-        session = get_session()
         try:
-            rows = (
-                session.query(ClickModel)
-                .filter(ClickModel.url_id == url.id)
-                .order_by(ClickModel.clicked_at.desc())
-                .limit(limit)
-                .all()
-            )
+            rows = Click.objects.filter(url=url).order_by("-clicked_at")[:limit]
             return [
                 {
                     "id": r.id,
@@ -184,5 +150,6 @@ class SQLAlchemyClickAnalyticsRepository(IClickAnalyticsRepository):
                 }
                 for r in rows
             ]
-        finally:
-            session.close()
+        except Exception as exc:
+            logger.exception("click.recent_clicks_failed url_id=%s", url.id)
+            raise RepositoryError("get_recent_clicks", url_id=url.id) from exc

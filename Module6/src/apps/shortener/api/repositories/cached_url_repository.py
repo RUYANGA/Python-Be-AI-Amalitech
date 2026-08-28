@@ -1,8 +1,8 @@
 """Redis-cached implementation of :class:`IURLRepository`.
 
-Uses Redis as a read-through cache over the SQLAlchemy repository.
+Uses Redis as a read-through cache over the Django ORM repository.
 Write operations go directly to the database and invalidate the cache.
-Read operations check Redis first, falling back to the SA repo on cache miss.
+Read operations check Redis first, falling back to the ORM repo on cache miss.
 
 Cache key scheme:
     - ``url:code:{short_code}``       -> cached URL dict by short code
@@ -26,8 +26,8 @@ from apps.shortener.api.interfaces.repository import (
     URLAggregateStats,
     URLListFilters,
 )
-from apps.shortener.api.repositories.url_repository import SQLAlchemyURLRepository
-from database.shortener.models import URLModel
+from apps.shortener.api.repositories.url_repository import DjangoURLRepository
+from apps.shortener.models import URL
 
 logger = logging.getLogger(__name__)
 
@@ -38,26 +38,26 @@ _LIST_CACHE_TTL: int = 30  # short — keyset pages are sensitive to inserts/del
 
 
 class CachedURLRepository(IURLRepository):
-    """Decorates :class:`SQLAlchemyURLRepository` with Redis caching.
+    """Decorates :class:`DjangoURLRepository` with Redis caching.
 
     The cache is write-through: every mutation invalidates affected keys
     so subsequent reads always reflect the latest state. On connection
-    failure the repository degrades gracefully to pure SA access.
+    failure the repository degrades gracefully to pure ORM access.
     """
 
     def __init__(
         self,
-        orm_repository: SQLAlchemyURLRepository | None = None,
+        orm_repository: DjangoURLRepository | None = None,
         redis_client: RedisClient | None = None,
     ) -> None:
-        self._orm = orm_repository or SQLAlchemyURLRepository()
+        self._orm = orm_repository or DjangoURLRepository()
         self._cache = redis_client or get_redis_client()
 
     # ------------------------------------------------------------------
     # Read operations (cached)
     # ------------------------------------------------------------------
 
-    def get_by_short_code(self, short_code: str) -> URLModel | None:
+    def get_by_short_code(self, short_code: str) -> URL | None:
         cache_key = f"url:code:{short_code}"
 
         cached = self._cache.get(cache_key)
@@ -91,19 +91,19 @@ class CachedURLRepository(IURLRepository):
         original_url: str,
         short_code: str,
         owner=None,
-    ) -> URLModel:
+    ) -> URL:
         url = self._orm.create(original_url=original_url, short_code=short_code, owner=owner)
         self._invalidate(short_code, url.id, url.owner_id)
         return url
 
     def update(
         self,
-        url: URLModel,
+        url: URL,
         original_url: str | None = None,
         title: str | None = None,
         tags: list[str] | None = None,
         expires_at=None,
-    ) -> URLModel:
+    ) -> URL:
         updated = self._orm.update(
             url,
             original_url=original_url,
@@ -114,11 +114,11 @@ class CachedURLRepository(IURLRepository):
         self._invalidate(updated.short_code, updated.id, updated.owner_id)
         return updated
 
-    def delete(self, url: URLModel) -> None:
+    def delete(self, url: URL) -> None:
         self._invalidate(url.short_code, url.id, url.owner_id)
         self._orm.delete(url)
 
-    def get_aggregate_stats(self, url: URLModel) -> URLAggregateStats:
+    def get_aggregate_stats(self, url: URL) -> URLAggregateStats:
         cache_key = f"url:stats:{url.id}"
         cached = self._cache.get(cache_key)
         if cached is not None:
@@ -176,7 +176,7 @@ class CachedURLRepository(IURLRepository):
         )
         return page
 
-    def get_click_time_series(self, url: URLModel, days: int = 30) -> list[tuple[str, int]]:
+    def get_click_time_series(self, url: URL, days: int = 30) -> list[tuple[str, int]]:
         cache_key = f"url:ts:{url.id}:{days}"
         cached = self._cache.get(cache_key)
         if cached is not None:
@@ -193,7 +193,7 @@ class CachedURLRepository(IURLRepository):
     # Cache invalidation
     # ------------------------------------------------------------------
 
-    def invalidate(self, url: URLModel) -> None:
+    def invalidate(self, url: URL) -> None:
         """Evict all cached entries for ``url`` after external writes."""
         self._invalidate(url.short_code, url.id, url.owner_id)
         self._cache.delete(f"url:stats:{url.id}")
@@ -237,7 +237,11 @@ class CachedURLRepository(IURLRepository):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _url_to_dict(url: URLModel) -> dict:
+    def _url_to_dict(url: URL) -> dict:
+        try:
+            tags = [t.name for t in url.tags.all()] if hasattr(url, "tags") else []
+        except Exception:
+            tags = []
         return {
             "id": url.id,
             "original_url": url.original_url,
@@ -250,15 +254,14 @@ class CachedURLRepository(IURLRepository):
             "last_accessed_at": url.last_accessed_at.isoformat() if url.last_accessed_at else None,
             "created_at": url.created_at.isoformat(),
             "updated_at": url.updated_at.isoformat(),
-            "tags": [t.name for t in url.tags] if hasattr(url, "tags") and url.tags else [],
+            "tags": tags,
         }
 
-    def _dict_to_url(self, data: dict) -> URLModel:
+    @staticmethod
+    def _dict_to_url(data: dict) -> URL:
         from datetime import datetime
 
-        from database.shortener.models import TagModel
-
-        url = URLModel(
+        url = URL(
             id=data["id"],
             original_url=data["original_url"],
             short_code=data["short_code"],
@@ -277,7 +280,4 @@ class CachedURLRepository(IURLRepository):
             created_at=datetime.fromisoformat(data["created_at"]),
             updated_at=datetime.fromisoformat(data["updated_at"]),
         )
-        tag_names = data.get("tags", [])
-        if tag_names:
-            url.tags = [TagModel(name=name) for name in tag_names]
         return url
