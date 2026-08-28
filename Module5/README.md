@@ -185,6 +185,20 @@ Either way, once it's running:
 - Interactive docs: `http://localhost:8000/api/v1/docs/`
 - Admin site: `http://localhost:8000/admin/`
 
+### Database migrations
+
+`docker compose up` applies migrations automatically on every start, and the local setup above already runs `migrate` once. Use these commands whenever you change a model afterwards:
+
+```bash
+# without Docker
+python manage.py makemigrations
+python manage.py migrate
+
+# with Docker (container name: web)
+docker compose exec web python manage.py makemigrations
+docker compose exec web python manage.py migrate
+```
+
 ## Environment variables
 
 Set these in `.env` (see `.env.example`):
