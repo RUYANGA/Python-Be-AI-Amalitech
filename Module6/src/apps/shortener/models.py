@@ -20,9 +20,10 @@ class URL(models.Model):
         null=True,
         blank=True,
         related_name="urls",
+        db_index=False,
     )
     click_count = models.PositiveIntegerField(default=0, db_index=True)
-    is_active = models.BooleanField(default=True, db_index=True)
+    is_active = models.BooleanField(default=True)
     expires_at = models.DateTimeField(null=True, blank=True, db_index=True)
     last_accessed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -38,9 +39,9 @@ class URL(models.Model):
         db_table = "urls"
         ordering = ["-created_at"]
         indexes = [
-            models.Index(fields=["owner", "-created_at"]),
-            models.Index(fields=["-click_count"]),
-            models.Index(fields=["is_active", "expires_at"]),
+            models.Index(fields=["owner"]),
+            models.Index(fields=["is_active"]),
+            models.Index(fields=["original_url"]),
         ]
 
     def __str__(self) -> str:
