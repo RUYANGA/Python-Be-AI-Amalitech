@@ -107,6 +107,22 @@ class RedisClient:
         except (redis.ConnectionError, redis.TimeoutError):
             return False
 
+    def incr(self, key: str, ttl: int | None = None) -> int:
+        """Atomically increment a counter, applying ``ttl`` only when the key is new.
+
+        Returns the counter's new value, or ``0`` on connection failure (so
+        callers relying on this for rate limiting fail open rather than
+        raising when Redis is unavailable).
+        """
+        try:
+            value = self._client.incr(key)
+            if value == 1 and ttl:
+                self._client.expire(key, ttl)
+            return value
+        except (redis.ConnectionError, redis.TimeoutError) as exc:
+            logger.warning("redis.incr_failed key=%s error=%s", key, exc)
+            return 0
+
     def flush_pattern(self, pattern: str) -> int:
         """Delete all keys matching a glob pattern. Returns count removed."""
         try:

@@ -33,3 +33,20 @@ def inactive_user(db):
         password="testpass123",
         is_active=False,
     )
+
+
+@pytest.fixture(autouse=True)
+def _clear_login_rate_limit_keys():
+    """Flush login-rate-limit Redis keys before and after each test.
+
+    ``RedisLoginRateLimiter`` (the default rate limiter ``UserAuthService``
+    builds when none is injected) writes to real Redis outside the DB
+    transaction each test rolls back, so failed-attempt counters and blocks
+    from one test would otherwise leak into the next.
+    """
+    from apps.shortener.api.cache.redis_client import get_redis_client
+
+    client = get_redis_client()
+    client.flush_pattern("auth:login_*")
+    yield
+    client.flush_pattern("auth:login_*")

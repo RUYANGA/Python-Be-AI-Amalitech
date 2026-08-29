@@ -2,10 +2,14 @@ import logging
 
 from drf_spectacular.utils import OpenApiExample, extend_schema
 from rest_framework import status
-from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.exceptions import AuthenticationFailed, Throttled
 from rest_framework.response import Response
 
-from apps.users.api.exceptions import AuthenticationError, InactiveAccountError
+from apps.users.api.exceptions import (
+    AuthenticationError,
+    InactiveAccountError,
+    TooManyLoginAttemptsError,
+)
 from apps.users.api.serializers import LoginSerializer, UserSerializer
 from apps.users.api.views.base_view import BaseAuthView
 
@@ -36,6 +40,13 @@ class LoginView(BaseAuthView):
                 serializer.validated_data["username"],
                 serializer.validated_data["password"],
             )
+        except TooManyLoginAttemptsError as exc:
+            logger.warning(
+                "auth.login_rate_limited username=%s", serializer.validated_data["username"]
+            )
+            throttled = Throttled(detail=str(exc))
+            throttled.wait = exc.retry_after_seconds
+            raise throttled from exc
         except InactiveAccountError as exc:
             logger.warning("auth.login_inactive username=%s", serializer.validated_data["username"])
             raise AuthenticationFailed(str(exc), code=exc.code) from exc

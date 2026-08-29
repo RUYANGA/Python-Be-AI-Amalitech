@@ -342,6 +342,8 @@ All routes are versioned under `/api/v1/`. Endpoints marked require `Authorizati
 | `POST` | `/api/v1/auth/logout/` | Blacklist a refresh token |
 | `POST` | `/api/v1/auth/token/refresh/` | Exchange a refresh token for a new access token |
 
+Login is rate-limited per username: 5 failed attempts within a 1-minute window block further attempts for 30 minutes (`429 Too Many Requests`).
+
 ### URLs (`apps/shortener`)
 
 | Method | Path | Description |
