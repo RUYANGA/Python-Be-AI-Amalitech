@@ -123,6 +123,20 @@ class RedisClient:
             logger.warning("redis.incr_failed key=%s error=%s", key, exc)
             return 0
 
+    def ttl(self, key: str) -> int:
+        """Return the remaining TTL in seconds for ``key``.
+
+        Returns ``0`` if the key doesn't exist, has no expiry, or Redis is
+        unreachable — callers should treat that as "not currently active"
+        rather than raising.
+        """
+        try:
+            value = self._client.ttl(key)
+            return value if value > 0 else 0
+        except (redis.ConnectionError, redis.TimeoutError) as exc:
+            logger.warning("redis.ttl_failed key=%s error=%s", key, exc)
+            return 0
+
     def flush_pattern(self, pattern: str) -> int:
         """Delete all keys matching a glob pattern. Returns count removed."""
         try:

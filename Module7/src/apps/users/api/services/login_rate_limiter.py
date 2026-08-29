@@ -27,9 +27,10 @@ class RedisLoginRateLimiter(LoginRateLimiter):
         self._cache = redis_client or get_redis_client()
 
     def check(self, identifier: str) -> None:
-        if self._cache.exists(self._blocked_key(identifier)):
-            logger.warning("auth.login_blocked identifier=%s", identifier)
-            raise TooManyLoginAttemptsError(self.BLOCK_SECONDS)
+        remaining = self._cache.ttl(self._blocked_key(identifier))
+        if remaining > 0:
+            logger.warning("auth.login_blocked identifier=%s remaining=%s", identifier, remaining)
+            raise TooManyLoginAttemptsError(remaining)
 
     def register_failure(self, identifier: str) -> int:
         attempts = self._cache.incr(self._attempts_key(identifier), ttl=self.WINDOW_SECONDS)

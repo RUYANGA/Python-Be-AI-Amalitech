@@ -22,19 +22,28 @@ pytestmark = pytest.mark.django_db
 
 
 class FakeRedisClient:
-    """Minimal in-memory stand-in for ``RedisClient``, incl. atomic ``incr``."""
+    """Minimal in-memory stand-in for ``RedisClient``, incl. atomic ``incr``.
+
+    ``ttl`` reports whatever value was passed to ``set``/``incr`` — it does
+    not decay with real time, so tests that need a countdown to actually
+    shrink set the key's ttl directly rather than sleeping.
+    """
 
     def __init__(self) -> None:
         self._store: dict[str, object] = {}
+        self._ttls: dict[str, int] = {}
 
     def get(self, key):
         return self._store.get(key)
 
     def set(self, key, value, ttl=None):
         self._store[key] = value
+        if ttl is not None:
+            self._ttls[key] = ttl
         return True
 
     def delete(self, key):
+        self._ttls.pop(key, None)
         return bool(self._store.pop(key, None))
 
     def exists(self, key):
@@ -43,7 +52,12 @@ class FakeRedisClient:
     def incr(self, key, ttl=None):
         value = self._store.get(key, 0) + 1
         self._store[key] = value
+        if value == 1 and ttl is not None:
+            self._ttls[key] = ttl
         return value
+
+    def ttl(self, key):
+        return self._ttls.get(key, 0) if key in self._store else 0
 
 
 class TestUserAuthServiceRegister:
@@ -193,6 +207,16 @@ class TestRedisLoginRateLimiter:
         self.limiter.reset("alice")
 
         assert self.redis.get(RedisLoginRateLimiter._attempts_key("alice")) is None
+
+    def test_check_reports_the_live_ttl_not_the_full_block_duration(self):
+        """``retry_after_seconds`` must count down as the block ages, not stay
+        pinned at ``BLOCK_SECONDS`` for the whole 30 minutes."""
+        self.redis.set(RedisLoginRateLimiter._blocked_key("alice"), True, ttl=42)
+
+        with pytest.raises(TooManyLoginAttemptsError) as exc_info:
+            self.limiter.check("alice")
+
+        assert exc_info.value.retry_after_seconds == 42
 
     def test_defaults_to_the_shared_redis_client(self):
         limiter = RedisLoginRateLimiter()

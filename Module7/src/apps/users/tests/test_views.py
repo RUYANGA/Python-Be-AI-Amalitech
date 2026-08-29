@@ -83,8 +83,9 @@ class TestLoginView:
             format="json",
         )
         assert response.status_code == 429
-        assert response["Retry-After"] == str(RedisLoginRateLimiter.BLOCK_SECONDS)
-        assert "30 minutes" in response.json()["detail"]
+        retry_after = int(response["Retry-After"])
+        assert 0 < retry_after <= RedisLoginRateLimiter.BLOCK_SECONDS
+        assert "minute" in response.json()["detail"]
 
 
 class TestLogoutView:
