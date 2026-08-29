@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 
 from apps.shortener.api.cache.redis_client import get_redis_client
+from apps.shortener.api.geo import GeoIP2FastLocator
 from apps.shortener.api.interfaces.analytics import IClickAnalyticsRepository
 from apps.shortener.api.interfaces.repository import IURLRepository
 from apps.shortener.api.repositories.analytics_repository import (
@@ -67,4 +68,5 @@ def build_url_service() -> URLShortenerService:
         repository=repository,
         generator=Base62ShortCodeGenerator(),
         analytics_repository=analytics_repo,
+        geo_locator=GeoIP2FastLocator(),
     )

@@ -17,6 +17,7 @@ from apps.shortener.api.exceptions import (
     URLNotOwnedError,
 )
 from apps.shortener.api.interfaces.analytics import IClickAnalyticsRepository
+from apps.shortener.api.interfaces.geo import IGeoLocator
 from apps.shortener.api.interfaces.repository import (
     IURLRepository,
     KeysetPage,
@@ -46,10 +47,12 @@ class URLShortenerService:
         repository: IURLRepository,
         generator: IShortCodeGenerator,
         analytics_repository: IClickAnalyticsRepository | None = None,
+        geo_locator: IGeoLocator | None = None,
     ) -> None:
         self._repository = repository
         self._generator = generator
         self._analytics = analytics_repository
+        self._geo_locator = geo_locator
 
     # ------------------------------------------------------------------
     # Public API
@@ -111,7 +114,13 @@ class URLShortenerService:
         referer: str = "",
         country: str = "",
     ) -> None:
-        """Record a click event and invalidate cached URL data."""
+        """Record a click event and invalidate cached URL data.
+
+        ``country`` is resolved from ``ip_address`` via the configured
+        geolocator when the caller doesn't already supply one.
+        """
+        if not country and ip_address and self._geo_locator is not None:
+            country = self._geo_locator.country_code(ip_address)
         if self._analytics is not None:
             self._analytics.record_click(
                 url,

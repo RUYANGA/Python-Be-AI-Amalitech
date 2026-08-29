@@ -133,3 +133,59 @@ class TestURLShortenerServiceResolve:
             self.service.resolve("missing")
 
         assert excinfo.value.short_code == "missing"
+
+
+class TestURLShortenerServiceRecordClick:
+    def setup_method(self) -> None:
+        self.repository = Mock()
+        self.generator = Mock()
+        self.analytics = Mock()
+        self.geo_locator = Mock()
+        self.service = URLShortenerService(
+            repository=self.repository,
+            generator=self.generator,
+            analytics_repository=self.analytics,
+            geo_locator=self.geo_locator,
+        )
+
+    def test_resolves_country_from_ip_when_not_given(self):
+        url = Mock()
+        self.geo_locator.country_code.return_value = "US"
+
+        self.service.record_click(url, ip_address="8.8.8.8")
+
+        self.geo_locator.country_code.assert_called_once_with("8.8.8.8")
+        self.analytics.record_click.assert_called_once_with(
+            url, ip_address="8.8.8.8", user_agent="", referer="", country="US"
+        )
+
+    def test_does_not_call_geo_locator_when_country_already_given(self):
+        url = Mock()
+
+        self.service.record_click(url, ip_address="8.8.8.8", country="GH")
+
+        self.geo_locator.country_code.assert_not_called()
+        self.analytics.record_click.assert_called_once_with(
+            url, ip_address="8.8.8.8", user_agent="", referer="", country="GH"
+        )
+
+    def test_does_not_call_geo_locator_without_an_ip(self):
+        url = Mock()
+
+        self.service.record_click(url)
+
+        self.geo_locator.country_code.assert_not_called()
+
+    def test_works_without_a_geo_locator_configured(self):
+        url = Mock()
+        service = URLShortenerService(
+            repository=self.repository,
+            generator=self.generator,
+            analytics_repository=self.analytics,
+        )
+
+        service.record_click(url, ip_address="8.8.8.8")
+
+        self.analytics.record_click.assert_called_once_with(
+            url, ip_address="8.8.8.8", user_agent="", referer="", country=""
+        )
