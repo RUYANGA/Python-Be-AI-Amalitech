@@ -40,11 +40,10 @@ class URLListMixin:
         filter_serializer.is_valid(raise_exception=True)
         data = filter_serializer.validated_data
 
-        tag = data.get("tag")
         filters = URLListFilters(
             search=data.get("search"),
             is_active=data.get("is_active"),
-            tag=tag.strip().lower() if tag else None,
+            tag=data.get("tag"),
             min_clicks=data.get("min_clicks"),
             max_clicks=data.get("max_clicks"),
             ordering=data.get("ordering", "-created_at"),

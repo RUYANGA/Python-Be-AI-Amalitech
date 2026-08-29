@@ -158,6 +158,20 @@ class TestURLListView:
 
         assert response.status_code == 500
 
+    def test_filters_by_tag_case_and_whitespace_insensitively(self, api_client, user):
+        api_client.force_authenticate(user=user)
+        create_response = api_client.post(
+            "/api/v1/urls/",
+            {"original_url": "https://tagged.example.com", "tags": ["Work"]},
+            format="json",
+        )
+        assert create_response.status_code == 201
+
+        response = api_client.get("/api/v1/urls/mine/", {"tag": " WORK "})
+
+        assert response.status_code == 200
+        assert response.json()["count"] == 1
+
 
 class TestURLByCodeUpdate:
     def test_rejects_anonymous_requests(self, api_client, user):
@@ -268,5 +282,51 @@ class TestURLByCodeDelete:
         api_client.force_authenticate(user=user)
 
         response = api_client.delete("/api/v1/urls/nonexist/")
+
+        assert response.status_code == 404
+
+
+class TestURLAnalyticsByCodeView:
+    def test_rejects_non_premium_users(self, api_client, user):
+        url = URL.objects.create(
+            original_url="https://analytics.example.com", short_code="ana0001", owner=user
+        )
+        api_client.force_authenticate(user=user)
+
+        response = api_client.get(f"/api/v1/analytics/{url.short_code}/")
+
+        assert response.status_code == 403
+
+    def test_returns_the_full_summary_for_the_owner(self, api_client, user):
+        user.is_premium = True
+        user.save()
+        url = URL.objects.create(
+            original_url="https://analytics.example.com", short_code="ana0002", owner=user
+        )
+        api_client.force_authenticate(user=user)
+
+        response = api_client.get(f"/api/v1/analytics/{url.short_code}/")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["url_id"] == url.id
+        assert body["short_code"] == "ana0002"
+        assert body["stats"]["total_clicks"] == 0
+        assert body["countries"] == []
+        assert body["referrers"] == []
+        assert len(body["hourly_distribution"]) == 24
+        assert all(hour["clicks"] == 0 for hour in body["hourly_distribution"])
+        assert body["recent_clicks"] == []
+        assert body["time_series"] == []
+
+    def test_non_owner_gets_404(self, api_client, user, other_user):
+        user.is_premium = True
+        user.save()
+        url = URL.objects.create(
+            original_url="https://analytics.example.com", short_code="ana0003", owner=other_user
+        )
+        api_client.force_authenticate(user=user)
+
+        response = api_client.get(f"/api/v1/analytics/{url.short_code}/")
 
         assert response.status_code == 404

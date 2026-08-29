@@ -6,6 +6,7 @@ from apps.shortener.api.serializers.analytics_serializer import (
     CountryStatsSerializer,
     HourlyDistributionSerializer,
     ReferrerStatsSerializer,
+    TimeSeriesPointSerializer,
     URLAggregateStatsSerializer,
 )
 from apps.shortener.api.serializers.url_create_serializer import URLCreateSerializer
@@ -19,6 +20,7 @@ __all__ = [
     "CountryStatsSerializer",
     "HourlyDistributionSerializer",
     "ReferrerStatsSerializer",
+    "TimeSeriesPointSerializer",
     "URLAggregateStatsSerializer",
     "URLCreateSerializer",
     "URLListFilterSerializer",

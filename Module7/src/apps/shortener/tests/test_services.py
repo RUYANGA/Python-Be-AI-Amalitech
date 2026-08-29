@@ -189,3 +189,39 @@ class TestURLShortenerServiceRecordClick:
         self.analytics.record_click.assert_called_once_with(
             url, ip_address="8.8.8.8", user_agent="", referer="", country=""
         )
+
+
+class TestURLShortenerServiceAnalyticsSummary:
+    def setup_method(self) -> None:
+        self.repository = Mock()
+        self.generator = Mock()
+        self.analytics = Mock()
+        self.service = URLShortenerService(
+            repository=self.repository,
+            generator=self.generator,
+            analytics_repository=self.analytics,
+        )
+
+    def test_assembles_stats_breakdowns_and_time_series(self):
+        url = Mock(id=1, short_code="abc1234")
+        stats = Mock(total_clicks=42)
+        self.repository.get_aggregate_stats.return_value = stats
+        self.analytics.get_country_breakdown.return_value = ["countries"]
+        self.analytics.get_referrer_breakdown.return_value = ["referrers"]
+        self.analytics.get_hourly_distribution.return_value = ["hourly"]
+        self.analytics.get_recent_clicks.return_value = ["recent"]
+        self.repository.get_click_time_series.return_value = [("2024-01-01", 5)]
+
+        summary = self.service.get_analytics_summary(url, days=7)
+
+        assert summary == {
+            "url_id": 1,
+            "short_code": "abc1234",
+            "stats": stats,
+            "countries": ["countries"],
+            "referrers": ["referrers"],
+            "hourly_distribution": ["hourly"],
+            "recent_clicks": ["recent"],
+            "time_series": [{"date": "2024-01-01", "clicks": 5}],
+        }
+        self.repository.get_click_time_series.assert_called_once_with(url, days=7)

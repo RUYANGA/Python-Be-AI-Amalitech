@@ -45,6 +45,13 @@ class ClickRecordSerializer(serializers.Serializer):
     clicked_at = serializers.DateTimeField()
 
 
+class TimeSeriesPointSerializer(serializers.Serializer):
+    """A single day's click count."""
+
+    date = serializers.CharField()
+    clicks = serializers.IntegerField()
+
+
 class AnalyticsSummarySerializer(serializers.Serializer):
     """Full analytics summary for a URL."""
 
@@ -55,3 +62,4 @@ class AnalyticsSummarySerializer(serializers.Serializer):
     referrers = ReferrerStatsSerializer(many=True)
     hourly_distribution = HourlyDistributionSerializer(many=True)
     recent_clicks = ClickRecordSerializer(many=True)
+    time_series = TimeSeriesPointSerializer(many=True)

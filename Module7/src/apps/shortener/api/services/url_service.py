@@ -145,6 +145,23 @@ class URLShortenerService:
         """Return daily click counts for a URL."""
         return self._repository.get_click_time_series(url, days=days)
 
+    def get_analytics_summary(self, url: URL, days: int = 30) -> dict:
+        """Return the full analytics summary for a URL: aggregate stats,
+        country/referrer/hourly breakdowns, recent clicks, and a daily
+        click time series covering the last ``days`` days.
+        """
+        time_series = self.get_click_time_series(url, days=days)
+        return {
+            "url_id": url.id,
+            "short_code": url.short_code,
+            "stats": self.get_aggregate_stats(url),
+            "countries": self._analytics.get_country_breakdown(url),
+            "referrers": self._analytics.get_referrer_breakdown(url),
+            "hourly_distribution": self._analytics.get_hourly_distribution(url),
+            "recent_clicks": self._analytics.get_recent_clicks(url),
+            "time_series": [{"date": date, "clicks": clicks} for date, clicks in time_series],
+        }
+
     def get_owned_by_code(self, short_code: str, owner) -> URL:
         """Return the URL for ``short_code``, if owned by ``owner``.
 

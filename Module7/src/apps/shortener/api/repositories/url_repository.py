@@ -162,7 +162,7 @@ class DjangoURLRepository(IURLRepository):
                 qs = qs.filter(is_active=filters.is_active)
 
             if filters.tag:
-                qs = qs.filter(tags__name=filters.tag)
+                qs = qs.filter(tags__name=filters.tag.strip().lower())
 
             if filters.owner_id is not None:
                 qs = qs.filter(owner_id=filters.owner_id)
