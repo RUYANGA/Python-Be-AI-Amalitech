@@ -18,7 +18,7 @@ class TestURLResponseSerializer:
 
         data = URLResponseSerializer(url, context={"request": request}).data
 
-        expected_path = reverse("url-resolve", kwargs={"short_code": url.short_code})
+        expected_path = reverse("url-redirect", kwargs={"short_code": url.short_code})
         assert data["short_url"] == request.build_absolute_uri(expected_path)
 
     def test_short_url_falls_back_to_path_without_request(self):
@@ -26,4 +26,4 @@ class TestURLResponseSerializer:
 
         data = URLResponseSerializer(url).data
 
-        assert data["short_url"] == reverse("url-resolve", kwargs={"short_code": url.short_code})
+        assert data["short_url"] == reverse("url-redirect", kwargs={"short_code": url.short_code})

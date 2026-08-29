@@ -24,7 +24,7 @@ class URLResponseSerializer(serializers.Serializer):
 
     def get_short_url(self, obj) -> str:
         request = self.context.get("request")
-        path = reverse("url-resolve", kwargs={"short_code": obj.short_code})
+        path = reverse("url-redirect", kwargs={"short_code": obj.short_code})
         if request is None:
             return path
         return request.build_absolute_uri(path)

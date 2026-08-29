@@ -103,6 +103,28 @@ class TestURLResolveView:
         assert response.status_code == 404
 
 
+class TestURLRedirectView:
+    def test_redirects_to_original_url(self, api_client):
+        url = URL.objects.create(original_url="https://example.com/target", short_code="tgt1234")
+
+        response = api_client.get(f"/{url.short_code}/")
+
+        assert response.status_code == 302
+        assert response["Location"] == "https://example.com/target"
+
+    def test_increments_click_count(self, api_client):
+        url = URL.objects.create(original_url="https://example.com/target", short_code="tgt1234")
+
+        api_client.get(f"/{url.short_code}/")
+
+        url.refresh_from_db()
+        assert url.click_count == 1
+
+    def test_returns_404_for_unknown_code(self, api_client):
+        response = api_client.get("/nonexist/")
+        assert response.status_code == 404
+
+
 class TestURLListView:
     def test_rejects_anonymous_requests(self, api_client):
         response = api_client.get("/api/v1/urls/mine/")
