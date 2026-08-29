@@ -26,7 +26,7 @@ Built as an AmaliTech Training Academy project to demonstrate a clean, layered a
 - **URL shortening** — generate a unique, collision-safe short code (base62, CSPRNG) for any URL.
 - **Tagging** — assign tags to shortened URLs for categorization and filtering.
 - **Owner-scoped management** — list, update, and delete only the short links you created; anyone else's return `404`, not `403`, so link IDs can't be probed.
-- **Public resolution** — look up the original URL for any short code, no login required.
+- **Public resolution** — look up the original URL for any short code, no login required, via a JSON endpoint (for API clients) or a real `302` redirect (the actual clickable short link).
 - **Click analytics** — country breakdown, referrer stats, hourly distribution, time-series data, and recent click history.
 - **Redis caching** — read-through cache with write-through invalidation, TTL-based expiry, and graceful fallback to PostgreSQL when Redis is unavailable.
 - **Keyset pagination** — cursor-based pagination on the list endpoint for O(1) page navigation and consistent results under concurrent writes.
@@ -83,7 +83,7 @@ This module expands the data model with users, relationships, and deep analytics
 | Model | Fields / relationship | Notes |
 |---|---|---|
 | `User` (`apps/users/models.py`) | extends `AbstractUser`; adds `is_premium` (Boolean), `tier` (CharField with `free`/`basic`/`pro`/`enterprise` choices) | |
-| `URL` | `owner` (FK → User), `click_count`, `is_active`, `expires_at`, `last_accessed_at` | `owner` is nullable; `click_count` indexed desc for leaderboards |
+| `URL` | `owner` (FK → User), `click_count`, `is_active`, `expires_at`, `last_accessed_at` | `owner` is nullable; `click_count` indexed for leaderboards |
 | `Click` | `ip_address`, `user_agent`, `country`, `city`, `referer`, `clicked_at` | `city` added to model to track geographic detail |
 | `Tag` | `name` (unique) | Many-to-many with `URL` via `urls_tags` intermediate table |
 
@@ -91,7 +91,8 @@ This module expands the data model with users, relationships, and deep analytics
 
 All schema changes are managed by **Django migrations** and applied with `python manage.py migrate`. The shortener tables are fully Django-managed (`managed = True`).
 
-- **Django migrations** `0001`–`0008` own the whole schema, including the `is_premium`/`tier` user fields (`users/0003`), the `city` click field, and the composite indexes.
+- **Django migrations** `0001`–`0009` own the whole schema, including the `is_premium`/`tier` user fields (`users/0003`), the `city` click field, and the model indexes.
+- **Migration `0009`** replaces the original composite indexes (`owner, created_at`; `is_active, expires_at`) with single-column indexes on `owner`, `is_active`, and `original_url` — one index per access pattern instead of bundling unrelated filters together.
 - **Data migration** `shortener/0006_seed_default_tags.py` seeds 8 default tags (`marketing`, `social`, `campaign`, `product`, `blog`, `newsletter`, `partner`, `internal`) idempotently via `get_or_create`, with a matching reverse-migration.
 - Migrations `0007`/`0008` adopt the shortener tables as Django-managed (previously created by Alembic) and add the `city` click field, using idempotent `database_operations` so they apply cleanly to an existing database.
 
@@ -145,28 +146,29 @@ docker compose exec web python -c "from apps.shortener.api.serializers import UR
 
 ### 3.3 Custom managers & query sets
 
-`URLManager` (in `apps/shortener/models.py`) provides domain-specific query sets:
+`apps/shortener/models.py` holds only field and `Meta` definitions — no custom managers. Domain-specific queries (active/expired filtering, popularity ordering, click aggregation) live in the repository layer instead, one query per method on the default `.objects` manager:
 
-- `active_urls()` — active and not expired (`is_active=True` and (`expires_at IS NULL` or `expires_at > now`))
-- `expired_urls()` — past their `expires_at`
-- `popular_urls()` — ordered by `click_count` descending
+- `DjangoURLRepository.list_with_filters()` — active/expired filtering (`is_active`, `expires_at`), ordering by `click_count`, and every other list filter
+- `DjangoClickAnalyticsRepository` — country/referrer breakdowns, hourly distribution, and click recording
 
-These are provided by the `URLManager` on the Django model (in `apps/shortener/models.py`) and used by the repository's `list_with_filters` (with `is_active`).
+Keeping this in the repositories (rather than on the model) means the query logic is unit-testable behind `IURLRepository`/`IClickAnalyticsRepository` without touching the database, and there's a single place — not two — that owns each query.
 
 ### 3.4 Query optimization
 
 - **N+1 prevention** — every URL query eagerly loads relationships:
   - `prefetch_related("tags")` — avoids N+1 on the Many-to-Many tag access
   - `select_related("owner")` — avoids N+1 on the `owner` ForeignKey
-- **Database indexing** — composite and descending indexes are defined on the Django models and created by migrations:
-  - unique index on `short_code`
-  - `urls_owner_i_513c55_idx (owner, created_at DESC)`
-  - `urls_click_c_0828dc_idx (click_count DESC)`
-  - `urls_is_acti_847f2f_idx (is_active, expires_at)`
+- **Database indexing** — single-column indexes are defined on the Django models and created by migrations, favoring one index per access pattern over composite ones:
+  - unique index on `short_code` (lookup by short code)
+  - `urls_owner_i_e0a75f_idx (owner)` — "my URLs" queries
+  - `urls_is_acti_ad181e_idx (is_active)` — active/expired filtering
+  - `urls_origina_dd0764_idx (original_url)` — duplicate/lookup checks by target URL
+  - `urls_click_count_de8d6c3b (click_count)` — popularity ordering
+  - `urls_expires_at_55f8a63d (expires_at)` — expiry sweeps
   - `clicks_url_id_afa311_idx (url, clicked_at DESC)` and `clicks_country_4a798f_idx (country, clicked_at DESC)`
-- **Aggregations computed in SQL** (`Count` / `values`/`annotate` / `date_trunc`):
+- **Aggregations computed in SQL** (`Count` / `values`/`annotate` / `ExtractHour` / `TruncDay`):
   - total clicks per country (`get_country_breakdown`)
-  - referrer breakdown, hourly distribution, and daily time series
+  - referrer breakdown, hourly distribution (`ExtractHour`), and daily time series (`TruncDay`)
 
 ## Redis caching
 
@@ -219,7 +221,7 @@ Writes always go to PostgreSQL first, then invalidate the affected cache keys so
 | `GET /urls/mine/` | Uncached — queries PostgreSQL directly via `list_with_filters` |
 | `PATCH /urls/{short_code}/` | Write DB → invalidate all related URL keys |
 | `DELETE /urls/{short_code}/` | Write DB → invalidate all related URL keys |
-| `GET /{short_code}/` | Read `url:code:{short_code}` → record click → invalidate URL entity keys |
+| `GET /api/v1/{short_code}/` (JSON) and `GET /{short_code}/` (redirect) | Both resolve via the same cached path: read `url:code:{short_code}` → record click → invalidate URL entity keys |
 | `GET /analytics/{short_code}/` | Read `url:stats:`, `analytics:countries:`, `analytics:referrers:`, `analytics:hourly:`, `url:ts:{pk}:{days}` |
 
 ### Cache invalidation on clicks
@@ -350,7 +352,8 @@ All routes are versioned under `/api/v1/`. Endpoints marked require `Authorizati
 | `PATCH` | `/api/v1/urls/{short_code}/` | Update one of the caller's URLs |
 | `DELETE` | `/api/v1/urls/{short_code}/` | Delete one of the caller's URLs |
 | `GET` | `/api/v1/analytics/{short_code}/` | Geo + time-series analytics for one of the caller's URLs — **premium accounts only** |
-| `GET` | `/api/v1/{short_code}/` | Look up the original URL — public, no auth, records a click |
+| `GET` | `/api/v1/{short_code}/` | Look up the original URL as JSON (`200`) — public, no auth, records a click. For API clients/Swagger, not browsers. |
+| `GET` | `/{short_code}/` | **The actual short link.** Redirects (`302`) straight to the original URL — public, no auth, records a click. This is the value of `short_url` in every response — paste it into a browser. |
 
 ### Sample requests & responses
 
@@ -372,7 +375,7 @@ Authorization: Bearer <access-token>
   "id": 10,
   "original_url": "https://github.com/AmaliTech-Training-Academy/BackEnd-Labs",
   "short_code": "VGQVRJx",
-  "short_url": "http://localhost:8000/api/v1/VGQVRJx/",
+  "short_url": "http://localhost:8000/VGQVRJx/",
   "title": "BackEnd Labs Repo",
   "tags": ["github", "backend"],
   "click_count": 0,
@@ -397,7 +400,7 @@ Authorization: Bearer <access-token>
       "id": 10,
       "original_url": "https://github.com/AmaliTech-Training-Academy/BackEnd-Labs",
       "short_code": "VGQVRJx",
-      "short_url": "http://localhost:8000/api/v1/VGQVRJx/",
+      "short_url": "http://localhost:8000/VGQVRJx/",
       "title": "BackEnd Labs Repo",
       "tags": ["github", "backend"],
       "click_count": 5,
@@ -426,7 +429,7 @@ Query parameters for filtering:
 | `cursor` | string | Keyset pagination cursor from a previous response |
 | `limit` | int | Results per page (1–100, default 20) |
 
-**Resolve a short code** (public — records a click)
+**Resolve a short code as JSON** (public, no auth — for API clients/Swagger, records a click)
 
 ```
 GET /api/v1/VGQVRJx/
@@ -435,6 +438,22 @@ GET /api/v1/VGQVRJx/
 {
   "original_url": "https://github.com/AmaliTech-Training-Academy/BackEnd-Labs"
 }
+```
+
+**Follow the actual short link** (public, no auth — this is the `short_url` from every response; paste it straight into a browser)
+
+```
+GET /VGQVRJx/
+```
+```
+HTTP/1.1 302 Found
+Location: https://github.com/AmaliTech-Training-Academy/BackEnd-Labs
+```
+
+The browser follows the `Location` header on its own and lands on the original page — no JSON in between. Verify it from the command line with:
+
+```bash
+curl -i http://localhost:8000/VGQVRJx/
 ```
 
 **Update one of my URLs**
@@ -453,7 +472,7 @@ Authorization: Bearer <access-token>
   "id": 10,
   "original_url": "https://github.com/AmaliTech-Training-Academy",
   "short_code": "VGQVRJx",
-  "short_url": "http://localhost:8000/api/v1/VGQVRJx/",
+  "short_url": "http://localhost:8000/VGQVRJx/",
   "title": "BackEnd Labs Repo",
   "tags": ["github", "backend"],
   "click_count": 5,
@@ -577,6 +596,6 @@ pre-commit run --all-files
 A couple of deliberate trade-offs worth knowing about:
 
 - **Django's built-in ORM as the sole data layer.** The Django models in `apps/*/models.py` are the source of truth for the schema. All business logic, queries, and serialization go through Django ORM, with schema managed entirely by Django migrations. This avoids maintaining two ORMs and gives a single, well-integrated data layer that stays in sync with the framework.
-- **`GET /api/v1/{short_code}/` returns `200` with `{"original_url": ...}` rather than a real `302` redirect.** This makes the endpoint testable from any client — including Swagger UI's "Try it out," which can't meaningfully follow a redirect to a cross-origin target. If this service needs to work as actual clickable short links later, this endpoint is the one to change back to a redirect.
+- **Two separate endpoints resolve a short code, on purpose.** `GET /api/v1/{short_code}/` returns `200` with `{"original_url": ...}` — kept JSON-only so it stays testable from any client, including Swagger UI's "Try it out," which can't meaningfully follow a redirect to a cross-origin target. `GET /{short_code}/` (no `/api/v1/` prefix) is the one real short links use: it issues an actual `302` to `original_url`, which is what a browser needs to land on the destination page. Both call the same service method and record a click identically — they only differ in how the response is shaped.
 - **Ownership failures return `404`, not `403`.** Trying to update or delete a URL you don't own is indistinguishable from that URL not existing at all — this avoids leaking which IDs belong to other users.
 - **`POST /api/v1/urls/` requires authentication**, so every created URL has a real owner (no anonymous links).
