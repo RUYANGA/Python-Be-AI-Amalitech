@@ -1,0 +1,64 @@
+[project]
+name = "api"
+version = "1.0.0"
+description = "Django REST API backend with JWT authentication"
+requires-python = ">=3.12"
+dependencies = [
+    "django>=6.1",
+    "djangorestframework>=3.18",
+    "djangorestframework-simplejwt>=5.5",
+    "drf-spectacular>=0.30",
+    "python-decouple>=3.8",
+    "psycopg2-binary>=2.9.9",
+    "gunicorn>=23.0",
+    "uvicorn>=0.30",
+    "redis>=5.0",
+    "django-redis>=5.4",
+    "geoip2fast>=1.2.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+exclude = ["tests*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "ARG"]
+ignore = ["N818"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/apps/*/migrations/*.py" = ["E501"]
+"src/apps/*/tests/*.py" = ["ARG001", "ARG002"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.12"
+strict = false
+ignore_missing_imports = true
+exclude = ["src/__init__\\.py", ".*/migrations/.*\\.py"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
+pythonpath = ["src"]
+testpaths = ["src/apps"]
+python_files = ["test_*.py"]
+
+[tool.coverage.run]
+source = ["apps"]
+omit = ["*/migrations/*", "*/tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "@(abc\\.)?abstractmethod",
+]
