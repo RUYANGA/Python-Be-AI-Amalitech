@@ -77,7 +77,7 @@ class TestURLCreateView:
         api_client.force_authenticate(user=user)
 
         with patch("apps.shortener.api.views.base_view.build_url_service") as mock_build:
-            mock_build.return_value.shorten.side_effect = ShortCodeGenerationError()
+            mock_build.return_value.create.side_effect = ShortCodeGenerationError()
 
             response = api_client.post(
                 "/api/v1/urls/",

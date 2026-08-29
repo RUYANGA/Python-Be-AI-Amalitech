@@ -36,9 +36,12 @@ class URLCreateMixin:
         validated = serializer.validated_data
 
         try:
-            url = self.service.shorten(
+            url = self.service.create(
                 original_url=validated["original_url"],
                 owner=request.user,
+                title=validated.get("title") or None,
+                tags=validated.get("tags") or None,
+                expires_at=validated.get("expires_at"),
             )
         except ShortCodeGenerationError:
             logger.exception("url.create_failed reason=short_code_exhausted")
@@ -46,19 +49,6 @@ class URLCreateMixin:
                 {"detail": "Could not allocate a short code. Please retry."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-
-        title = validated.get("title", "")
-        tag_names = validated.get("tags", [])
-        expires_at = validated.get("expires_at")
-
-        if title or tag_names or expires_at:
-            updated = self.service.update(
-                url,
-                title=title or None,
-                tags=tag_names or None,
-                expires_at=expires_at,
-            )
-            url = updated
 
         response = URLResponseSerializer(url, context={"request": request})
         return Response(response.data, status=status.HTTP_201_CREATED)

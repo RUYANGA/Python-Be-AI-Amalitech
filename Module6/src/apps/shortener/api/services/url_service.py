@@ -54,20 +54,45 @@ class URLShortenerService:
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
-    def shorten(self, original_url: str, owner=None) -> URL:
-        """Create and return a new shortened URL."""
+    def create(
+        self,
+        original_url: str,
+        owner=None,
+        *,
+        title: str | None = None,
+        tags: list[str] | None = None,
+        expires_at=None,
+    ) -> URL:
+        """Create a new shortened URL, applying optional title/tags/expiry.
+
+        Generates a unique short code and persists the URL atomically,
+        then enriches it with any of ``title``, ``tags`` or ``expires_at``
+        that are provided — all in a single service call so callers never
+        need to follow up with a separate ``update``.
+        """
         short_code = self._generate_unique_code()
         url = self._repository.create(
             original_url=original_url,
             short_code=short_code,
             owner=owner,
         )
+        if title or tags or expires_at:
+            url = self.update(
+                url,
+                title=title or None,
+                tags=tags or None,
+                expires_at=expires_at,
+            )
         logger.info(
             "url.created short_code=%s owner_id=%s",
             short_code,
             getattr(owner, "id", None),
         )
         return url
+
+    def shorten(self, original_url: str, owner=None) -> URL:
+        """Create and return a new shortened URL without optional fields."""
+        return self.create(original_url, owner)
 
     def resolve(self, short_code: str) -> URL:
         """Return the URL for ``short_code`` or raise :class:`URLNotFoundError`."""

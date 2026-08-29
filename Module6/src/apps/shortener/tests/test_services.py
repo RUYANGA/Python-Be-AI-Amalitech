@@ -71,6 +71,48 @@ class TestURLShortenerServiceShorten:
         assert kwargs["owner"] is owner
 
 
+class TestURLShortenerServiceCreate:
+    def setup_method(self) -> None:
+        self.repository = Mock()
+        self.generator = Mock()
+        self.service = URLShortenerService(repository=self.repository, generator=self.generator)
+
+    def test_create_applies_optional_fields_via_update(self):
+        self.generator.generate.return_value = "abc1234"
+        self.repository.exists_by_short_code.return_value = False
+        created = Mock()
+        self.repository.create.return_value = created
+        updated = Mock()
+        self.service.update = Mock(return_value=updated)
+
+        result = self.service.create(
+            "https://example.com",
+            title="landing",
+            tags=["marketing"],
+            expires_at="2026-12-31T00:00:00Z",
+        )
+
+        assert result is updated
+        self.service.update.assert_called_once_with(
+            created,
+            title="landing",
+            tags=["marketing"],
+            expires_at="2026-12-31T00:00:00Z",
+        )
+
+    def test_create_skips_update_when_no_optional_fields(self):
+        self.generator.generate.return_value = "abc1234"
+        self.repository.exists_by_short_code.return_value = False
+        created = Mock()
+        self.repository.create.return_value = created
+        self.service.update = Mock()
+
+        result = self.service.create("https://example.com")
+
+        assert result is created
+        self.service.update.assert_not_called()
+
+
 class TestURLShortenerServiceResolve:
     def setup_method(self) -> None:
         self.repository = Mock()
