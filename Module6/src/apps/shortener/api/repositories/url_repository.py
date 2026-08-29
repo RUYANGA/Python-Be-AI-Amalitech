@@ -20,6 +20,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 
 from django.db.models import Count, Max, Q
+from django.db.models.functions import TruncDay
 
 from apps.shortener.api.exceptions import RepositoryError
 from apps.shortener.api.interfaces.repository import (
@@ -230,7 +231,7 @@ class DjangoURLRepository(IURLRepository):
         try:
             rows = (
                 Click.objects.filter(url=url, clicked_at__gte=since)
-                .extra(select={"day": "date_trunc('day', clicked_at)"})
+                .annotate(day=TruncDay("clicked_at"))
                 .values("day")
                 .annotate(count=Count("id"))
             )

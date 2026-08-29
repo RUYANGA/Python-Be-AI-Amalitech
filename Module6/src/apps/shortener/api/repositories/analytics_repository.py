@@ -2,8 +2,7 @@
 
 Demonstrates Django ORM patterns for analytics:
 - ``Count`` with ``values``/``annotate`` for aggregations
-- ``date_trunc`` via ``extra``/``Trunc`` for time-bucketed analytics
-- ``date_part('hour', ...)`` via ``extra`` for hourly distribution
+- ``ExtractHour`` for hourly distribution
 - Atomic counter updates via ``F()`` expressions to avoid race conditions
 """
 
@@ -13,6 +12,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 
 from django.db.models import Count, F
+from django.db.models.functions import ExtractHour
 
 from apps.shortener.api.exceptions import RepositoryError
 from apps.shortener.api.interfaces.analytics import (
@@ -123,7 +123,7 @@ class DjangoClickAnalyticsRepository(IClickAnalyticsRepository):
             since = datetime.now(UTC) - timedelta(days=30)
             rows = (
                 Click.objects.filter(url=url, clicked_at__gte=since)
-                .extra(select={"hour": "date_part('hour', clicked_at)"})
+                .annotate(hour=ExtractHour("clicked_at"))
                 .values("hour")
                 .annotate(clicks=Count("id"))
             )
