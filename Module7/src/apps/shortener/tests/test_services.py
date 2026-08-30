@@ -12,6 +12,7 @@ import pytest
 
 from apps.shortener.api.exceptions import (
     ShortCodeGenerationError,
+    URLLimitExceededError,
     URLNotFoundError,
 )
 from apps.shortener.api.services.url_service import URLShortenerService
@@ -111,6 +112,55 @@ class TestURLShortenerServiceCreate:
 
         assert result is created
         self.service.update.assert_not_called()
+
+    def test_blocks_a_free_user_at_the_active_url_limit(self):
+        owner = Mock(id=1, is_premium_tier=False)
+        self.repository.count_active_by_owner.return_value = (
+            URLShortenerService.FREE_TIER_MAX_ACTIVE_URLS
+        )
+
+        with pytest.raises(URLLimitExceededError) as exc_info:
+            self.service.create("https://example.com", owner=owner)
+
+        assert exc_info.value.limit == URLShortenerService.FREE_TIER_MAX_ACTIVE_URLS
+        self.repository.create.assert_not_called()
+
+    def test_allows_a_free_user_below_the_active_url_limit(self):
+        owner = Mock(id=1, is_premium_tier=False)
+        self.repository.count_active_by_owner.return_value = (
+            URLShortenerService.FREE_TIER_MAX_ACTIVE_URLS - 1
+        )
+        self.generator.generate.return_value = "abc1234"
+        self.repository.exists_by_short_code.return_value = False
+        created = Mock()
+        self.repository.create.return_value = created
+
+        result = self.service.create("https://example.com", owner=owner)
+
+        assert result is created
+
+    def test_premium_users_are_never_limited(self):
+        owner = Mock(id=1, is_premium_tier=True)
+        self.generator.generate.return_value = "abc1234"
+        self.repository.exists_by_short_code.return_value = False
+        created = Mock()
+        self.repository.create.return_value = created
+
+        result = self.service.create("https://example.com", owner=owner)
+
+        assert result is created
+        self.repository.count_active_by_owner.assert_not_called()
+
+    def test_anonymous_owner_is_not_limited(self):
+        self.generator.generate.return_value = "abc1234"
+        self.repository.exists_by_short_code.return_value = False
+        created = Mock()
+        self.repository.create.return_value = created
+
+        result = self.service.create("https://example.com")
+
+        assert result is created
+        self.repository.count_active_by_owner.assert_not_called()
 
 
 class TestURLShortenerServiceResolve:

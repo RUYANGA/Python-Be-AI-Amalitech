@@ -87,6 +87,43 @@ class TestURLCreateView:
 
         assert response.status_code == 500
 
+    def test_returns_403_when_free_user_is_at_the_active_url_limit(self, api_client, user):
+        api_client.force_authenticate(user=user)
+        for i in range(10):
+            URL.objects.create(
+                original_url=f"https://existing.example.com/{i}",
+                short_code=f"lim{i:04d}",
+                owner=user,
+            )
+
+        response = api_client.post(
+            "/api/v1/urls/",
+            {"original_url": "https://example.com/one-too-many"},
+            format="json",
+        )
+
+        assert response.status_code == 403
+        assert "10 active URLs" in response.json()["detail"]
+
+    def test_premium_user_is_not_limited(self, api_client, user):
+        user.is_premium = True
+        user.save()
+        api_client.force_authenticate(user=user)
+        for i in range(10):
+            URL.objects.create(
+                original_url=f"https://existing.example.com/{i}",
+                short_code=f"pre{i:04d}",
+                owner=user,
+            )
+
+        response = api_client.post(
+            "/api/v1/urls/",
+            {"original_url": "https://example.com/still-fine"},
+            format="json",
+        )
+
+        assert response.status_code == 201
+
 
 class TestURLResolveView:
     def test_returns_original_url(self, api_client):

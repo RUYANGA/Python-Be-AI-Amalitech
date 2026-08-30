@@ -8,6 +8,8 @@ Extends ``AbstractUser`` with premium-tier fields so that later modules
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
+PREMIUM_TIERS = {"pro", "enterprise"}
+
 
 class User(AbstractUser):
     TIER_CHOICES = [
@@ -28,3 +30,12 @@ class User(AbstractUser):
 
     def __str__(self) -> str:
         return self.username
+
+    @property
+    def is_premium_tier(self) -> bool:
+        """True if this user has premium access.
+
+        Either the ``is_premium`` flag is set directly, or their ``tier``
+        is one of the premium tiers (``pro``, ``enterprise``).
+        """
+        return self.is_premium or self.tier in PREMIUM_TIERS

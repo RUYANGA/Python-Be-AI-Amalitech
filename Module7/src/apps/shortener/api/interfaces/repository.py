@@ -112,6 +112,11 @@ class IURLRepository(ABC):
         """Return daily click counts as ``(YYYY-MM-DD, count)`` tuples."""
         raise NotImplementedError
 
+    @abstractmethod
+    def count_active_by_owner(self, owner_id: int) -> int:
+        """Return how many active URLs ``owner_id`` currently has."""
+        raise NotImplementedError
+
     def invalidate(self, url: URL) -> None:  # noqa: B027
         """Invalidate all cache entries for ``url``.
 

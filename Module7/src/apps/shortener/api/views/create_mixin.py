@@ -9,7 +9,7 @@ from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from apps.shortener.api.exceptions import ShortCodeGenerationError
+from apps.shortener.api.exceptions import ShortCodeGenerationError, URLLimitExceededError
 from apps.shortener.api.serializers import URLCreateSerializer, URLResponseSerializer
 
 logger = logging.getLogger(__name__)
@@ -25,6 +25,7 @@ class URLCreateMixin:
             201: URLResponseSerializer,
             400: OpenApiResponse(description="Invalid input."),
             401: OpenApiResponse(description="Authentication required."),
+            403: OpenApiResponse(description="Free-tier active URL limit reached."),
             500: OpenApiResponse(description="Could not generate a unique short code."),
         },
         summary="Create a short URL",
@@ -43,6 +44,9 @@ class URLCreateMixin:
                 tags=validated.get("tags") or None,
                 expires_at=validated.get("expires_at"),
             )
+        except URLLimitExceededError as exc:
+            logger.warning("url.create_blocked_limit owner_id=%s", request.user.id)
+            return Response({"detail": str(exc)}, status=status.HTTP_403_FORBIDDEN)
         except ShortCodeGenerationError:
             logger.exception("url.create_failed reason=short_code_exhausted")
             return Response(

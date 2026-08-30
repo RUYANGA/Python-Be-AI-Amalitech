@@ -13,6 +13,7 @@ import logging
 
 from apps.shortener.api.exceptions import (
     ShortCodeGenerationError,
+    URLLimitExceededError,
     URLNotFoundError,
     URLNotOwnedError,
 )
@@ -41,6 +42,7 @@ class URLShortenerService:
 
     MAX_GENERATION_ATTEMPTS: int = 5
     DEFAULT_CODE_LENGTH: int = 7
+    FREE_TIER_MAX_ACTIVE_URLS: int = 10
 
     def __init__(
         self,
@@ -72,7 +74,22 @@ class URLShortenerService:
         then enriches it with any of ``title``, ``tags`` or ``expires_at``
         that are provided — all in a single service call so callers never
         need to follow up with a separate ``update``.
+
+        Free-tier owners (see ``User.is_premium_tier``) are capped at
+        :attr:`FREE_TIER_MAX_ACTIVE_URLS` active URLs; premium owners are
+        unlimited. Raises :class:`URLLimitExceededError` once a free
+        owner is at the cap.
         """
+        if owner is not None and not getattr(owner, "is_premium_tier", False):
+            active_count = self._repository.count_active_by_owner(owner.id)
+            if active_count >= self.FREE_TIER_MAX_ACTIVE_URLS:
+                logger.warning(
+                    "url.create_blocked_limit owner_id=%s active_count=%s",
+                    owner.id,
+                    active_count,
+                )
+                raise URLLimitExceededError(self.FREE_TIER_MAX_ACTIVE_URLS)
+
         short_code = self._generate_unique_code()
         url = self._repository.create(
             original_url=original_url,

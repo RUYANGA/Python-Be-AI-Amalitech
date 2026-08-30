@@ -246,6 +246,13 @@ class DjangoURLRepository(IURLRepository):
             logger.exception("url.click_time_series_failed id=%s", url.id)
             raise RepositoryError("get_click_time_series", id=url.id) from exc
 
+    def count_active_by_owner(self, owner_id: int) -> int:
+        try:
+            return URL.objects.filter(owner_id=owner_id, is_active=True).count()
+        except Exception as exc:
+            logger.exception("url.count_active_by_owner_failed owner_id=%s", owner_id)
+            raise RepositoryError("count_active_by_owner", owner_id=owner_id) from exc
+
     # ── Helpers ───────────────────────────────────────────────────────
 
     @staticmethod

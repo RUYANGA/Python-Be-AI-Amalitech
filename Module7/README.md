@@ -357,6 +357,8 @@ Login is rate-limited per username: 5 failed attempts within a 1-minute window b
 | `GET` | `/api/v1/{short_code}/` | Look up the original URL as JSON (`200`) — public, no auth, records a click. For API clients/Swagger, not browsers. |
 | `GET` | `/{short_code}/` | **The actual short link.** Redirects (`302`) straight to the original URL — public, no auth, records a click. This is the value of `short_url` in every response — paste it into a browser. |
 
+Free accounts (see `User.is_premium_tier`) are capped at 10 active URLs; creating an 11th returns `403 Forbidden`. Premium accounts are unlimited.
+
 ### Sample requests & responses
 
 **Create a short URL** (with tags)

@@ -189,6 +189,12 @@ class CachedURLRepository(IURLRepository):
         )
         return rows
 
+    def count_active_by_owner(self, owner_id: int) -> int:
+        # Not cached: this backs a tier quota check, where a stale count
+        # could let a free user slip past the limit or be wrongly blocked
+        # right after freeing up a slot.
+        return self._orm.count_active_by_owner(owner_id)
+
     # ------------------------------------------------------------------
     # Cache invalidation
     # ------------------------------------------------------------------
