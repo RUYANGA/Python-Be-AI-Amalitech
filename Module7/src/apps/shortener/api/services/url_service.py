@@ -12,6 +12,8 @@ from __future__ import annotations
 import logging
 
 from apps.shortener.api.exceptions import (
+    CustomAliasNotAllowedError,
+    CustomAliasTakenError,
     ShortCodeGenerationError,
     URLLimitExceededError,
     URLNotFoundError,
@@ -67,6 +69,7 @@ class URLShortenerService:
         title: str | None = None,
         tags: list[str] | None = None,
         expires_at=None,
+        custom_alias: str | None = None,
     ) -> URL:
         """Create a new shortened URL, applying optional title/tags/expiry.
 
@@ -79,6 +82,11 @@ class URLShortenerService:
         :attr:`FREE_TIER_MAX_ACTIVE_URLS` active URLs; premium owners are
         unlimited. Raises :class:`URLLimitExceededError` once a free
         owner is at the cap.
+
+        ``custom_alias``, if given, is used as the short code instead of
+        an auto-generated one — a premium-only feature. Raises
+        :class:`CustomAliasNotAllowedError` for a free/anonymous owner, or
+        :class:`CustomAliasTakenError` if the alias is already in use.
         """
         if owner is not None and not getattr(owner, "is_premium_tier", False):
             active_count = self._repository.count_active_by_owner(owner.id)
@@ -90,7 +98,16 @@ class URLShortenerService:
                 )
                 raise URLLimitExceededError(self.FREE_TIER_MAX_ACTIVE_URLS)
 
-        short_code = self._generate_unique_code()
+        if custom_alias:
+            if owner is None or not getattr(owner, "is_premium_tier", False):
+                logger.warning("url.custom_alias_blocked owner_id=%s", getattr(owner, "id", None))
+                raise CustomAliasNotAllowedError()
+            if self._repository.exists_by_short_code(custom_alias):
+                raise CustomAliasTakenError(custom_alias)
+            short_code = custom_alias
+        else:
+            short_code = self._generate_unique_code()
+
         url = self._repository.create(
             original_url=original_url,
             short_code=short_code,
@@ -244,8 +261,14 @@ class URLShortenerService:
     def delete_owned_by_code(self, short_code: str, owner) -> None:
         """Delete the URL ``short_code``, if owned by ``owner``."""
         url = self._get_owned_by_code_or_raise(short_code, owner)
+        self.delete(url)
+
+    def delete(self, url: URL) -> None:
+        """Delete ``url``. Callers are responsible for any ownership check."""
         self._repository.delete(url)
-        logger.info("url.deleted_by_code short_code=%s owner_id=%s", short_code, owner.id)
+        logger.info(
+            "url.deleted id=%s short_code=%s owner_id=%s", url.id, url.short_code, url.owner_id
+        )
 
     # ------------------------------------------------------------------
     # Internals

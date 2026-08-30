@@ -7,8 +7,6 @@ Implements the Module 6 spec endpoints:
 - ``DELETE /api/v1/urls/{short_code}/`` delete one of my URLs
 """
 
-import logging
-
 from django.http import Http404
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import status
@@ -16,12 +14,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from apps.shortener.api.exceptions import URLNotOwnedError
+from apps.shortener.api.exceptions import URLNotFoundError, URLNotOwnedError
+from apps.shortener.api.permissions import IsOwnerOrReadOnly
 from apps.shortener.api.serializers import URLResponseSerializer, URLUpdateSerializer
 from apps.shortener.api.services.url_service import URLShortenerService
 from apps.shortener.api.views.base_view import BaseURLView
-
-logger = logging.getLogger(__name__)
 
 SHORT_CODE_PARAMETER = OpenApiParameter(
     name="short_code",
@@ -34,7 +31,7 @@ SHORT_CODE_PARAMETER = OpenApiParameter(
 class URLShortCodeDetailView(BaseURLView):
     """``GET/PATCH/DELETE /api/v1/urls/{short_code}/`` — a URL you own, by code."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
 
     service: URLShortenerService
 
@@ -75,21 +72,17 @@ class URLShortCodeDetailView(BaseURLView):
         serializer.is_valid(raise_exception=True)
         validated = serializer.validated_data
         try:
-            url = self.service.partial_update_by_code(
-                short_code,
-                request.user,
-                original_url=validated.get("original_url"),
-                title=validated.get("title"),
-                tags=validated.get("tags"),
-                expires_at=validated.get("expires_at"),
-            )
-        except URLNotOwnedError as exc:
-            logger.warning(
-                "urls.patch_not_owned short_code=%s owner_id=%s",
-                short_code,
-                request.user.id,
-            )
+            url = self.service.resolve(short_code)
+        except URLNotFoundError as exc:
             raise Http404(str(exc)) from exc
+        self.check_object_permissions(request, url)
+        url = self.service.update(
+            url,
+            original_url=validated.get("original_url"),
+            title=validated.get("title"),
+            tags=validated.get("tags"),
+            expires_at=validated.get("expires_at"),
+        )
         response = URLResponseSerializer(url, context={"request": request})
         return Response(response.data)
 
@@ -106,14 +99,11 @@ class URLShortCodeDetailView(BaseURLView):
     )
     def delete(self, request: Request, short_code: str) -> Response:
         try:
-            self.service.delete_owned_by_code(short_code, request.user)
-        except URLNotOwnedError as exc:
-            logger.warning(
-                "urls.delete_not_owned short_code=%s owner_id=%s",
-                short_code,
-                request.user.id,
-            )
+            url = self.service.resolve(short_code)
+        except URLNotFoundError as exc:
             raise Http404(str(exc)) from exc
+        self.check_object_permissions(request, url)
+        self.service.delete(url)
         return Response(
             {"message": "URL deleted successfully."},
             status=status.HTTP_200_OK,

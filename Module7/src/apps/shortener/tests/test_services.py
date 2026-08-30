@@ -11,6 +11,8 @@ from unittest.mock import Mock
 import pytest
 
 from apps.shortener.api.exceptions import (
+    CustomAliasNotAllowedError,
+    CustomAliasTakenError,
     ShortCodeGenerationError,
     URLLimitExceededError,
     URLNotFoundError,
@@ -161,6 +163,70 @@ class TestURLShortenerServiceCreate:
 
         assert result is created
         self.repository.count_active_by_owner.assert_not_called()
+
+    def test_premium_user_can_use_a_custom_alias(self):
+        owner = Mock(id=1, is_premium_tier=True)
+        self.repository.exists_by_short_code.return_value = False
+        created = Mock()
+        self.repository.create.return_value = created
+
+        result = self.service.create("https://example.com", owner=owner, custom_alias="my-brand")
+
+        assert result is created
+        self.repository.create.assert_called_once_with(
+            original_url="https://example.com",
+            short_code="my-brand",
+            owner=owner,
+        )
+        self.generator.generate.assert_not_called()
+
+    def test_free_user_cannot_use_a_custom_alias(self):
+        owner = Mock(id=1, is_premium_tier=False)
+        self.repository.count_active_by_owner.return_value = 0
+
+        with pytest.raises(CustomAliasNotAllowedError):
+            self.service.create("https://example.com", owner=owner, custom_alias="my-brand")
+
+        self.repository.create.assert_not_called()
+
+    def test_anonymous_owner_cannot_use_a_custom_alias(self):
+        with pytest.raises(CustomAliasNotAllowedError):
+            self.service.create("https://example.com", custom_alias="my-brand")
+
+        self.repository.create.assert_not_called()
+
+    def test_taken_alias_raises_even_for_a_premium_user(self):
+        owner = Mock(id=1, is_premium_tier=True)
+        self.repository.exists_by_short_code.return_value = True
+
+        with pytest.raises(CustomAliasTakenError) as exc_info:
+            self.service.create("https://example.com", owner=owner, custom_alias="my-brand")
+
+        assert exc_info.value.alias == "my-brand"
+        self.repository.create.assert_not_called()
+
+
+class TestURLShortenerServiceDelete:
+    def setup_method(self) -> None:
+        self.repository = Mock()
+        self.generator = Mock()
+        self.service = URLShortenerService(repository=self.repository, generator=self.generator)
+
+    def test_deletes_via_the_repository(self):
+        url = Mock(id=1, short_code="abc1234", owner_id=9)
+
+        self.service.delete(url)
+
+        self.repository.delete.assert_called_once_with(url)
+
+    def test_delete_owned_by_code_delegates_after_the_ownership_check(self):
+        owner = Mock(id=9)
+        url = Mock(id=1, short_code="abc1234", owner_id=9)
+        self.repository.get_by_short_code.return_value = url
+
+        self.service.delete_owned_by_code("abc1234", owner)
+
+        self.repository.delete.assert_called_once_with(url)
 
 
 class TestURLShortenerServiceResolve:

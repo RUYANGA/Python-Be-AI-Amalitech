@@ -124,6 +124,50 @@ class TestURLCreateView:
 
         assert response.status_code == 201
 
+    def test_premium_user_can_request_a_custom_alias(self, api_client, user):
+        user.is_premium = True
+        user.save()
+        api_client.force_authenticate(user=user)
+
+        response = api_client.post(
+            "/api/v1/urls/",
+            {"original_url": "https://example.com/branded", "custom_alias": "my-brand"},
+            format="json",
+        )
+
+        assert response.status_code == 201
+        assert response.json()["short_code"] == "my-brand"
+
+    def test_free_user_cannot_request_a_custom_alias(self, api_client, user):
+        api_client.force_authenticate(user=user)
+
+        response = api_client.post(
+            "/api/v1/urls/",
+            {"original_url": "https://example.com/branded", "custom_alias": "my-brand"},
+            format="json",
+        )
+
+        assert response.status_code == 403
+        assert "premium" in response.json()["detail"].lower()
+
+    def test_taken_alias_returns_409(self, api_client, user, other_user):
+        other_user.is_premium = True
+        other_user.save()
+        api_client.force_authenticate(user=other_user)
+        api_client.post(
+            "/api/v1/urls/",
+            {"original_url": "https://example.com/first", "custom_alias": "my-brand"},
+            format="json",
+        )
+
+        response = api_client.post(
+            "/api/v1/urls/",
+            {"original_url": "https://example.com/second", "custom_alias": "my-brand"},
+            format="json",
+        )
+
+        assert response.status_code == 409
+
 
 class TestURLResolveView:
     def test_returns_original_url(self, api_client):

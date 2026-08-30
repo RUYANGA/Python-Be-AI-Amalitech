@@ -1,6 +1,10 @@
 """Domain exceptions for the shortener API."""
 
 from apps.shortener.api.exceptions.base import ShortenerError
+from apps.shortener.api.exceptions.custom_alias_not_allowed_error import (
+    CustomAliasNotAllowedError,
+)
+from apps.shortener.api.exceptions.custom_alias_taken_error import CustomAliasTakenError
 from apps.shortener.api.exceptions.invalid_length_error import (
     InvalidShortCodeLengthError,
 )
@@ -13,6 +17,8 @@ from apps.shortener.api.exceptions.url_not_found_error import URLNotFoundError
 from apps.shortener.api.exceptions.url_not_owned_error import URLNotOwnedError
 
 __all__ = [
+    "CustomAliasNotAllowedError",
+    "CustomAliasTakenError",
     "InvalidShortCodeLengthError",
     "RepositoryError",
     "ShortCodeGenerationError",

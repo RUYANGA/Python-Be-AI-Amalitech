@@ -357,7 +357,15 @@ Login is rate-limited per username: 5 failed attempts within a 1-minute window b
 | `GET` | `/api/v1/{short_code}/` | Look up the original URL as JSON (`200`) — public, no auth, records a click. For API clients/Swagger, not browsers. |
 | `GET` | `/{short_code}/` | **The actual short link.** Redirects (`302`) straight to the original URL — public, no auth, records a click. This is the value of `short_url` in every response — paste it into a browser. |
 
-Free accounts (see `User.is_premium_tier`) are capped at 10 active URLs; creating an 11th returns `403 Forbidden`. Premium accounts are unlimited.
+**RBAC:** `PATCH`/`DELETE` on `/api/v1/urls/{short_code}/` are owner-only, enforced by the `IsOwnerOrReadOnly` object permission (`apps/shortener/api/permissions.py`) — a non-owner gets `404 Not Found`, indistinguishable from the code not existing at all.
+
+**Tier limits** (see `User.is_premium_tier`):
+
+| Feature | Free | Premium |
+|---|---|---|
+| Active URLs | Max 10 (`403` on the 11th) | Unlimited |
+| Custom aliases (`custom_alias` on create) | Not allowed (`403`) | Allowed (`409` if the alias is already taken) |
+| Detailed analytics (`/api/v1/analytics/{short_code}/`) | Not allowed (`403`) | Full access |
 
 ### Sample requests & responses
 

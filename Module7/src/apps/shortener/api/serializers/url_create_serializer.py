@@ -42,3 +42,13 @@ class URLCreateSerializer(serializers.Serializer):
         allow_null=True,
         help_text="Optional expiry datetime. The URL becomes inactive after this time.",
     )
+    custom_alias = serializers.RegexField(
+        regex=r"^[A-Za-z0-9_-]{3,10}$",
+        required=False,
+        allow_blank=True,
+        default="",
+        help_text=(
+            "Premium only: request a specific short code (3-10 chars, "
+            "letters/digits/-/_) instead of a randomly generated one."
+        ),
+    )
