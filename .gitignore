@@ -41,6 +41,7 @@ logs/
 .env.*
 !.env.example
 
+
 # IDE
 .vscode/
 .idea/

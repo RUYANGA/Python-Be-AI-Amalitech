@@ -1,15 +1,16 @@
 # Runs the auth service completely on its own — its own database, its
 # own Redis, nothing else required. This is the "one team, one service,
 # one repo checkout" way to run it; ../docker-compose.yml is the
-# alternative that brings all three services + the gateway up together
-# for integration testing/demos.
+# alternative that brings all three services up together for integration
+# testing/demos.
 #
 # Quick start:
-#   ../scripts/generate_jwt_keys.sh   # once, if ../keys is empty
 #   cp .env.example .env              # then fill in real secrets
 #   docker compose up --build
 #
 # Docs: http://localhost:8001/api/v1/docs/
+# Its gRPC token-validation server (for a standalone shortener/analytics
+# to verify tokens against): http://localhost:50052
 #
 # Note: uses the same container names/ports as ../docker-compose.yml's
 # auth pieces — the two are alternatives, not meant to run at the same
@@ -62,9 +63,6 @@ services:
       DB_HOST: host.docker.internal
       DB_PORT: 5432
       REDIS_URL: redis://redis:6379/0
-      JWT_KEYS_DIR: /app/keys
-    volumes:
-      - ../keys:/app/keys:ro
     ports:
       - "8001:8000"
     extra_hosts:
@@ -72,6 +70,27 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+
+  # Internal gRPC token-validation server, so a standalone shortener/
+  # analytics can point AUTH_GRPC_URL at host.docker.internal:50052.
+  auth-grpc:
+    image: msvc-auth:latest
+    container_name: msvc-auth-grpc
+    restart: unless-stopped
+    command: ["python", "manage.py", "serve_grpc", "--noreload", "--port", "50052"]
+    environment:
+      SECRET_KEY: ${SECRET_KEY:?set in .env}
+      DEBUG: ${DEBUG:-True}
+      DB_NAME: ${DB_NAME:-auth}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:?set in .env}
+      DB_HOST: host.docker.internal
+      DB_PORT: 5432
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
+    ports:
+      - "50052:50052"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 volumes:
   auth_db_data:

@@ -2,9 +2,10 @@
 
 A three-way split of the [Module7](../README.md) monolith into independently
 deployable services: **auth**, **shortener**, and **analytics**, each with its
-own database, fronted by a single Traefik gateway. This lives alongside the
-monolith (`../src/`) as a separate, self-contained implementation — nothing
-here touches or depends on it.
+own database. There is no unified gateway in front of them — clients call
+each service directly on its own port — and every service-to-service call is
+gRPC. This lives alongside the monolith (`../src/`) as a separate,
+self-contained implementation — nothing here touches or depends on it.
 
 ## Why split it this way
 
@@ -20,47 +21,49 @@ service owns one bounded context's data and nothing else:
 ## Architecture
 
 ```
-                    ┌─────────────┐
-        clients ──▶ │   Traefik   │  :8090
-                    │  (gateway)  │
-                    └──────┬──────┘
-             ┌─────────────┼─────────────┐
-             ▼              ▼              ▼
-        ┌────────┐    ┌───────────┐   ┌───────────┐
-        │  auth  │    │ shortener │   │ analytics │
-        │ :8001  │    │  :8002    │   │  :8003    │
-        └───┬────┘    └─────┬─────┘   └─────┬─────┘
-            │               │               │
-        ┌───▼───┐       ┌───▼───┐       ┌───▼───┐
-        │auth-db│       │shortener│     │analytics│
-        │  pg   │       │  -db pg │     │  -db pg │
-        └───────┘       └────┬────┘     └────┬────┘
-                              │               │
-                              │   "clicks"     │
-                              └──────Kafka─────┘
-                                     ▲
-                                     │ consumer group
-                              ┌──────┴───────┐
-                              │analytics-     │
-                              │worker         │
-                              │(consume_clicks)│
-                              └───────────────┘
+        clients ──▶ auth :8001    shortener :8002    analytics :8003
+                        │               │                  │
+                    ┌───▼───┐       ┌───▼───┐          ┌───▼───┐
+                    │auth-db│       │shortener│        │analytics│
+                    │  pg   │       │  -db pg │        │  -db pg │
+                    └───────┘       └────┬────┘        └────┬────┘
+                                          │                  │
+                                          │    "clicks"       │
+                                          └───────Kafka───────┘
+                                                 ▲
+                                                 │ consumer group
+                                          ┌──────┴───────┐
+                                          │analytics-     │
+                                          │worker         │
+                                          │(consume_clicks)│
+                                          └───────────────┘
 
-        shortener  ◀── HTTP (internal, shared-secret) ──  analytics
+        auth-grpc :50052       ◀── gRPC ──  shortener, analytics
+        "is this access token valid, and whose is it?"
+
+        shortener-grpc :50051  ◀── gRPC ──  analytics
         "does this short code exist, and who owns it?"
 ```
 
-### The two cross-service seams, and why each is shaped the way it is
+Each service is also reachable directly on its own port — there is no
+gateway/reverse proxy in front of them.
 
-1. **Identity: JWT claims, not a database join.** `auth` signs access tokens
-   with an RSA private key (RS256) and embeds `user_id`, `username`,
-   `is_premium`, and `tier` as claims. `shortener` and `analytics` verify the
-   signature with auth's *public* key (`apps/common/jwt_auth.py`,
-   `RemoteJWTAuthentication`) and build a `RemoteUser` straight from the
-   claims — no network call to auth, no local `users` table. The trade-off:
-   a user's premium upgrade doesn't take effect until their token refreshes
-   (access tokens are short-lived — 15 minutes — specifically to bound that
-   staleness).
+### The three cross-service seams, and why each is shaped the way it is
+
+1. **Identity: a gRPC call, not a shared key or a database join.** `auth` is
+   the only service that ever signs or verifies a JWT — it uses its own
+   `SECRET_KEY` (HS256), which never leaves that process. `shortener` and
+   `analytics` have no signing/verification key at all: every authenticated
+   request calls `auth`'s internal gRPC server
+   (`AuthTokenValidation.ValidateAccessToken`, authenticated with a shared
+   `INTERNAL_SERVICE_TOKEN`) to verify the token and get back its claims
+   (`apps/common/jwt_auth.py`, `RemoteJWTAuthentication`), then build a
+   `RemoteUser` from the response — no local `users` table. The trade-off:
+   this adds one gRPC round-trip to every authenticated request (in exchange
+   for auth being able to rotate its signing key, or revoke tokens, without
+   redeploying the other two services). A user's premium upgrade still
+   doesn't take effect until their token refreshes (access tokens are
+   short-lived — 15 minutes — specifically to bound that staleness).
 
 2. **Click tracking: one-way event stream, not a synchronous write.** The
    redirect endpoint (`GET /{short_code}/`) is the highest-traffic,
@@ -73,24 +76,23 @@ service owns one bounded context's data and nothing else:
    redelivers the message on restart instead of silently dropping it)
    and does the geo lookup + write.
 
-3. **The one synchronous call: ownership.** `analytics` has no `urls` table,
-   so "does this short code exist, and is it owned by the caller?" (needed
-   for `GET /api/v1/analytics/{short_code}/`) is answered by calling
-   shortener's internal API (`GET /api/v1/internal/urls/{short_code}/`),
-   authenticated with a static shared secret (`INTERNAL_SERVICE_TOKEN`), not
-   a user JWT. A failed lookup fails *closed* (treated as "not found"), so a
-   down shortener service can't leak anyone's analytics — it just makes
-   analytics briefly unavailable too.
+3. **Ownership lookup: the other synchronous gRPC call.** `analytics` has no
+   `urls` table, so "does this short code exist, and is it owned by the
+   caller?" (needed for `GET /api/v1/analytics/{short_code}/`) is answered by
+   calling shortener's internal gRPC server
+   (`ShortenerOwnership.GetOwner`), also authenticated with
+   `INTERNAL_SERVICE_TOKEN`. A failed lookup fails *closed* (treated as "not
+   found"), so a down shortener service can't leak anyone's analytics — it
+   just makes analytics briefly unavailable too.
 
 ## Running it
 
 Two ways to run this, and they're genuinely alternatives — pick one:
 
 **All three services together** (this top-level `docker-compose.yml`), for
-integration testing or demoing the whole system through the gateway:
+integration testing or demoing the whole system:
 
 ```bash
-./scripts/generate_jwt_keys.sh    # once — writes keys/jwt-{private,public}.pem
 cp .env.example .env              # then fill in real secrets
 docker compose up --build
 ```
@@ -101,7 +103,6 @@ database, own Redis/Kafka, nothing else required to start it. This is the
 on just one service without needing the others up at all:
 
 ```bash
-./scripts/generate_jwt_keys.sh    # once, from this directory, if keys/ is empty
 cd auth                           # or shortener/, or analytics/
 cp .env.example .env              # fill in real secrets
 docker compose up --build
@@ -111,18 +112,17 @@ Each standalone service reuses the same container names/ports as its
 counterpart in the combined stack, so the two are mutually exclusive —
 `docker compose down` whichever is up before starting the other. Verified
 this actually works end to end: a token issued by standalone `auth`
-validates against standalone `shortener` (they share the same key files on
-disk via `../keys`), and standalone `analytics` reaches standalone
-`shortener`'s internal ownership endpoint over `host.docker.internal:8002`.
+validates against standalone `shortener` over gRPC
+(`host.docker.internal:50052`), and standalone `analytics` reaches standalone
+`shortener`'s ownership gRPC server over `host.docker.internal:50051`.
 The one thing that *doesn't* cross when each service is fully standalone is
 click data — `shortener` and `analytics` each get their own isolated Kafka
 broker in that mode, so the `clicks` topic between them has no shared
 transport (point both at the same `KAFKA_BOOTSTRAP_SERVERS` if you want
 that to work too).
 
-Gateway (what a client/frontend actually talks to): `http://localhost:8090`
-
-Direct per-service access — Swagger UI, debugging, bypasses the gateway:
+Each service and its docs, called directly — there is no gateway in front of
+them:
 
 | Service | Docs |
 |---|---|
@@ -130,9 +130,7 @@ Direct per-service access — Swagger UI, debugging, bypasses the gateway:
 | shortener | http://localhost:8002/api/v1/docs/ |
 | analytics | http://localhost:8003/api/v1/docs/ |
 
-Traefik dashboard (dev only): http://localhost:8091
-
-### Endpoints (through the gateway)
+### Endpoints
 
 | Method | Path | Service |
 |---|---|---|
@@ -147,9 +145,9 @@ Traefik dashboard (dev only): http://localhost:8091
 | `GET` | `/{short_code}/` | shortener (302 redirect — the actual short link) |
 | `GET` | `/api/v1/analytics/{short_code}/` | analytics (premium only) |
 
-`/api/v1/internal/urls/{short_code}/` (shortener) is deliberately **not**
-routed through the gateway — it's service-to-service only, reached over the
-Docker network directly.
+`AuthTokenValidation.ValidateAccessToken` (auth, :50052) and
+`ShortenerOwnership.GetOwner` (shortener, :50051) are gRPC-only — reached
+over the Docker network directly, never exposed as HTTP.
 
 RBAC, tier limits (10 active URLs / custom aliases / detailed analytics),
 and login rate-limiting all carry over unchanged from the monolith — see its
@@ -195,12 +193,12 @@ as an oversight:
   no distributed tracing here — `docker compose logs -f` per-service is the
   debugging story. Adding OpenTelemetry + Jaeger/Tempo would be the natural
   next step, not a redesign.
-- **No API gateway auth/rate-limiting plugins.** Traefik here does pure
-  routing (static file-based, not Docker-label auto-discovery — the Docker
-  socket route hit an API-version mismatch on this host, and file-based
-  config is arguably more appropriate for a fixed, small set of routes
-  anyway). Each service still enforces its own auth and the login rate
-  limiter independently.
+- **No unified entry point.** There is no gateway/reverse proxy in front of
+  the three services — a client talks to whichever one it needs on that
+  service's own port. That also means no shared CORS/rate-limiting layer;
+  each service still enforces its own auth and the login rate limiter
+  independently. A real deployment fronting a browser client would want an
+  API gateway (or at least a reverse proxy) back in front of this.
 - **Single-host Docker Compose, not Kubernetes.** Enough to prove out
   independent databases, independent deploys, and the event-driven
   decoupling. A move to Kubernetes would change *how* these run, not the

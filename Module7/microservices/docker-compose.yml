@@ -1,15 +1,15 @@
 
 # Microservices split of the Module7 URL shortener: auth, shortener,
-# and analytics as three independently deployable Django services,
-# each with its own database, fronted by a single Traefik gateway.
+# and analytics as three independently deployable Django services, each
+# with its own database. Clients talk to each service directly — there
+# is no unified gateway/reverse proxy in front of them. Service-to-service
+# calls (auth token verification, the shortener ownership lookup) go
+# over gRPC instead of shared files or synchronous HTTP.
 #
 # Quick start:
-#   ./scripts/generate_jwt_keys.sh      # once, if keys/ is empty
-#   cp .env.example .env                # then fill in a real secret
+#   cp .env.example .env                # fill in a real secret
 #   docker compose up --build
 #
-# Gateway (client-facing traffic):  http://localhost:8090
-# Direct per-service access (docs, debugging), bypassing the gateway:
 #   auth        http://localhost:8001/api/v1/docs/
 #   shortener   http://localhost:8002/api/v1/docs/
 #   analytics   http://localhost:8003/api/v1/docs/
@@ -30,33 +30,11 @@ x-analytics-env: &analytics-env
   DB_HOST: analytics-db
   DB_PORT: 5432
   KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-  JWT_PUBLIC_KEY_PATH: /app/keys/jwt-public.pem
+  AUTH_GRPC_URL: auth-grpc:50052
   SHORTENER_GRPC_URL: shortener-grpc:50051
   INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
 
 services:
-  # ── Gateway ──────────────────────────────────────────────────────
-  gateway:
-    image: traefik:v3.1
-    container_name: msvc-gateway
-    command:
-      - --providers.file.filename=/etc/traefik/dynamic.yml
-      - --entrypoints.web.address=:80
-      - --api.dashboard=true
-      - --api.insecure=true
-    ports:
-      - "8090:80" # client-facing entry point
-      - "8091:8080" # Traefik dashboard (dev only)
-    volumes:
-      - ./gateway/dynamic.yml:/etc/traefik/dynamic.yml:ro
-    depends_on:
-      auth:
-        condition: service_started
-      shortener:
-        condition: service_started
-      analytics:
-        condition: service_started
-
   # ── Shared infrastructure ────────────────────────────────────────
   redis:
     image: redis:7-alpine
@@ -132,15 +110,36 @@ services:
       DB_HOST: auth-db
       DB_PORT: 5432
       REDIS_URL: redis://redis:6379/1
-      JWT_KEYS_DIR: /app/keys
-    volumes:
-      - ./keys:/app/keys:ro
     ports:
-      - "8001:8000" # direct access (docs, debugging) — bypasses the gateway
+      - "8001:8000"
     depends_on:
       auth-db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+
+  # Internal gRPC token-validation server — serves the authtoken contract
+  # to the shortener and analytics services. Same image/settings as the
+  # web auth service, but runs the serve_grpc management command instead
+  # of uvicorn, on :50052.
+  auth-grpc:
+    image: msvc-auth:latest
+    container_name: msvc-auth-grpc
+    restart: unless-stopped
+    command: ["python", "manage.py", "serve_grpc", "--noreload", "--port", "50052"]
+    environment:
+      SECRET_KEY: ${AUTH_SECRET_KEY:?set in .env}
+      DEBUG: ${DEBUG:-True}
+      DB_NAME: ${AUTH_DB_NAME:-auth}
+      DB_USER: ${AUTH_DB_USER:-auth}
+      DB_PASSWORD: ${AUTH_DB_PASSWORD:?set in .env}
+      DB_HOST: auth-db
+      DB_PORT: 5432
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
+    ports:
+      - "50052:50052"
+    depends_on:
+      auth-db:
         condition: service_healthy
 
   # ── Shortener service ────────────────────────────────────────────
@@ -176,10 +175,8 @@ services:
       DB_PORT: 5432
       REDIS_URL: redis://redis:6379/2
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      JWT_PUBLIC_KEY_PATH: /app/keys/jwt-public.pem
+      AUTH_GRPC_URL: auth-grpc:50052
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
-    volumes:
-      - ./keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
     ports:
       - "8002:8000"
     depends_on:
@@ -189,6 +186,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      auth-grpc:
+        condition: service_started
 
   # Internal gRPC ownership server — serves the urlownership contract to
   # the analytics service. Same image/settings as the web shortener, but
@@ -208,10 +207,7 @@ services:
       DB_PORT: 5432
       REDIS_URL: redis://redis:6379/2
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      JWT_PUBLIC_KEY_PATH: /app/keys/jwt-public.pem
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
-    volumes:
-      - ./keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
     ports:
       - "50051:50051"
     depends_on:
@@ -245,8 +241,6 @@ services:
     environment:
       <<: *analytics-env
       ALLOWED_HOSTS: "*"
-    volumes:
-      - ./keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
     ports:
       - "8003:8000"
     depends_on:
@@ -258,6 +252,8 @@ services:
         condition: service_started
       shortener-grpc:
         condition: service_started
+      auth-grpc:
+        condition: service_started
 
   analytics-worker:
     image: msvc-analytics:latest
@@ -266,8 +262,6 @@ services:
     command: ["python", "manage.py", "consume_clicks"]
     environment:
       <<: *analytics-env
-    volumes:
-      - ./keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
     depends_on:
       analytics-db:
         condition: service_healthy

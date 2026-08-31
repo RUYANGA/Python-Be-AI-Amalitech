@@ -6,11 +6,14 @@
 # host.docker.internal:8002) if you want the ownership check to work.
 #
 # Quick start:
-#   ../scripts/generate_jwt_keys.sh   # once, if ../keys is empty
 #   cp .env.example .env              # then fill in real secrets
 #   docker compose up --build
 #
 # Docs: http://localhost:8003/api/v1/docs/
+#
+# Token verification happens over gRPC against a running auth service —
+# point AUTH_GRPC_URL at one (defaults to a standalone auth's
+# host.docker.internal:50052; see ../auth/docker-compose.yml).
 #
 # Note: uses the same container names/ports as ../docker-compose.yml's
 # analytics pieces — the two are alternatives, not meant to run at the
@@ -25,7 +28,7 @@ x-analytics-env: &analytics-env
   DB_HOST: host.docker.internal
   DB_PORT: 5432
   KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-  JWT_PUBLIC_KEY_PATH: /app/keys/jwt-public.pem
+  AUTH_GRPC_URL: ${AUTH_GRPC_URL:-host.docker.internal:50052}
   SHORTENER_GRPC_URL: ${SHORTENER_GRPC_URL:-host.docker.internal:50051}
   INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
 
@@ -82,8 +85,6 @@ services:
     environment:
       <<: *analytics-env
       ALLOWED_HOSTS: "*"
-    volumes:
-      - ../keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
     ports:
       - "8003:8000"
     extra_hosts:
@@ -99,8 +100,6 @@ services:
     command: ["python", "manage.py", "consume_clicks"]
     environment:
       <<: *analytics-env
-    volumes:
-      - ../keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
