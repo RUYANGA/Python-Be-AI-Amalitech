@@ -1,0 +1,54 @@
+# Static routing config for the Traefik gateway.
+#
+# Deliberately file-based rather than Docker-label auto-discovery: it
+# keeps the gateway's routing rules explicit and versioned in one place,
+# and doesn't need a mounted Docker socket at all.
+#
+# More specific routes must outrank the shortener's broad catch-alls
+# (a bare short code is a single path segment, so left unchecked it
+# would swallow everything).
+http:
+  routers:
+    auth:
+      rule: "PathPrefix(`/api/v1/auth`)"
+      service: auth
+      priority: 100
+
+    analytics:
+      rule: "PathPrefix(`/api/v1/analytics`)"
+      service: analytics
+      priority: 100
+
+    shortener-api:
+      rule: "PathPrefix(`/api/v1/urls`)"
+      service: shortener
+      priority: 100
+
+    shortener-resolve:
+      # GET /api/v1/{short_code}/ — the JSON lookup endpoint.
+      rule: "PathPrefix(`/api/v1`)"
+      service: shortener
+      priority: 10
+
+    shortener-redirect:
+      # GET /{short_code}/ — the actual clickable short link. Lowest
+      # priority: everything more specific has already matched above.
+      rule: "PathPrefix(`/`)"
+      service: shortener
+      priority: 1
+
+  services:
+    auth:
+      loadBalancer:
+        servers:
+          - url: "http://auth:8000"
+
+    shortener:
+      loadBalancer:
+        servers:
+          - url: "http://shortener:8000"
+
+    analytics:
+      loadBalancer:
+        servers:
+          - url: "http://analytics:8000"

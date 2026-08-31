@@ -1,0 +1,9 @@
+Django>=6.1
+djangorestframework>=3.18
+djangorestframework-simplejwt>=5.5
+cryptography>=42
+drf-spectacular>=0.30
+python-decouple>=3.8
+psycopg2-binary>=2.9.9
+uvicorn>=0.30
+redis>=5.0

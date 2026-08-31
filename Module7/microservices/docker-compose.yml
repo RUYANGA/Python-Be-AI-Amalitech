@@ -1,0 +1,282 @@
+
+# Microservices split of the Module7 URL shortener: auth, shortener,
+# and analytics as three independently deployable Django services,
+# each with its own database, fronted by a single Traefik gateway.
+#
+# Quick start:
+#   ./scripts/generate_jwt_keys.sh      # once, if keys/ is empty
+#   cp .env.example .env                # then fill in a real secret
+#   docker compose up --build
+#
+# Gateway (client-facing traffic):  http://localhost:8090
+# Direct per-service access (docs, debugging), bypassing the gateway:
+#   auth        http://localhost:8001/api/v1/docs/
+#   shortener   http://localhost:8002/api/v1/docs/
+#   analytics   http://localhost:8003/api/v1/docs/
+
+# Reusable fragments (YAML anchors) — Compose ignores top-level `x-*`
+# keys, so this is the standard place to park them.
+x-postgres-healthcheck-timing: &postgres-healthcheck-timing
+  interval: 5s
+  timeout: 5s
+  retries: 10
+
+x-analytics-env: &analytics-env
+  SECRET_KEY: ${ANALYTICS_SECRET_KEY:?set in .env}
+  DEBUG: ${DEBUG:-True}
+  DB_NAME: ${ANALYTICS_DB_NAME:-analytics}
+  DB_USER: ${ANALYTICS_DB_USER:-analytics}
+  DB_PASSWORD: ${ANALYTICS_DB_PASSWORD:?set in .env}
+  DB_HOST: analytics-db
+  DB_PORT: 5432
+  KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  JWT_PUBLIC_KEY_PATH: /app/keys/jwt-public.pem
+  SHORTENER_GRPC_URL: shortener-grpc:50051
+  INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
+
+services:
+  # ── Gateway ──────────────────────────────────────────────────────
+  gateway:
+    image: traefik:v3.1
+    container_name: msvc-gateway
+    command:
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+      - --entrypoints.web.address=:80
+      - --api.dashboard=true
+      - --api.insecure=true
+    ports:
+      - "8090:80" # client-facing entry point
+      - "8091:8080" # Traefik dashboard (dev only)
+    volumes:
+      - ./gateway/dynamic.yml:/etc/traefik/dynamic.yml:ro
+    depends_on:
+      auth:
+        condition: service_started
+      shortener:
+        condition: service_started
+      analytics:
+        condition: service_started
+
+  # ── Shared infrastructure ────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: msvc-redis
+    restart: unless-stopped
+    ports:
+      - "6390:6379"
+    volumes:
+      - msvc_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Single-node KRaft broker (no Zookeeper) — the transport for
+  # ClickRecorded events between shortener and analytics.
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: msvc-kafka
+    restart: unless-stopped
+    ports:
+      - "9094:9094" # host access, e.g. for a local debugging consumer
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,PLAINTEXT_HOST://0.0.0.0:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      CLUSTER_ID: "4L6g3nShT-eMCtK--X86sw"
+    volumes:
+      - msvc_kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+
+  # ── Auth service ─────────────────────────────────────────────────
+  auth-db:
+    image: postgres:16-alpine
+    container_name: msvc-auth-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${AUTH_DB_NAME:-auth}
+      POSTGRES_USER: ${AUTH_DB_USER:-auth}
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:?set in .env}
+    ports:
+      - "5440:5432"
+    volumes:
+      - msvc_auth_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AUTH_DB_USER:-auth}"]
+      <<: *postgres-healthcheck-timing
+
+  auth:
+    build: ./auth
+    image: msvc-auth:latest
+    container_name: msvc-auth
+    restart: unless-stopped
+    environment:
+      SECRET_KEY: ${AUTH_SECRET_KEY:?set in .env}
+      DEBUG: ${DEBUG:-True}
+      ALLOWED_HOSTS: "*"
+      DB_NAME: ${AUTH_DB_NAME:-auth}
+      DB_USER: ${AUTH_DB_USER:-auth}
+      DB_PASSWORD: ${AUTH_DB_PASSWORD:?set in .env}
+      DB_HOST: auth-db
+      DB_PORT: 5432
+      REDIS_URL: redis://redis:6379/1
+      JWT_KEYS_DIR: /app/keys
+    volumes:
+      - ./keys:/app/keys:ro
+    ports:
+      - "8001:8000" # direct access (docs, debugging) — bypasses the gateway
+    depends_on:
+      auth-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Shortener service ────────────────────────────────────────────
+  shortener-db:
+    image: postgres:16-alpine
+    container_name: msvc-shortener-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${SHORTENER_DB_NAME:-shortener}
+      POSTGRES_USER: ${SHORTENER_DB_USER:-shortener}
+      POSTGRES_PASSWORD: ${SHORTENER_DB_PASSWORD:?set in .env}
+    ports:
+      - "5441:5432"
+    volumes:
+      - msvc_shortener_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SHORTENER_DB_USER:-shortener}"]
+      <<: *postgres-healthcheck-timing
+
+  shortener:
+    build: ./shortener
+    image: msvc-shortener:latest
+    container_name: msvc-shortener
+    restart: unless-stopped
+    environment:
+      SECRET_KEY: ${SHORTENER_SECRET_KEY:?set in .env}
+      DEBUG: ${DEBUG:-True}
+      ALLOWED_HOSTS: "*"
+      DB_NAME: ${SHORTENER_DB_NAME:-shortener}
+      DB_USER: ${SHORTENER_DB_USER:-shortener}
+      DB_PASSWORD: ${SHORTENER_DB_PASSWORD:?set in .env}
+      DB_HOST: shortener-db
+      DB_PORT: 5432
+      REDIS_URL: redis://redis:6379/2
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JWT_PUBLIC_KEY_PATH: /app/keys/jwt-public.pem
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
+    volumes:
+      - ./keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
+    ports:
+      - "8002:8000"
+    depends_on:
+      shortener-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  # Internal gRPC ownership server — serves the urlownership contract to
+  # the analytics service. Same image/settings as the web shortener, but
+  # runs the serve_grpc management command instead of uvicorn, on :50051.
+  shortener-grpc:
+    image: msvc-shortener:latest
+    container_name: msvc-shortener-grpc
+    restart: unless-stopped
+    command: ["python", "manage.py", "serve_grpc", "--noreload", "--port", "50051"]
+    environment:
+      SECRET_KEY: ${SHORTENER_SECRET_KEY:?set in .env}
+      DEBUG: ${DEBUG:-True}
+      DB_NAME: ${SHORTENER_DB_NAME:-shortener}
+      DB_USER: ${SHORTENER_DB_USER:-shortener}
+      DB_PASSWORD: ${SHORTENER_DB_PASSWORD:?set in .env}
+      DB_HOST: shortener-db
+      DB_PORT: 5432
+      REDIS_URL: redis://redis:6379/2
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JWT_PUBLIC_KEY_PATH: /app/keys/jwt-public.pem
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
+    volumes:
+      - ./keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
+    ports:
+      - "50051:50051"
+    depends_on:
+      shortener-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Analytics service ────────────────────────────────────────────
+  analytics-db:
+    image: postgres:16-alpine
+    container_name: msvc-analytics-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${ANALYTICS_DB_NAME:-analytics}
+      POSTGRES_USER: ${ANALYTICS_DB_USER:-analytics}
+      POSTGRES_PASSWORD: ${ANALYTICS_DB_PASSWORD:?set in .env}
+    ports:
+      - "5442:5432"
+    volumes:
+      - msvc_analytics_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ANALYTICS_DB_USER:-analytics}"]
+      <<: *postgres-healthcheck-timing
+
+  analytics:
+    build: ./analytics
+    image: msvc-analytics:latest
+    container_name: msvc-analytics
+    restart: unless-stopped
+    environment:
+      <<: *analytics-env
+      ALLOWED_HOSTS: "*"
+    volumes:
+      - ./keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
+    ports:
+      - "8003:8000"
+    depends_on:
+      analytics-db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      shortener:
+        condition: service_started
+      shortener-grpc:
+        condition: service_started
+
+  analytics-worker:
+    image: msvc-analytics:latest
+    container_name: msvc-analytics-worker
+    restart: unless-stopped
+    command: ["python", "manage.py", "consume_clicks"]
+    environment:
+      <<: *analytics-env
+    volumes:
+      - ./keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
+    depends_on:
+      analytics-db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+volumes:
+  msvc_redis_data:
+  msvc_kafka_data:
+  msvc_auth_db_data:
+  msvc_shortener_db_data:
+  msvc_analytics_db_data:

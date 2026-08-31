@@ -1,0 +1,136 @@
+# Runs the shortener service completely on its own — its own database,
+# its own Redis, its own Kafka broker. Click events still publish to a
+# local "clicks" topic; with no analytics-worker around to consume
+# them, they just accumulate harmlessly (or point KAFKA_BOOTSTRAP_SERVERS
+# at a shared broker if you also want a standalone analytics/ to pick
+# them up).
+#
+# Quick start:
+#   ../scripts/generate_jwt_keys.sh   # once, if ../keys is empty
+#   cp .env.example .env              # then fill in real secrets
+#   docker compose up --build
+#
+# Docs: http://localhost:8002/api/v1/docs/
+#
+# Note: uses the same container names/ports as ../docker-compose.yml's
+# shortener pieces — the two are alternatives, not meant to run at the
+# same time.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: msvc-shortener-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-shortener}
+      POSTGRES_USER: ${DB_USER:-shortener}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set in .env}
+    ports:
+      - "5441:5432"
+    volumes:
+      - shortener_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-shortener}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: msvc-shortener-redis
+    restart: unless-stopped
+    ports:
+      - "6392:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: msvc-shortener-kafka
+    restart: unless-stopped
+    ports:
+      - "9095:9094"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,PLAINTEXT_HOST://0.0.0.0:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9095
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      CLUSTER_ID: "JqiuqC7tR9OEZkewhFe-1g"
+    volumes:
+      - shortener_kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+
+  shortener:
+    build: .
+    image: msvc-shortener:latest
+    container_name: msvc-shortener
+    restart: unless-stopped
+    environment:
+      SECRET_KEY: ${SECRET_KEY:?set in .env}
+      DEBUG: ${DEBUG:-True}
+      ALLOWED_HOSTS: "*"
+      DB_NAME: ${DB_NAME:-shortener}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:?set in .env}
+      DB_HOST: host.docker.internal
+      DB_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JWT_PUBLIC_KEY_PATH: /app/keys/jwt-public.pem
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
+    volumes:
+      - ../keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
+    ports:
+      - "8002:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  # Internal gRPC ownership server for the analytics service.
+  shortener-grpc:
+    image: msvc-shortener:latest
+    container_name: msvc-shortener-grpc
+    restart: unless-stopped
+    command: ["python", "manage.py", "serve_grpc", "--noreload", "--port", "50051"]
+    environment:
+      SECRET_KEY: ${SECRET_KEY:?set in .env}
+      DEBUG: ${DEBUG:-True}
+      DB_NAME: ${DB_NAME:-shortener}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:?set in .env}
+      DB_HOST: host.docker.internal
+      DB_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JWT_PUBLIC_KEY_PATH: /app/keys/jwt-public.pem
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
+    volumes:
+      - ../keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
+    ports:
+      - "50051:50051"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  shortener_db_data:
+  shortener_kafka_data:

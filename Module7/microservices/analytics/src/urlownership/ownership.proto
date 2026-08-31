@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package urlownership;
+
+// Internal service-to-service contract between the analytics and shortener
+// services. The analytics service has no `urls` table of its own; when it
+// needs to check existence/ownership for premium analytics it calls this
+// RPC. This replaces the prior synchronous HTTP endpoint
+// (GET /api/v1/internal/urls/{short_code}/) with a faster, strongly-typed
+// gRPC call.
+
+service ShortenerOwnership {
+  // Returns whether a short code exists and, if so, its id and owner id.
+  rpc GetOwner(GetOwnerRequest) returns (GetOwnerResponse);
+}
+
+message GetOwnerRequest {
+  string short_code = 1;
+}
+
+message GetOwnerResponse {
+  bool exists = 1;
+  int64 url_id = 2;
+  int64 owner_id = 3;
+}
