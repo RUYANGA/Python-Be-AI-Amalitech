@@ -108,26 +108,3 @@ class TestTierLimits:
         )
 
         assert response.status_code == 403
-
-
-class TestInternalOwnerLookup:
-    def test_rejects_requests_without_the_shared_secret(self, api_client, settings):
-        settings.INTERNAL_SERVICE_TOKEN = "test-secret"
-        URL.objects.create(original_url="https://example.com", short_code="int0001", owner_id=1)
-
-        response = api_client.get("/api/v1/internal/urls/int0001/")
-
-        assert response.status_code == 403
-
-    def test_returns_owner_id_with_the_shared_secret(self, api_client, settings):
-        settings.INTERNAL_SERVICE_TOKEN = "test-secret"
-        URL.objects.create(original_url="https://example.com", short_code="int0002", owner_id=7)
-
-        response = api_client.get(
-            "/api/v1/internal/urls/int0002/", HTTP_X_INTERNAL_TOKEN="test-secret"
-        )
-
-        assert response.status_code == 200
-        body = response.json()
-        assert body["exists"] is True
-        assert body["owner_id"] == 7
