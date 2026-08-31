@@ -51,7 +51,7 @@ SPECTACULAR_SETTINGS = {
 AUTH_GRPC_URL = config("AUTH_GRPC_URL", default="localhost:50052")
 
 # ─── Shortener service (for the ownership lookup, over gRPC) ───────
-SHORTENER_GRPC_URL = config("SHORTENER_GRPC_URL", default="localhost:9093")
+SHORTENER_GRPC_URL = config("SHORTENER_GRPC_URL", default="localhost:50051")
 INTERNAL_SERVICE_TOKEN = config("INTERNAL_SERVICE_TOKEN", default="")
 
 MIDDLEWARE = [

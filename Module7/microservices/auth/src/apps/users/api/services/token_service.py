@@ -10,13 +10,14 @@ logger = logging.getLogger(__name__)
 class JWTTokenService(TokenService):
     """Concrete JWT implementation built on djangorestframework-simplejwt.
 
-    The token is signed RS256 (see ``SIMPLE_JWT`` in settings) so the
-    shortener and analytics services can verify it with only the public
-    key. It also carries ``username``, ``is_premium`` and ``tier`` as
-    custom claims: those services have no ``users`` table of their own
-    to look the user up in, so anything they need to know about the
-    caller (identity, premium status) has to travel *in* the token
-    rather than be fetched afterwards.
+    The token is signed HS256 with this service's own ``SECRET_KEY`` (see
+    ``SIMPLE_JWT`` in settings) — the shortener and analytics services
+    verify it over gRPC instead of holding any key material. It also
+    carries ``username``, ``is_premium`` and ``tier`` as custom claims:
+    those services have no ``users`` table of their own to look the user
+    up in, so anything they need to know about the caller (identity,
+    premium status) has to travel *in* the token rather than be fetched
+    afterwards.
     """
 
     def generate_tokens(self, user):

@@ -3,7 +3,7 @@
 Keyed by ``short_code`` (a plain string), not a foreign key to the
 shortener service's ``URL`` row — that row lives in another service's
 database entirely. ``short_code`` is exactly what the shortener service
-publishes on its ``clicks:stream`` Redis stream (see
+publishes on the ``clicks`` Kafka topic (see
 ``apps.analytics.management.commands.consume_clicks``), so no
 cross-service lookup is needed just to record a click.
 """
