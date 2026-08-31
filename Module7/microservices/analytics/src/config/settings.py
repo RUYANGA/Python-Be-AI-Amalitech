@@ -1,9 +1,10 @@
 """Django settings for the **analytics** microservice.
 
 Owns click data and the "detailed analytics" endpoint. Has no ``users``
-or ``urls`` table of its own: identity comes from a verified JWT (see
+or ``urls`` table of its own: identity comes from an access token
+verified by the auth service over gRPC (see
 ``apps.common.jwt_auth.RemoteJWTAuthentication``), and ownership of a
-short code is confirmed by calling the shortener service's internal API
+short code is confirmed by calling the shortener service's gRPC API
 (see ``apps.analytics.api.services.url_ownership_client``).
 """
 
@@ -46,14 +47,8 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
 }
 
-# ─── Cross-service JWT verification (RS256, public key only) ───────
-_PUBLIC_KEY_PATH = Path(
-    config(
-        "JWT_PUBLIC_KEY_PATH",
-        default=str(BASE_DIR.parent.parent / "keys" / "jwt-public.pem"),
-    )
-)
-JWT_PUBLIC_KEY = _PUBLIC_KEY_PATH.read_text()
+# ─── Cross-service JWT verification (gRPC call to auth) ────────────
+AUTH_GRPC_URL = config("AUTH_GRPC_URL", default="localhost:50052")
 
 # ─── Shortener service (for the ownership lookup, over gRPC) ───────
 SHORTENER_GRPC_URL = config("SHORTENER_GRPC_URL", default="localhost:9093")

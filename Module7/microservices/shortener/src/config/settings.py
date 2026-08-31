@@ -1,8 +1,8 @@
 """Django settings for the **shortener** microservice.
 
 Owns URL shortening, tagging, and RBAC/tier rules for URLs. Has no
-``users`` table of its own — every request is authenticated by
-verifying an RS256 JWT against the auth service's public key (see
+``users`` table of its own — every request is authenticated by asking
+the auth service to verify the access token over gRPC (see
 ``apps.common.jwt_auth.RemoteJWTAuthentication``), never by a local
 database lookup.
 """
@@ -55,17 +55,12 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
 }
 
-# ─── Cross-service JWT verification (RS256, public key only) ───────
-_PUBLIC_KEY_PATH = Path(
-    config(
-        "JWT_PUBLIC_KEY_PATH",
-        default=str(BASE_DIR.parent.parent / "keys" / "jwt-public.pem"),
-    )
-)
-JWT_PUBLIC_KEY = _PUBLIC_KEY_PATH.read_text()
+# ─── Cross-service JWT verification (gRPC call to auth) ────────────
+AUTH_GRPC_URL = config("AUTH_GRPC_URL", default="localhost:50052")
 
-# Shared secret for the internal (service-to-service) ownership-lookup
-# endpoint the analytics service calls — never sent to browsers/clients.
+# Shared secret for internal (service-to-service) gRPC calls — the
+# auth token-validation lookup this service makes, and the ownership
+# lookup the analytics service makes here. Never sent to browsers/clients.
 INTERNAL_SERVICE_TOKEN = config("INTERNAL_SERVICE_TOKEN", default="")
 
 MIDDLEWARE = [

@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package authtoken;
+
+// Internal service-to-service contract between the auth service and its
+// callers (shortener, analytics). Neither of those services has a `users`
+// table or the JWT signing key; verifying an access token — and reading
+// the identity claims embedded in it — means asking auth over gRPC
+// instead of decoding the token locally.
+
+service AuthTokenValidation {
+  // Verifies an access token's signature, expiry, and type, returning the
+  // identity claims embedded in it if valid.
+  rpc ValidateAccessToken(ValidateAccessTokenRequest) returns (ValidateAccessTokenResponse);
+}
+
+message ValidateAccessTokenRequest {
+  string token = 1;
+}
+
+message ValidateAccessTokenResponse {
+  bool valid = 1;
+  string error = 2;
+  int64 user_id = 3;
+  string username = 4;
+  bool is_premium = 5;
+  string tier = 6;
+}

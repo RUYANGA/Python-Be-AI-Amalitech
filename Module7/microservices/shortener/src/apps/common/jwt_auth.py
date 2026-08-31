@@ -1,25 +1,26 @@
 """JWT verification for every service except auth.
 
-This service never signs a token and has no ``users`` table to look
-the caller up in — it only verifies a token's RS256 signature against
-the auth service's public key and builds a lightweight, in-memory
-"remote user" straight from the claims. There is no database lookup:
+This service never signs a token and has no ``users`` table to look the
+caller up in — it verifies an access token by calling the auth
+service's internal gRPC server (see ``apps.common.auth_grpc_client``)
+and builds a lightweight, in-memory "remote user" straight from the
+claims it returns. There is no local decoding and no database lookup:
 anything this service needs to know about the caller (id, username,
-premium status) was embedded in the token by the auth service at
-login time (see the auth service's ``JWTTokenService``).
+premium status) was embedded in the token by the auth service at login
+time (see the auth service's ``JWTTokenService``).
 """
 
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any
 
-import jwt
-from django.conf import settings
+import grpc
 from drf_spectacular.extensions import OpenApiAuthenticationExtension
 from rest_framework import exceptions
 from rest_framework.authentication import BaseAuthentication
+
+from apps.common.auth_grpc_client import AuthTokenClient
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,7 @@ class RemoteUser:
 
 
 class RemoteJWTAuthentication(BaseAuthentication):
-    """Authenticates a request using an RS256 access token from auth."""
+    """Authenticates a request using an access token verified by auth."""
 
     keyword = "Bearer"
 
@@ -61,17 +62,12 @@ class RemoteJWTAuthentication(BaseAuthentication):
             return None
         token = header[len(self.keyword) + 1 :]
 
-        claims = self._decode(token)
-        if claims.get("token_type") != "access":
-            raise exceptions.AuthenticationFailed("Expected an access token.")
-
+        response = self._validate(token)
         user = RemoteUser(
-            # simplejwt always encodes user_id as a string claim; every
-            # comparison against a stored owner_id needs it as an int.
-            id=int(claims["user_id"]),
-            username=claims.get("username", ""),
-            is_premium=claims.get("is_premium", False),
-            tier=claims.get("tier", "free"),
+            id=response.user_id,
+            username=response.username,
+            is_premium=response.is_premium,
+            tier=response.tier,
         )
         return (user, token)
 
@@ -79,14 +75,16 @@ class RemoteJWTAuthentication(BaseAuthentication):
         return self.keyword
 
     @staticmethod
-    def _decode(token: str) -> dict[str, Any]:
+    def _validate(token: str):
         try:
-            return jwt.decode(token, settings.JWT_PUBLIC_KEY, algorithms=["RS256"])
-        except jwt.ExpiredSignatureError as exc:
-            raise exceptions.AuthenticationFailed("Access token expired.") from exc
-        except jwt.InvalidTokenError as exc:
-            logger.warning("jwt.invalid_token error=%s", exc)
-            raise exceptions.AuthenticationFailed("Invalid access token.") from exc
+            response = AuthTokenClient().validate(token)
+        except grpc.RpcError as exc:
+            logger.warning("jwt.grpc_failed error=%s", exc)
+            raise exceptions.AuthenticationFailed("Could not verify access token.") from exc
+
+        if not response.valid:
+            raise exceptions.AuthenticationFailed(response.error or "Invalid access token.")
+        return response
 
 
 class RemoteJWTAuthenticationScheme(OpenApiAuthenticationExtension):
