@@ -190,9 +190,10 @@ as an oversight:
   read pattern; a real deployment would run a proper multi-broker cluster
   with replication.
 - **No observability stack.** A request that spans all three services has
-  no distributed tracing here — `docker compose logs -f` per-service is the
-  debugging story. Adding OpenTelemetry + Jaeger/Tempo would be the natural
-  next step, not a redesign.
+  no distributed tracing here — `docker compose logs -f` per-service, plus
+  each service's own `logs/<service>.log` on disk (rotated, 10MB × 5 files),
+  is the debugging story. Adding OpenTelemetry + Jaeger/Tempo would be the
+  natural next step, not a redesign.
 - **No unified entry point.** There is no gateway/reverse proxy in front of
   the three services — a client talks to whichever one it needs on that
   service's own port. That also means no shared CORS/rate-limiting layer;

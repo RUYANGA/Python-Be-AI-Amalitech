@@ -96,6 +96,12 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 
+# Writes alongside the console output docker-compose logs already
+# captures — a persistent file survives past a container's own log
+# buffer/rotation and is handy when debugging outside Docker.
+LOG_DIR = BASE_DIR.parent / "logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -109,11 +115,18 @@ LOGGING = {
     },
     "handlers": {
         "console": {"class": "logging.StreamHandler", "formatter": "simple"},
+        "file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": LOG_DIR / "analytics.log",
+            "maxBytes": 10 * 1024 * 1024,  # 10 MB
+            "backupCount": 5,
+            "formatter": "verbose",
+        },
     },
-    "root": {"handlers": ["console"], "level": "INFO"},
+    "root": {"handlers": ["console", "file"], "level": "INFO"},
     "loggers": {
-        "django": {"handlers": ["console"], "level": "INFO", "propagate": False},
-        "apps.analytics": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        "django": {"handlers": ["console", "file"], "level": "INFO", "propagate": False},
+        "apps.analytics": {"handlers": ["console", "file"], "level": "INFO", "propagate": False},
     },
 }
 

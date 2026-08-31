@@ -85,6 +85,8 @@ services:
     environment:
       <<: *analytics-env
       ALLOWED_HOSTS: "*"
+    volumes:
+      - ./logs:/app/logs
     ports:
       - "8003:8000"
     extra_hosts:
@@ -100,6 +102,8 @@ services:
     command: ["python", "manage.py", "consume_clicks"]
     environment:
       <<: *analytics-env
+    volumes:
+      - ./logs:/app/logs
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

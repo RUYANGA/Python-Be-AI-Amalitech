@@ -97,6 +97,13 @@ never exposed over HTTP. Served by its own process:
 | `AUTH_GRPC_URL` | `localhost:50052` | Where to verify JWTs — auth's gRPC server |
 | `INTERNAL_SERVICE_TOKEN` | `""` | Shared secret for gRPC calls in both directions (to auth, from analytics) — must match all three services' copies |
 
+## Logs
+
+Written to stdout (`docker compose logs -f shortener`) and, alongside that,
+to `logs/shortener.log` on disk — rotated at 10MB, keeping 5 backups. The
+`shortener-grpc` container shares the same log file (same bind mount,
+`./logs:/app/logs`), so its own gRPC-server logs land there too.
+
 ## Running it standalone
 
 ```bash

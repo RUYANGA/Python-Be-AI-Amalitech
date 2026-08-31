@@ -110,6 +110,8 @@ services:
       DB_HOST: auth-db
       DB_PORT: 5432
       REDIS_URL: redis://redis:6379/1
+    volumes:
+      - ./auth/logs:/app/logs
     ports:
       - "8001:8000"
     depends_on:
@@ -136,6 +138,8 @@ services:
       DB_HOST: auth-db
       DB_PORT: 5432
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
+    volumes:
+      - ./auth/logs:/app/logs
     ports:
       - "50052:50052"
     depends_on:
@@ -177,6 +181,8 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       AUTH_GRPC_URL: auth-grpc:50052
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
+    volumes:
+      - ./shortener/logs:/app/logs
     ports:
       - "8002:8000"
     depends_on:
@@ -208,6 +214,8 @@ services:
       REDIS_URL: redis://redis:6379/2
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
+    volumes:
+      - ./shortener/logs:/app/logs
     ports:
       - "50051:50051"
     depends_on:
@@ -241,6 +249,8 @@ services:
     environment:
       <<: *analytics-env
       ALLOWED_HOSTS: "*"
+    volumes:
+      - ./analytics/logs:/app/logs
     ports:
       - "8003:8000"
     depends_on:
@@ -262,6 +272,8 @@ services:
     command: ["python", "manage.py", "consume_clicks"]
     environment:
       <<: *analytics-env
+    volumes:
+      - ./analytics/logs:/app/logs
     depends_on:
       analytics-db:
         condition: service_healthy

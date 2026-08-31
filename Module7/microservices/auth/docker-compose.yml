@@ -63,6 +63,8 @@ services:
       DB_HOST: host.docker.internal
       DB_PORT: 5432
       REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./logs:/app/logs
     ports:
       - "8001:8000"
     extra_hosts:
@@ -87,6 +89,8 @@ services:
       DB_HOST: host.docker.internal
       DB_PORT: 5432
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
+    volumes:
+      - ./logs:/app/logs
     ports:
       - "50052:50052"
     extra_hosts:

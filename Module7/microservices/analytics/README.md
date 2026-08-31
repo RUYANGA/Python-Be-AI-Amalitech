@@ -86,6 +86,13 @@ code doesn't exist or isn't owned by the caller. Interactive docs:
 | `SHORTENER_GRPC_URL` | `localhost:50051` | Where to look up URL ownership — shortener's gRPC server |
 | `INTERNAL_SERVICE_TOKEN` | `""` | Shared secret for both outbound gRPC calls — must match all three services' copies |
 
+## Logs
+
+Written to stdout (`docker compose logs -f analytics`) and, alongside that,
+to `logs/analytics.log` on disk — rotated at 10MB, keeping 5 backups. The
+`analytics-worker` container shares the same log file (same bind mount,
+`./logs:/app/logs`), so `consume_clicks` output lands there too.
+
 ## Running it standalone
 
 ```bash

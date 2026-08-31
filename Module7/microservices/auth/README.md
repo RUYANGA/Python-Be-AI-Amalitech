@@ -83,6 +83,13 @@ need to know about the caller without a database lookup.
 | `REDIS_URL` | `redis://127.0.0.1:6379/0` | Backs the login rate limiter |
 | `INTERNAL_SERVICE_TOKEN` | `""` | Shared secret authenticating gRPC calls to this service — must match shortener's and analytics' copy |
 
+## Logs
+
+Written to stdout (`docker compose logs -f auth`) and, alongside that, to
+`logs/auth.log` on disk — rotated at 10MB, keeping 5 backups. When running
+via Docker, `logs/` is a bind mount (`./logs:/app/logs`), so it lands in
+this directory on the host, not just inside the container.
+
 ## Running it standalone
 
 ```bash
