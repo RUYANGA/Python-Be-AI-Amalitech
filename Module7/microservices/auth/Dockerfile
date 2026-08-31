@@ -29,6 +29,6 @@ WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
 COPY . .
 
-EXPOSE 8000
+EXPOSE 8000 50052
 
 CMD ["sh", "-c", "python manage.py migrate --noinput && uvicorn config.asgi:application --host 0.0.0.0 --port ${PORT}"]

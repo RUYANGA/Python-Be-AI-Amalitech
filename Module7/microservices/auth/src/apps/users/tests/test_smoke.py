@@ -3,7 +3,7 @@
 Not a full parity re-test of the monolith's users-app suite (that logic
 is unchanged and already covered there) — this exists to prove the
 service boundary itself works: register, login, rate limiting, and the
-one thing that's new here — the RS256 token actually carries the
+one thing that's new here — the access token actually carries the
 cross-service claims (``username``/``is_premium``/``tier``) that the
 shortener and analytics services depend on.
 """
@@ -46,8 +46,8 @@ class TestRegisterAndLogin:
         )
         access = response.json()["access"]
 
-        # Signature already exercised by RS256 config; decoding unverified
-        # here only to inspect the claim payload for this assertion.
+        # Signature already exercised by simplejwt's own config; decoding
+        # unverified here only to inspect the claim payload for this assertion.
         claims = jwt.decode(access, options={"verify_signature": False})
 
         assert claims["username"] == user.username

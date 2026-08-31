@@ -1,9 +1,11 @@
 """Django settings for the **auth** microservice.
 
 This service owns the ``users`` table and is the *only* one that ever
-signs a JWT. It signs with an RSA private key (RS256) so the shortener
-and analytics services can verify a token's signature with just the
-matching public key — no network call back here on every request.
+signs or verifies a JWT (HS256, with its own ``SECRET_KEY``). The
+shortener and analytics services never see the signing key at all —
+they verify a token by calling this service's internal gRPC server
+(``apps.users.api.grpc.servicer.AuthTokenValidationServicer``, run via
+``manage.py serve_grpc``) instead.
 """
 
 from datetime import timedelta
@@ -48,31 +50,31 @@ REST_FRAMEWORK = {
 SPECTACULAR_SETTINGS = {
     "TITLE": "Auth Service",
     "DESCRIPTION": (
-        "Owns user identity and issues RS256-signed JWTs consumed by the "
+        "Owns user identity and issues JWTs verified, over gRPC, by the "
         "shortener and analytics services."
     ),
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
 }
 
-# ─── JWT (RS256) ────────────────────────────────────────────────────
-# Only this service ever sees JWT_PRIVATE_KEY_PATH. The public key is
-# copied (at build time) into the other two services so they can verify
-# a token's signature without calling back here.
-_KEYS_DIR = Path(config("JWT_KEYS_DIR", default=str(BASE_DIR.parent.parent / "keys")))
-_PRIVATE_KEY = (_KEYS_DIR / "jwt-private.pem").read_text()
-_PUBLIC_KEY = (_KEYS_DIR / "jwt-public.pem").read_text()
-
+# ─── JWT (HS256, signed and verified only here) ────────────────────
+# No ALGORITHM/SIGNING_KEY override: simplejwt defaults to HS256 signed
+# with SECRET_KEY above, which is exactly right now that only this
+# service ever verifies a token (over gRPC) — no key material needs to
+# leave this process at all.
 SIMPLE_JWT = {
-    "ALGORITHM": "RS256",
-    "SIGNING_KEY": _PRIVATE_KEY,
-    "VERIFYING_KEY": _PUBLIC_KEY,
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
     "ROTATE_REFRESH_TOKENS": False,
     "BLACKLIST_AFTER_ROTATION": False,
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
+
+# Shared secret authenticating gRPC calls to this service's internal
+# token-validation server (see apps.users.api.grpc.servicer) — never
+# sent to browsers/clients. Must match shortener's and analytics'
+# INTERNAL_SERVICE_TOKEN.
+INTERNAL_SERVICE_TOKEN = config("INTERNAL_SERVICE_TOKEN", default="")
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
