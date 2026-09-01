@@ -7,8 +7,17 @@
 # ingestion) all go over plain REST, authenticated with a shared
 # INTERNAL_SERVICE_TOKEN header.
 #
+# Databases are NOT containerized here — all three services connect to
+# Postgres running on the host machine (three separate databases: auth,
+# shortener, analytics, under one role). Create them once with:
+#   createdb -U <role> auth shortener analytics
+# and make sure Postgres is listening for TCP connections (listen_addresses
+# includes the docker bridge, or '*') — no pg_hba.conf change is needed
+# beyond what already allows password auth from localhost, since Docker
+# reaches the host via the `host.docker.internal` alias below.
+#
 # Quick start:
-#   cp .env.example .env                # fill in a real secret
+#   cp .env.example .env                # fill in real secrets + DB_PASSWORD
 #   docker compose up --build
 #
 #   auth        http://localhost:8001/api/v1/docs/
@@ -17,19 +26,21 @@
 
 # Reusable fragments (YAML anchors) — Compose ignores top-level `x-*`
 # keys, so this is the standard place to park them.
-x-postgres-healthcheck-timing: &postgres-healthcheck-timing
-  interval: 5s
-  timeout: 5s
-  retries: 10
+x-host-db: &host-db
+  DB_HOST: host.docker.internal
+  DB_PORT: 5432
+  DB_USER: ${DB_USER:-postgres}
+  DB_PASSWORD: ${DB_PASSWORD:?set in .env}
+
+x-extra-hosts: &extra-hosts
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
 
 x-analytics-env: &analytics-env
   SECRET_KEY: ${ANALYTICS_SECRET_KEY:?set in .env}
   DEBUG: ${DEBUG:-True}
   DB_NAME: ${ANALYTICS_DB_NAME:-analytics}
-  DB_USER: ${ANALYTICS_DB_USER:-analytics}
-  DB_PASSWORD: ${ANALYTICS_DB_PASSWORD:?set in .env}
-  DB_HOST: analytics-db
-  DB_PORT: 5432
+  <<: *host-db
   AUTH_SERVICE_URL: http://auth:8000
   SHORTENER_SERVICE_URL: http://shortener:8000
   INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
@@ -51,78 +62,40 @@ services:
       retries: 3
 
   # ── Auth service ─────────────────────────────────────────────────
-  auth-db:
-    image: postgres:16-alpine
-    container_name: msvc-auth-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${AUTH_DB_NAME:-auth}
-      POSTGRES_USER: ${AUTH_DB_USER:-auth}
-      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:?set in .env}
-    ports:
-      - "5440:5432"
-    volumes:
-      - msvc_auth_db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${AUTH_DB_USER:-auth}"]
-      <<: *postgres-healthcheck-timing
-
   auth:
     build: ./auth
     image: msvc-auth:latest
     container_name: msvc-auth
     restart: unless-stopped
+    <<: *extra-hosts
     environment:
       SECRET_KEY: ${AUTH_SECRET_KEY:?set in .env}
       DEBUG: ${DEBUG:-True}
       ALLOWED_HOSTS: "*"
       DB_NAME: ${AUTH_DB_NAME:-auth}
-      DB_USER: ${AUTH_DB_USER:-auth}
-      DB_PASSWORD: ${AUTH_DB_PASSWORD:?set in .env}
-      DB_HOST: auth-db
-      DB_PORT: 5432
+      <<: *host-db
       REDIS_URL: redis://redis:6379/1
     volumes:
       - ./auth/logs:/app/logs
     ports:
       - "8001:8000"
     depends_on:
-      auth-db:
-        condition: service_healthy
       redis:
         condition: service_healthy
 
   # ── Shortener service ────────────────────────────────────────────
-  shortener-db:
-    image: postgres:16-alpine
-    container_name: msvc-shortener-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${SHORTENER_DB_NAME:-shortener}
-      POSTGRES_USER: ${SHORTENER_DB_USER:-shortener}
-      POSTGRES_PASSWORD: ${SHORTENER_DB_PASSWORD:?set in .env}
-    ports:
-      - "5441:5432"
-    volumes:
-      - msvc_shortener_db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${SHORTENER_DB_USER:-shortener}"]
-      <<: *postgres-healthcheck-timing
-
   shortener:
     build: ./shortener
     image: msvc-shortener:latest
     container_name: msvc-shortener
     restart: unless-stopped
+    <<: *extra-hosts
     environment:
       SECRET_KEY: ${SHORTENER_SECRET_KEY:?set in .env}
       DEBUG: ${DEBUG:-True}
       ALLOWED_HOSTS: "*"
       DB_NAME: ${SHORTENER_DB_NAME:-shortener}
-      DB_USER: ${SHORTENER_DB_USER:-shortener}
-      DB_PASSWORD: ${SHORTENER_DB_PASSWORD:?set in .env}
-      DB_HOST: shortener-db
-      DB_PORT: 5432
+      <<: *host-db
       REDIS_URL: redis://redis:6379/2
       AUTH_SERVICE_URL: http://auth:8000
       ANALYTICS_SERVICE_URL: http://analytics:8000
@@ -132,35 +105,18 @@ services:
     ports:
       - "8002:8000"
     depends_on:
-      shortener-db:
-        condition: service_healthy
       redis:
         condition: service_healthy
       auth:
         condition: service_started
 
   # ── Analytics service ────────────────────────────────────────────
-  analytics-db:
-    image: postgres:16-alpine
-    container_name: msvc-analytics-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${ANALYTICS_DB_NAME:-analytics}
-      POSTGRES_USER: ${ANALYTICS_DB_USER:-analytics}
-      POSTGRES_PASSWORD: ${ANALYTICS_DB_PASSWORD:?set in .env}
-    ports:
-      - "5442:5432"
-    volumes:
-      - msvc_analytics_db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${ANALYTICS_DB_USER:-analytics}"]
-      <<: *postgres-healthcheck-timing
-
   analytics:
     build: ./analytics
     image: msvc-analytics:latest
     container_name: msvc-analytics
     restart: unless-stopped
+    <<: *extra-hosts
     environment:
       <<: *analytics-env
       ALLOWED_HOSTS: "*"
@@ -169,8 +125,6 @@ services:
     ports:
       - "8003:8000"
     depends_on:
-      analytics-db:
-        condition: service_healthy
       shortener:
         condition: service_started
       auth:
@@ -178,6 +132,3 @@ services:
 
 volumes:
   msvc_redis_data:
-  msvc_auth_db_data:
-  msvc_shortener_db_data:
-  msvc_analytics_db_data:

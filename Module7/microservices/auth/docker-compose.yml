@@ -1,8 +1,10 @@
-# Runs the auth service completely on its own — its own database, its
-# own Redis, nothing else required. This is the "one team, one service,
-# one repo checkout" way to run it; ../docker-compose.yml is the
-# alternative that brings all three services up together for integration
-# testing/demos.
+# Runs the auth service completely on its own — its own Redis, nothing
+# else required. Connects to Postgres running on the HOST machine (via
+# host.docker.internal) rather than a containerized database — create
+# the `auth` database there once with e.g. `createdb -U postgres auth`.
+# This is the "one team, one service, one repo checkout" way to run it;
+# ../docker-compose.yml is the alternative that brings all three
+# services up together for integration testing/demos.
 #
 # Quick start:
 #   cp .env.example .env              # then fill in real secrets
@@ -18,24 +20,6 @@
 # other.
 
 services:
-  db:
-    image: postgres:16-alpine
-    container_name: msvc-auth-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${DB_NAME:-auth}
-      POSTGRES_USER: ${DB_USER:-auth}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?set in .env}
-    ports:
-      - "5440:5432"
-    volumes:
-      - auth_db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-auth}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   redis:
     image: redis:7-alpine
     container_name: msvc-auth-redis
@@ -73,6 +57,3 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-
-volumes:
-  auth_db_data:

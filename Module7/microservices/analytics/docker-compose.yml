@@ -1,11 +1,13 @@
-# Runs the analytics service completely on its own — its own database.
-# Without a shortener service to answer ownership lookups,
-# GET /api/v1/analytics/{short_code}/ will fail closed (404) for
-# everything — expected in isolation. Point SHORTENER_SERVICE_URL at a
-# running shortener (e.g. its own standalone compose on the host, via
-# host.docker.internal:8002) if you want the ownership check to work,
-# and shortener's ANALYTICS_SERVICE_URL back at this service if you want
-# it to receive click events.
+# Runs the analytics service completely on its own. Connects to
+# Postgres running on the HOST machine (via host.docker.internal) rather
+# than a containerized database — create the `analytics` database there
+# once with e.g. `createdb -U postgres analytics`. Without a shortener
+# service to answer ownership lookups, GET /api/v1/analytics/{short_code}/
+# will fail closed (404) for everything — expected in isolation. Point
+# SHORTENER_SERVICE_URL at a running shortener (e.g. its own standalone
+# compose on the host, via host.docker.internal:8002) if you want the
+# ownership check to work, and shortener's ANALYTICS_SERVICE_URL back at
+# this service if you want it to receive click events.
 #
 # Quick start:
 #   cp .env.example .env              # then fill in real secrets
@@ -22,24 +24,6 @@
 # same time.
 
 services:
-  db:
-    image: postgres:16-alpine
-    container_name: msvc-analytics-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${DB_NAME:-analytics}
-      POSTGRES_USER: ${DB_USER:-analytics}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?set in .env}
-    ports:
-      - "5442:5432"
-    volumes:
-      - analytics_db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-analytics}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   analytics:
     build: .
     image: msvc-analytics:latest
@@ -63,9 +47,3 @@ services:
       - "8003:8000"
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    depends_on:
-      db:
-        condition: service_healthy
-
-volumes:
-  analytics_db_data:
