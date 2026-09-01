@@ -3,8 +3,9 @@
 # and analytics as three independently deployable Django services, each
 # with its own database. Clients talk to each service directly — there
 # is no unified gateway/reverse proxy in front of them. Service-to-service
-# calls (auth token verification, the shortener ownership lookup) go
-# over gRPC instead of shared files or synchronous HTTP.
+# calls (auth token verification, the shortener ownership lookup, click
+# ingestion) all go over plain REST, authenticated with a shared
+# INTERNAL_SERVICE_TOKEN header.
 #
 # Quick start:
 #   cp .env.example .env                # fill in a real secret
@@ -29,9 +30,8 @@ x-analytics-env: &analytics-env
   DB_PASSWORD: ${ANALYTICS_DB_PASSWORD:?set in .env}
   DB_HOST: analytics-db
   DB_PORT: 5432
-  KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-  AUTH_GRPC_URL: auth-grpc:50052
-  SHORTENER_GRPC_URL: shortener-grpc:50051
+  AUTH_SERVICE_URL: http://auth:8000
+  SHORTENER_SERVICE_URL: http://shortener:8000
   INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
 
 services:
@@ -49,34 +49,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
-
-  # Single-node KRaft broker (no Zookeeper) — the transport for
-  # ClickRecorded events between shortener and analytics.
-  kafka:
-    image: confluentinc/cp-kafka:7.6.1
-    container_name: msvc-kafka
-    restart: unless-stopped
-    ports:
-      - "9094:9094" # host access, e.g. for a local debugging consumer
-    environment:
-      KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,PLAINTEXT_HOST://0.0.0.0:9094
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9094
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      CLUSTER_ID: "4L6g3nShT-eMCtK--X86sw"
-    volumes:
-      - msvc_kafka_data:/var/lib/kafka/data
-    healthcheck:
-      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
-      interval: 10s
-      timeout: 10s
-      retries: 15
 
   # ── Auth service ─────────────────────────────────────────────────
   auth-db:
@@ -120,32 +92,6 @@ services:
       redis:
         condition: service_healthy
 
-  # Internal gRPC token-validation server — serves the authtoken contract
-  # to the shortener and analytics services. Same image/settings as the
-  # web auth service, but runs the serve_grpc management command instead
-  # of uvicorn, on :50052.
-  auth-grpc:
-    image: msvc-auth:latest
-    container_name: msvc-auth-grpc
-    restart: unless-stopped
-    command: ["python", "manage.py", "serve_grpc", "--noreload", "--port", "50052"]
-    environment:
-      SECRET_KEY: ${AUTH_SECRET_KEY:?set in .env}
-      DEBUG: ${DEBUG:-True}
-      DB_NAME: ${AUTH_DB_NAME:-auth}
-      DB_USER: ${AUTH_DB_USER:-auth}
-      DB_PASSWORD: ${AUTH_DB_PASSWORD:?set in .env}
-      DB_HOST: auth-db
-      DB_PORT: 5432
-      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
-    volumes:
-      - ./auth/logs:/app/logs
-    ports:
-      - "50052:50052"
-    depends_on:
-      auth-db:
-        condition: service_healthy
-
   # ── Shortener service ────────────────────────────────────────────
   shortener-db:
     image: postgres:16-alpine
@@ -178,8 +124,8 @@ services:
       DB_HOST: shortener-db
       DB_PORT: 5432
       REDIS_URL: redis://redis:6379/2
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      AUTH_GRPC_URL: auth-grpc:50052
+      AUTH_SERVICE_URL: http://auth:8000
+      ANALYTICS_SERVICE_URL: http://analytics:8000
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
     volumes:
       - ./shortener/logs:/app/logs
@@ -190,39 +136,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      kafka:
-        condition: service_healthy
-      auth-grpc:
+      auth:
         condition: service_started
-
-  # Internal gRPC ownership server — serves the urlownership contract to
-  # the analytics service. Same image/settings as the web shortener, but
-  # runs the serve_grpc management command instead of uvicorn, on :50051.
-  shortener-grpc:
-    image: msvc-shortener:latest
-    container_name: msvc-shortener-grpc
-    restart: unless-stopped
-    command: ["python", "manage.py", "serve_grpc", "--noreload", "--port", "50051"]
-    environment:
-      SECRET_KEY: ${SHORTENER_SECRET_KEY:?set in .env}
-      DEBUG: ${DEBUG:-True}
-      DB_NAME: ${SHORTENER_DB_NAME:-shortener}
-      DB_USER: ${SHORTENER_DB_USER:-shortener}
-      DB_PASSWORD: ${SHORTENER_DB_PASSWORD:?set in .env}
-      DB_HOST: shortener-db
-      DB_PORT: 5432
-      REDIS_URL: redis://redis:6379/2
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
-    volumes:
-      - ./shortener/logs:/app/logs
-    ports:
-      - "50051:50051"
-    depends_on:
-      shortener-db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
 
   # ── Analytics service ────────────────────────────────────────────
   analytics-db:
@@ -256,33 +171,13 @@ services:
     depends_on:
       analytics-db:
         condition: service_healthy
-      kafka:
-        condition: service_healthy
       shortener:
         condition: service_started
-      shortener-grpc:
+      auth:
         condition: service_started
-      auth-grpc:
-        condition: service_started
-
-  analytics-worker:
-    image: msvc-analytics:latest
-    container_name: msvc-analytics-worker
-    restart: unless-stopped
-    command: ["python", "manage.py", "consume_clicks"]
-    environment:
-      <<: *analytics-env
-    volumes:
-      - ./analytics/logs:/app/logs
-    depends_on:
-      analytics-db:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
 
 volumes:
   msvc_redis_data:
-  msvc_kafka_data:
   msvc_auth_db_data:
   msvc_shortener_db_data:
   msvc_analytics_db_data:

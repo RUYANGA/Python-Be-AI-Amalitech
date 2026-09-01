@@ -2,11 +2,22 @@
 
 from django.urls import path
 
-from apps.users.api.views import LoginView, LogoutView, RefreshTokenView, RegisterView
+from apps.users.api.views import (
+    LoginView,
+    LogoutView,
+    RefreshTokenView,
+    RegisterView,
+    TokenValidationView,
+)
 
 urlpatterns = [
     path("register/", RegisterView.as_view(), name="register"),
     path("login/", LoginView.as_view(), name="login"),
     path("logout/", LogoutView.as_view(), name="logout"),
     path("token/refresh/", RefreshTokenView.as_view(), name="token_refresh"),
+    path(
+        "internal/token/validate/",
+        TokenValidationView.as_view(),
+        name="internal-token-validate",
+    ),
 ]

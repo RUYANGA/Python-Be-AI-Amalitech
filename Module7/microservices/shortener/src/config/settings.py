@@ -2,7 +2,7 @@
 
 Owns URL shortening, tagging, and RBAC/tier rules for URLs. Has no
 ``users`` table of its own — every request is authenticated by asking
-the auth service to verify the access token over gRPC (see
+the auth service to verify the access token over REST (see
 ``apps.common.jwt_auth.RemoteJWTAuthentication``), never by a local
 database lookup.
 """
@@ -55,12 +55,17 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
 }
 
-# ─── Cross-service JWT verification (gRPC call to auth) ────────────
-AUTH_GRPC_URL = config("AUTH_GRPC_URL", default="localhost:50052")
+# ─── Cross-service JWT verification (REST call to auth) ────────────
+AUTH_SERVICE_URL = config("AUTH_SERVICE_URL", default="http://localhost:8001")
 
-# Shared secret for internal (service-to-service) gRPC calls — the
-# auth token-validation lookup this service makes, and the ownership
-# lookup the analytics service makes here. Never sent to browsers/clients.
+# ─── Analytics service (click-event delivery, over REST) ───────────
+ANALYTICS_SERVICE_URL = config("ANALYTICS_SERVICE_URL", default="http://localhost:8003")
+
+# Shared secret for internal (service-to-service) REST calls, sent as
+# the X-Internal-Token header — the auth token-validation lookup this
+# service makes, the click events it publishes to analytics, and the
+# ownership lookup the analytics service makes here. Never sent to
+# browsers/clients.
 INTERNAL_SERVICE_TOKEN = config("INTERNAL_SERVICE_TOKEN", default="")
 
 MIDDLEWARE = [
@@ -95,9 +100,6 @@ DATABASES = {
 
 # Backs CachedURLRepository's read-through cache.
 REDIS_URL = config("REDIS_URL", default="redis://127.0.0.1:6379/0")
-
-# Backs ClickEventPublisher — the transport to the analytics service.
-KAFKA_BOOTSTRAP_SERVERS = config("KAFKA_BOOTSTRAP_SERVERS", default="localhost:9094")
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "Africa/Kigali"

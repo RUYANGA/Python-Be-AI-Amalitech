@@ -1,9 +1,11 @@
-# Runs the analytics service completely on its own — its own database,
-# its own Kafka broker. Without a shortener service to answer ownership
-# lookups, GET /api/v1/analytics/{short_code}/ will fail closed (404)
-# for everything — expected in isolation. Point SHORTENER_SERVICE_URL at
-# a running shortener (e.g. its own standalone compose on the host, via
-# host.docker.internal:8002) if you want the ownership check to work.
+# Runs the analytics service completely on its own — its own database.
+# Without a shortener service to answer ownership lookups,
+# GET /api/v1/analytics/{short_code}/ will fail closed (404) for
+# everything — expected in isolation. Point SHORTENER_SERVICE_URL at a
+# running shortener (e.g. its own standalone compose on the host, via
+# host.docker.internal:8002) if you want the ownership check to work,
+# and shortener's ANALYTICS_SERVICE_URL back at this service if you want
+# it to receive click events.
 #
 # Quick start:
 #   cp .env.example .env              # then fill in real secrets
@@ -11,26 +13,13 @@
 #
 # Docs: http://localhost:8003/api/v1/docs/
 #
-# Token verification happens over gRPC against a running auth service —
-# point AUTH_GRPC_URL at one (defaults to a standalone auth's
-# host.docker.internal:50052; see ../auth/docker-compose.yml).
+# Token verification happens over REST against a running auth service —
+# point AUTH_SERVICE_URL at one (defaults to a standalone auth's
+# host.docker.internal:8001; see ../auth/docker-compose.yml).
 #
 # Note: uses the same container names/ports as ../docker-compose.yml's
 # analytics pieces — the two are alternatives, not meant to run at the
 # same time.
-
-x-analytics-env: &analytics-env
-  SECRET_KEY: ${SECRET_KEY:?set in .env}
-  DEBUG: ${DEBUG:-True}
-  DB_NAME: ${DB_NAME:-analytics}
-  DB_USER: ${DB_USER:-postgres}
-  DB_PASSWORD: ${DB_PASSWORD:?set in .env}
-  DB_HOST: host.docker.internal
-  DB_PORT: 5432
-  KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-  AUTH_GRPC_URL: ${AUTH_GRPC_URL:-host.docker.internal:50052}
-  SHORTENER_GRPC_URL: ${SHORTENER_GRPC_URL:-host.docker.internal:50051}
-  INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
 
 services:
   db:
@@ -51,40 +40,23 @@ services:
       timeout: 5s
       retries: 10
 
-  kafka:
-    image: confluentinc/cp-kafka:7.6.1
-    container_name: msvc-analytics-kafka
-    restart: unless-stopped
-    ports:
-      - "9096:9094"
-    environment:
-      KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,PLAINTEXT_HOST://0.0.0.0:9094
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9096
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      CLUSTER_ID: "Y0l5AB0_QRign0kJhyTedA"
-    volumes:
-      - analytics_kafka_data:/var/lib/kafka/data
-    healthcheck:
-      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
-      interval: 10s
-      timeout: 10s
-      retries: 15
-
   analytics:
     build: .
     image: msvc-analytics:latest
     container_name: msvc-analytics
     restart: unless-stopped
     environment:
-      <<: *analytics-env
+      SECRET_KEY: ${SECRET_KEY:?set in .env}
+      DEBUG: ${DEBUG:-True}
       ALLOWED_HOSTS: "*"
+      DB_NAME: ${DB_NAME:-analytics}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:?set in .env}
+      DB_HOST: host.docker.internal
+      DB_PORT: 5432
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-http://host.docker.internal:8001}
+      SHORTENER_SERVICE_URL: ${SHORTENER_SERVICE_URL:-http://host.docker.internal:8002}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
     volumes:
       - ./logs:/app/logs
     ports:
@@ -92,24 +64,8 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
-      kafka:
-        condition: service_healthy
-
-  analytics-worker:
-    image: msvc-analytics:latest
-    container_name: msvc-analytics-worker
-    restart: unless-stopped
-    command: ["python", "manage.py", "consume_clicks"]
-    environment:
-      <<: *analytics-env
-    volumes:
-      - ./logs:/app/logs
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    depends_on:
-      kafka:
+      db:
         condition: service_healthy
 
 volumes:
   analytics_db_data:
-  analytics_kafka_data:

@@ -2,10 +2,13 @@
 
 Owns click data and the "detailed analytics" endpoint. Has no ``users``
 or ``urls`` table of its own: identity comes from an access token
-verified by the auth service over gRPC (see
+verified by the auth service over REST (see
 ``apps.common.jwt_auth.RemoteJWTAuthentication``), and ownership of a
-short code is confirmed by calling the shortener service's gRPC API
-(see ``apps.analytics.api.services.url_ownership_client``).
+short code is confirmed by calling the shortener service's internal
+REST API (see ``apps.analytics.api.services.url_ownership_client``).
+Click events themselves arrive over REST too, at
+``POST /api/v1/internal/clicks/`` (see
+``apps.analytics.api.views.ClickIngestView``).
 """
 
 from pathlib import Path
@@ -47,11 +50,11 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
 }
 
-# ─── Cross-service JWT verification (gRPC call to auth) ────────────
-AUTH_GRPC_URL = config("AUTH_GRPC_URL", default="localhost:50052")
+# ─── Cross-service JWT verification (REST call to auth) ────────────
+AUTH_SERVICE_URL = config("AUTH_SERVICE_URL", default="http://localhost:8001")
 
-# ─── Shortener service (for the ownership lookup, over gRPC) ───────
-SHORTENER_GRPC_URL = config("SHORTENER_GRPC_URL", default="localhost:50051")
+# ─── Shortener service (for the ownership lookup, over REST) ───────
+SHORTENER_SERVICE_URL = config("SHORTENER_SERVICE_URL", default="http://localhost:8002")
 INTERNAL_SERVICE_TOKEN = config("INTERNAL_SERVICE_TOKEN", default="")
 
 MIDDLEWARE = [
@@ -83,11 +86,6 @@ DATABASES = {
         "PORT": config("DB_PORT"),
     }
 }
-
-# Shared with the shortener service — this is how consume_clicks
-# receives ClickRecorded events. No cache or other Redis-backed state
-# lives in this service at all.
-KAFKA_BOOTSTRAP_SERVERS = config("KAFKA_BOOTSTRAP_SERVERS", default="localhost:9096")
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "Africa/Kigali"

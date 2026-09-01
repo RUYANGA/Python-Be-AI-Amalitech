@@ -12,10 +12,10 @@ table itself.
 ## How other services depend on this one
 
 `shortener` and `analytics` both verify a caller's access token by calling
-this service's internal gRPC server (`AuthTokenValidation.ValidateAccessToken`,
-`:50052`) and building an identity from the claims it returns — neither holds
-a signing or verification key of its own. This service calls nothing else; it
-is the leaf of the dependency graph.
+this service's internal REST endpoint
+(`POST /api/v1/auth/internal/token/validate/`) and building an identity from
+the claims it returns — neither holds a signing or verification key of its
+own. This service calls nothing else; it is the leaf of the dependency graph.
 
 ## API
 
@@ -28,16 +28,18 @@ published).
 | `POST` | `/login/` | Public | Exchange username/password for an `access`/`refresh` token pair; rate-limited |
 | `POST` | `/logout/` | Authenticated | Blacklist a refresh token |
 | `POST` | `/token/refresh/` | Public | Exchange a refresh token for a new access token |
+| `POST` | `/internal/token/validate/` | `X-Internal-Token` | Verify an access token, return its identity claims — called by shortener/analytics only |
 
-Interactive docs: `/api/v1/docs/` (Swagger UI), `/api/v1/redoc/`.
+Interactive docs: `/api/v1/docs/` (Swagger UI), `/api/v1/redoc/`. The internal
+endpoint is excluded from both — it's not for browser/client use.
 
-## Internal gRPC — `:50052`
+## Internal token validation
 
-`AuthTokenValidation.ValidateAccessToken` verifies an access token and
+`POST /api/v1/auth/internal/token/validate/` verifies an access token and
 returns the claims embedded in it (`user_id`, `username`, `is_premium`,
-`tier`). Authenticated with a shared secret (`INTERNAL_SERVICE_TOKEN`)
-passed as gRPC metadata (`x-internal-token`) — never exposed over HTTP.
-Served by its own process: `python manage.py serve_grpc`.
+`tier`). Authenticated with a shared secret (`INTERNAL_SERVICE_TOKEN`) sent
+as the `X-Internal-Token` header — the same web process that serves public
+traffic on `:8000`, no separate port or protocol.
 
 ## Data model
 
@@ -70,7 +72,7 @@ need to know about the caller without a database lookup.
 - **Token issuance** (`JWTTokenService`): wraps
   `djangorestframework-simplejwt`; every access token carries the claims the
   other services need, so they never call back here except to verify the
-  signature (over gRPC).
+  signature (over REST).
 
 ## Environment variables
 
@@ -81,7 +83,7 @@ need to know about the caller without a database lookup.
 | `ALLOWED_HOSTS` | `*` | Comma-separated allowed hosts |
 | `DB_NAME` / `DB_USER` / `DB_PASSWORD` / `DB_HOST` / `DB_PORT` | *(required)* | Postgres connection |
 | `REDIS_URL` | `redis://127.0.0.1:6379/0` | Backs the login rate limiter |
-| `INTERNAL_SERVICE_TOKEN` | `""` | Shared secret authenticating gRPC calls to this service — must match shortener's and analytics' copy |
+| `INTERNAL_SERVICE_TOKEN` | `""` | Shared secret authenticating REST calls to this service — must match shortener's and analytics' copy |
 
 ## Logs
 
@@ -97,9 +99,9 @@ cp .env.example .env   # fill in real secrets
 docker compose up --build
 ```
 
-Brings up its own Postgres, Redis, the web process (`:8001`), and the gRPC
-token-validation server (`:50052`). Docs at
-http://localhost:8001/api/v1/docs/.
+Brings up its own Postgres, Redis, and the web process (`:8001`) — the same
+process serves both public traffic and the internal token-validation
+endpoint. Docs at http://localhost:8001/api/v1/docs/.
 
 This is one of two ways to run this service — see
 [../README.md](../README.md) for running all three services together

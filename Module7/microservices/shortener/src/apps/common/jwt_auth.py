@@ -2,7 +2,7 @@
 
 This service never signs a token and has no ``users`` table to look the
 caller up in — it verifies an access token by calling the auth
-service's internal gRPC server (see ``apps.common.auth_grpc_client``)
+service's internal REST endpoint (see ``apps.common.auth_service_client``)
 and builds a lightweight, in-memory "remote user" straight from the
 claims it returns. There is no local decoding and no database lookup:
 anything this service needs to know about the caller (id, username,
@@ -15,12 +15,12 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-import grpc
+import requests
 from drf_spectacular.extensions import OpenApiAuthenticationExtension
 from rest_framework import exceptions
 from rest_framework.authentication import BaseAuthentication
 
-from apps.common.auth_grpc_client import AuthTokenClient
+from apps.common.auth_service_client import AuthServiceClient
 
 logger = logging.getLogger(__name__)
 
@@ -77,9 +77,9 @@ class RemoteJWTAuthentication(BaseAuthentication):
     @staticmethod
     def _validate(token: str):
         try:
-            response = AuthTokenClient().validate(token)
-        except grpc.RpcError as exc:
-            logger.warning("jwt.grpc_failed error=%s", exc)
+            response = AuthServiceClient().validate(token)
+        except requests.RequestException as exc:
+            logger.warning("jwt.auth_service_failed error=%s", exc)
             raise exceptions.AuthenticationFailed("Could not verify access token.") from exc
 
         if not response.valid:

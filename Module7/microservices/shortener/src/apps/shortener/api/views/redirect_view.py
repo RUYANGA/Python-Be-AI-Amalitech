@@ -16,9 +16,9 @@ class URLRedirectView(BaseURLView):
 
     This is the link people actually click: the highest-traffic,
     unauthenticated, latency-critical endpoint in the whole system. The
-    click event is *published*, not written in-process — the analytics
-    service consumes it independently, so a slow or down analytics
-    service can never make this redirect slow or fail.
+    click event is *published* on a background thread (see
+    ``ClickEventPublisher``), not recorded in-process, so a slow or down
+    analytics service can never make this redirect slow or fail.
     """
 
     def __init__(self, *args, **kwargs):

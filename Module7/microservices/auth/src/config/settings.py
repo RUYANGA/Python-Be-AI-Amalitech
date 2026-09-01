@@ -3,9 +3,9 @@
 This service owns the ``users`` table and is the *only* one that ever
 signs or verifies a JWT (HS256, with its own ``SECRET_KEY``). The
 shortener and analytics services never see the signing key at all —
-they verify a token by calling this service's internal gRPC server
-(``apps.users.api.grpc.servicer.AuthTokenValidationServicer``, run via
-``manage.py serve_grpc``) instead.
+they verify a token by calling this service's internal REST endpoint
+(``apps.users.api.views.TokenValidationView``, ``POST
+/api/v1/auth/internal/token/validate/``) instead.
 """
 
 from datetime import timedelta
@@ -50,7 +50,7 @@ REST_FRAMEWORK = {
 SPECTACULAR_SETTINGS = {
     "TITLE": "Auth Service",
     "DESCRIPTION": (
-        "Owns user identity and issues JWTs verified, over gRPC, by the "
+        "Owns user identity and issues JWTs verified, over REST, by the "
         "shortener and analytics services."
     ),
     "VERSION": "1.0.0",
@@ -60,7 +60,7 @@ SPECTACULAR_SETTINGS = {
 # ─── JWT (HS256, signed and verified only here) ────────────────────
 # No ALGORITHM/SIGNING_KEY override: simplejwt defaults to HS256 signed
 # with SECRET_KEY above, which is exactly right now that only this
-# service ever verifies a token (over gRPC) — no key material needs to
+# service ever verifies a token (over REST) — no key material needs to
 # leave this process at all.
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
@@ -70,10 +70,10 @@ SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
-# Shared secret authenticating gRPC calls to this service's internal
-# token-validation server (see apps.users.api.grpc.servicer) — never
-# sent to browsers/clients. Must match shortener's and analytics'
-# INTERNAL_SERVICE_TOKEN.
+# Shared secret authenticating REST calls to this service's internal
+# token-validation endpoint (see apps.users.api.views.TokenValidationView)
+# — sent as the X-Internal-Token header, never exposed to browsers/clients.
+# Must match shortener's and analytics' INTERNAL_SERVICE_TOKEN.
 INTERNAL_SERVICE_TOKEN = config("INTERNAL_SERVICE_TOKEN", default="")
 
 MIDDLEWARE = [

@@ -10,10 +10,20 @@ Analytics moved to their own service — see ``analytics/src/apps/analytics``.
 
 from django.urls import path
 
-from apps.shortener.api.views import URLCreateView, URLListView, URLShortCodeDetailView
+from apps.shortener.api.views import (
+    URLCreateView,
+    URLListView,
+    URLOwnershipView,
+    URLShortCodeDetailView,
+)
 
 urlpatterns = [
     path("urls/", URLCreateView.as_view(), name="url-create"),
     path("urls/mine/", URLListView.as_view(), name="url-list-mine"),
+    path(
+        "internal/urls/<str:short_code>/owner/",
+        URLOwnershipView.as_view(),
+        name="internal-url-owner",
+    ),
     path("urls/<str:short_code>/", URLShortCodeDetailView.as_view(), name="url-by-code"),
 ]

@@ -11,14 +11,17 @@ authenticated by asking `auth` to verify the caller's token.
 ## How this service depends on / is depended on by others
 
 - **Calls `auth`**: every authenticated request verifies its JWT by calling
-  `auth`'s internal gRPC server (`AuthTokenValidation.ValidateAccessToken`) —
-  this service holds no signing/verification key of its own.
-- **Calls nothing else.** Click tracking is one-way: this service *publishes*
-  a `ClickRecorded` event to Kafka and moves on; it never calls `analytics`.
+  `auth`'s internal REST endpoint
+  (`POST /api/v1/auth/internal/token/validate/`) — this service holds no
+  signing/verification key of its own.
+- **Calls `analytics`**: on every redirect/resolve, this service dispatches a
+  `POST /api/v1/internal/clicks/` to `analytics` on a background thread and
+  moves on immediately (`ClickEventPublisher`) — a failed or slow delivery is
+  logged and swallowed, never raised back to the caller.
 - **Is called by `analytics`**: `analytics` has no `urls` table, so it asks
-  this service's internal gRPC server (`ShortenerOwnership.GetOwner`) "does
-  this short code exist, and who owns it?" for its premium analytics
-  endpoint.
+  this service's internal endpoint
+  (`GET /api/v1/internal/urls/{short_code}/owner/`) "does this short code
+  exist, and who owns it?" for its premium analytics endpoint.
 
 ## API
 
@@ -34,18 +37,20 @@ published).
 | `DELETE` | `/urls/{short_code}/` | Authenticated + owner | Delete an owned URL |
 | `GET` | `/api/v1/{short_code}/` | Public | JSON resolve — `{"original_url": ...}`, records a click |
 | `GET` | `/{short_code}/` | Public | **The actual short link** — 302 redirect, records a click |
+| `GET` | `/api/v1/internal/urls/{short_code}/owner/` | `X-Internal-Token` | Existence/ownership lookup — called by analytics only |
 
 A non-owner touching someone else's `{short_code}` gets `404`, not `403` —
 deliberately, so a write attempt can't be used to probe whether a code
-exists. Interactive docs: `/api/v1/docs/` (Swagger UI), `/api/v1/redoc/`.
+exists. Interactive docs: `/api/v1/docs/` (Swagger UI), `/api/v1/redoc/`. The
+internal endpoint is excluded from both — it's not for browser/client use.
 
-## Internal gRPC — `:50051`
+## Internal ownership lookup
 
-`ShortenerOwnership.GetOwner` answers "does this short code exist, and who
-owns it?" for `analytics`. Authenticated with a shared secret
-(`INTERNAL_SERVICE_TOKEN`) passed as gRPC metadata (`x-internal-token`) —
-never exposed over HTTP. Served by its own process:
-`python manage.py serve_grpc`.
+`GET /api/v1/internal/urls/{short_code}/owner/` answers "does this short code
+exist, and who owns it?" for `analytics`. Authenticated with a shared secret
+(`INTERNAL_SERVICE_TOKEN`) sent as the `X-Internal-Token` header — the same
+web process that serves public traffic on `:8000`, no separate port or
+protocol.
 
 ## Data model
 
@@ -79,10 +84,11 @@ never exposed over HTTP. Served by its own process:
   write-through invalidation. The per-owner active-URL *count* is
   deliberately never cached, since tier-quota correctness depends on it
   being exact.
-- **Click publishing** (`ClickEventPublisher`): fire-and-forget publish to
-  the Kafka `clicks` topic on every redirect/resolve. Publish failures are
-  logged and swallowed, never raised — the highest-traffic path in the
-  system must never fail because Kafka or `analytics` is down.
+- **Click publishing** (`ClickEventPublisher`): fire-and-forget REST `POST`
+  to analytics's `/api/v1/internal/clicks/`, dispatched on a background
+  thread on every redirect/resolve. Publish failures are logged and
+  swallowed, never raised — the highest-traffic path in the system must
+  never fail because `analytics` is slow or down.
 
 ## Environment variables
 
@@ -93,16 +99,14 @@ never exposed over HTTP. Served by its own process:
 | `ALLOWED_HOSTS` | `*` | Comma-separated allowed hosts |
 | `DB_NAME` / `DB_USER` / `DB_PASSWORD` / `DB_HOST` / `DB_PORT` | *(required)* | Postgres connection |
 | `REDIS_URL` | `redis://127.0.0.1:6379/0` | Backs the read-through URL cache |
-| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9094` | Where click events are published |
-| `AUTH_GRPC_URL` | `localhost:50052` | Where to verify JWTs — auth's gRPC server |
-| `INTERNAL_SERVICE_TOKEN` | `""` | Shared secret for gRPC calls in both directions (to auth, from analytics) — must match all three services' copies |
+| `AUTH_SERVICE_URL` | `http://localhost:8001` | Where to verify JWTs — auth's REST endpoint |
+| `ANALYTICS_SERVICE_URL` | `http://localhost:8003` | Where to publish click events |
+| `INTERNAL_SERVICE_TOKEN` | `""` | Shared secret for REST calls in both directions (to auth and analytics, from analytics) — must match all three services' copies |
 
 ## Logs
 
 Written to stdout (`docker compose logs -f shortener`) and, alongside that,
-to `logs/shortener.log` on disk — rotated at 10MB, keeping 5 backups. The
-`shortener-grpc` container shares the same log file (same bind mount,
-`./logs:/app/logs`), so its own gRPC-server logs land there too.
+to `logs/shortener.log` on disk — rotated at 10MB, keeping 5 backups.
 
 ## Running it standalone
 
@@ -111,12 +115,12 @@ cp .env.example .env   # fill in real secrets
 docker compose up --build
 ```
 
-Brings up its own Postgres, Redis, Kafka broker, the web process (`:8002`),
-and the ownership gRPC server (`:50051`). Needs a reachable `auth` gRPC
-server to verify tokens (`AUTH_GRPC_URL`, defaults to a standalone `auth`'s
-`host.docker.internal:50052`) — without one, every authenticated request
-fails with `401`. Without an `analytics` consumer, published click events
-just accumulate harmlessly in the local Kafka topic. Docs at
+Brings up its own Postgres, Redis, and the web process (`:8002`). Needs a
+reachable `auth` service to verify tokens (`AUTH_SERVICE_URL`, defaults to a
+standalone `auth`'s `http://host.docker.internal:8001`) — without one, every
+authenticated request fails with `401`. Without a reachable `analytics`
+(`ANALYTICS_SERVICE_URL`), published click events just fail closed (logged,
+swallowed) — redirects and resolves keep working normally. Docs at
 http://localhost:8002/api/v1/docs/.
 
 This is one of two ways to run this service — see

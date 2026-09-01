@@ -1,9 +1,4 @@
 # syntax=docker/dockerfile:1
-#
-# Single image, two run modes (see docker-compose.yml):
-#   - "analytics"        : the web process (this default CMD)
-#   - "analytics-worker" : `python manage.py consume_clicks`, same image,
-#                          command overridden in compose.
 
 FROM python:3.12-slim AS builder
 

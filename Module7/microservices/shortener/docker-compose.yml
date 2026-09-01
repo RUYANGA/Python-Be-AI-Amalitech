@@ -1,9 +1,8 @@
 # Runs the shortener service completely on its own — its own database,
-# its own Redis, its own Kafka broker. Click events still publish to a
-# local "clicks" topic; with no analytics-worker around to consume
-# them, they just accumulate harmlessly (or point KAFKA_BOOTSTRAP_SERVERS
-# at a shared broker if you also want a standalone analytics/ to pick
-# them up).
+# its own Redis. Click events publish over REST to whatever
+# ANALYTICS_SERVICE_URL points at; with no analytics service reachable,
+# publish attempts just fail (logged, swallowed) and redirects/resolves
+# keep working normally.
 #
 # Quick start:
 #   cp .env.example .env              # then fill in real secrets
@@ -11,9 +10,9 @@
 #
 # Docs: http://localhost:8002/api/v1/docs/
 #
-# Token verification happens over gRPC against a running auth service —
-# point AUTH_GRPC_URL at one (defaults to a standalone auth's
-# host.docker.internal:50052; see ../auth/docker-compose.yml).
+# Token verification happens over REST against a running auth service —
+# point AUTH_SERVICE_URL at one (defaults to a standalone auth's
+# host.docker.internal:8001; see ../auth/docker-compose.yml).
 #
 # Note: uses the same container names/ports as ../docker-compose.yml's
 # shortener pieces — the two are alternatives, not meant to run at the
@@ -50,32 +49,6 @@ services:
       timeout: 5s
       retries: 3
 
-  kafka:
-    image: confluentinc/cp-kafka:7.6.1
-    container_name: msvc-shortener-kafka
-    restart: unless-stopped
-    ports:
-      - "9095:9094"
-    environment:
-      KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,PLAINTEXT_HOST://0.0.0.0:9094
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9095
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      CLUSTER_ID: "JqiuqC7tR9OEZkewhFe-1g"
-    volumes:
-      - shortener_kafka_data:/var/lib/kafka/data
-    healthcheck:
-      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
-      interval: 10s
-      timeout: 10s
-      retries: 15
-
   shortener:
     build: .
     image: msvc-shortener:latest
@@ -91,8 +64,8 @@ services:
       DB_HOST: host.docker.internal
       DB_PORT: 5432
       REDIS_URL: redis://redis:6379/0
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      AUTH_GRPC_URL: ${AUTH_GRPC_URL:-host.docker.internal:50052}
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-http://host.docker.internal:8001}
+      ANALYTICS_SERVICE_URL: ${ANALYTICS_SERVICE_URL:-http://host.docker.internal:8003}
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
     volumes:
       - ./logs:/app/logs
@@ -103,36 +76,6 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      kafka:
-        condition: service_healthy
-
-  # Internal gRPC ownership server for the analytics service.
-  shortener-grpc:
-    image: msvc-shortener:latest
-    container_name: msvc-shortener-grpc
-    restart: unless-stopped
-    command: ["python", "manage.py", "serve_grpc", "--noreload", "--port", "50051"]
-    environment:
-      SECRET_KEY: ${SECRET_KEY:?set in .env}
-      DEBUG: ${DEBUG:-True}
-      DB_NAME: ${DB_NAME:-shortener}
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:?set in .env}
-      DB_HOST: host.docker.internal
-      DB_PORT: 5432
-      REDIS_URL: redis://redis:6379/0
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
-    volumes:
-      - ./logs:/app/logs
-    ports:
-      - "50051:50051"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    depends_on:
-      redis:
-        condition: service_healthy
 
 volumes:
   shortener_db_data:
-  shortener_kafka_data:

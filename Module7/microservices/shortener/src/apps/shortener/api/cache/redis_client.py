@@ -2,9 +2,9 @@
 
 Provides a singleton Redis client that handles connection pooling,
 serialization, and graceful degradation when Redis is unavailable. This
-backs the URL cache only (``CachedURLRepository``) — click events moved
-to Kafka (``ClickEventPublisher``), so this only wraps the operations
-the cache actually calls.
+backs the URL cache only (``CachedURLRepository``) — click events are
+published to the analytics service over REST (``ClickEventPublisher``),
+so this only wraps the operations the cache actually calls.
 """
 
 from __future__ import annotations

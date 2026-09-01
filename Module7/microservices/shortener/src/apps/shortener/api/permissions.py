@@ -4,10 +4,26 @@ from __future__ import annotations
 
 import logging
 
+from django.conf import settings
 from django.http import Http404
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 logger = logging.getLogger(__name__)
+
+
+class HasInternalServiceToken(BasePermission):
+    """Grants access only to callers presenting the shared internal-service token.
+
+    Authenticates the analytics service's ownership-lookup REST call —
+    never a user's own JWT.
+    """
+
+    message = "Not authorized."
+
+    def has_permission(self, request, _view) -> bool:
+        expected = settings.INTERNAL_SERVICE_TOKEN
+        provided = request.META.get("HTTP_X_INTERNAL_TOKEN", "")
+        return bool(expected) and provided == expected
 
 
 class IsOwnerOrReadOnly(BasePermission):

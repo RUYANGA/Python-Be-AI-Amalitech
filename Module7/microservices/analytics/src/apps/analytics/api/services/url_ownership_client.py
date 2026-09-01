@@ -1,37 +1,33 @@
-"""The one cross-service call in this service — now over gRPC.
+"""The one cross-service call in this service — over REST.
 
 Analytics has no ``urls`` table, so "does this short code exist, and is
 it owned by the caller?" has to be answered by the shortener service,
 which does own that data. This is deliberately the only place this
-service makes a network call to another one — everything else (click
-ingestion) flows one-way through Kafka so neither service can stall the
-other on the hot paths. The call itself uses gRPC (HTTP/2 + protobuf —
-faster and more compact than the REST endpoint it replaced) for the
-strongly-typed ``urlownership`` contract.
+service makes a synchronous network call to another one — click
+ingestion instead flows one-way through ``POST /api/v1/internal/clicks/``
+so neither service can stall the other on its hot path.
 """
 
 from __future__ import annotations
 
 import logging
 
-import grpc
+import requests
 from django.conf import settings
-
-from urlownership import ownership_pb2, ownership_pb2_grpc
 
 logger = logging.getLogger(__name__)
 
 
 class URLOwnershipClient:
-    """Looks up a short code's owner via the shortener service's gRPC API."""
+    """Looks up a short code's owner via the shortener service's internal REST API."""
 
     def __init__(
         self,
-        grpc_url: str | None = None,
+        base_url: str | None = None,
         token: str | None = None,
         timeout: float = 3.0,
     ) -> None:
-        self._grpc_url = (grpc_url or settings.SHORTENER_GRPC_URL).rstrip("/")
+        self._base_url = (base_url or settings.SHORTENER_SERVICE_URL).rstrip("/")
         self._token = token or settings.INTERNAL_SERVICE_TOKEN
         self._timeout = timeout
 
@@ -43,21 +39,20 @@ class URLOwnershipClient:
         analytics; it just makes analytics temporarily unavailable too.
         """
         try:
-            with grpc.insecure_channel(self._grpc_url) as channel:
-                stub = ownership_pb2_grpc.ShortenerOwnershipStub(channel)
-                response = stub.GetOwner(
-                    ownership_pb2.GetOwnerRequest(short_code=short_code),  # type: ignore[attr-defined]  # generated protobuf
-                    metadata=(("x-internal-token", self._token),),
-                    timeout=self._timeout,
-                )
-            if not response.exists:
+            response = requests.get(
+                f"{self._base_url}/api/v1/internal/urls/{short_code}/owner/",
+                headers={"X-Internal-Token": self._token},
+                timeout=self._timeout,
+            )
+            response.raise_for_status()
+            data = response.json()
+            if not data.get("exists"):
                 return False, None, None
-            return True, response.url_id, response.owner_id
-        except grpc.RpcError as exc:
+            return True, data.get("url_id"), data.get("owner_id")
+        except requests.RequestException as exc:
             logger.warning(
-                "url_ownership.grpc_failed short_code=%s code=%s error=%s",
+                "url_ownership.request_failed short_code=%s error=%s",
                 short_code,
-                getattr(exc, "code", lambda: None)(),
                 exc,
             )
             return False, None, None

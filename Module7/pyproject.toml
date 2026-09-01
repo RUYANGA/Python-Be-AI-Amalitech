@@ -9,7 +9,7 @@ norecursedirs = ["microservices"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-extend-exclude = ["**/migrations/*", "**/*_pb2*.py"]
+extend-exclude = ["**/migrations/*"]
 src = [
     "microservices/auth/src",
     "microservices/shortener/src",
@@ -23,7 +23,7 @@ ignore = ["N818"]
 [tool.black]
 line-length = 100
 target-version = ["py312"]
-extend-exclude = "/(migrations/|.*_pb2.*\\.py)"
+extend-exclude = "/(migrations/)"
 
 [tool.mypy]
 python_version = "3.12"

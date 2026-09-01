@@ -12,7 +12,7 @@ class JWTTokenService(TokenService):
 
     The token is signed HS256 with this service's own ``SECRET_KEY`` (see
     ``SIMPLE_JWT`` in settings) — the shortener and analytics services
-    verify it over gRPC instead of holding any key material. It also
+    verify it over REST instead of holding any key material. It also
     carries ``username``, ``is_premium`` and ``tier`` as custom claims:
     those services have no ``users`` table of their own to look the user
     up in, so anything they need to know about the caller (identity,
