@@ -41,6 +41,7 @@ x-analytics-env: &analytics-env
   DEBUG: ${DEBUG:-True}
   DB_NAME: ${ANALYTICS_DB_NAME:-analytics}
   <<: *host-db
+  REDIS_URL: redis://127.0.0.1:6380/0
   AUTH_SERVICE_URL: http://auth:8000
   SHORTENER_SERVICE_URL: http://shortener:8000
   INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
@@ -52,7 +53,7 @@ services:
     container_name: msvc-redis
     restart: unless-stopped
     ports:
-      - "6390:6379"
+      - "6380:6379"
     volumes:
       - msvc_redis_data:/data
     healthcheck:
@@ -74,7 +75,7 @@ services:
       ALLOWED_HOSTS: "*"
       DB_NAME: ${AUTH_DB_NAME:-auth}
       <<: *host-db
-      REDIS_URL: redis://redis:6379/1
+      REDIS_URL: redis://127.0.0.1:6380/0
     volumes:
       - ./auth/logs:/app/logs
     ports:
@@ -96,7 +97,7 @@ services:
       ALLOWED_HOSTS: "*"
       DB_NAME: ${SHORTENER_DB_NAME:-shortener}
       <<: *host-db
-      REDIS_URL: redis://redis:6379/2
+      REDIS_URL: redis://127.0.0.1:6380/0
       AUTH_SERVICE_URL: http://auth:8000
       ANALYTICS_SERVICE_URL: http://analytics:8000
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
@@ -125,6 +126,8 @@ services:
     ports:
       - "8003:8000"
     depends_on:
+      redis:
+        condition: service_healthy
       shortener:
         condition: service_started
       auth:

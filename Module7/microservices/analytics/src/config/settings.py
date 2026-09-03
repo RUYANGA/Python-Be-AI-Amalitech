@@ -57,6 +57,10 @@ AUTH_SERVICE_URL = config("AUTH_SERVICE_URL", default="http://localhost:8001")
 SHORTENER_SERVICE_URL = config("SHORTENER_SERVICE_URL", default="http://localhost:8002")
 INTERNAL_SERVICE_TOKEN = config("INTERNAL_SERVICE_TOKEN", default="")
 
+# Backs CachedClickAnalyticsRepository's read-through cache over the
+# analytics-by-code endpoint's aggregate queries.
+REDIS_URL = config("REDIS_URL", default="redis://127.0.0.1:6379/0")
+
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.middleware.common.CommonMiddleware",

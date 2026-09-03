@@ -7,7 +7,7 @@ geo from the IP, and persists a ``Click`` row synchronously.
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -94,13 +94,15 @@ class TestClickIngestView:
     def test_returns_500_when_the_repository_fails(self, api_client, settings):
         settings.INTERNAL_SERVICE_TOKEN = "shared-secret"
 
-        with patch(
-            "apps.analytics.api.views.click_ingest_view.DjangoClickAnalyticsRepository"
-        ) as mock_repository_cls:
-            mock_repository_cls.return_value.record_click.side_effect = RepositoryError(
-                "record_click", short_code="abc1234"
-            )
+        mock_repository = Mock()
+        mock_repository.record_click.side_effect = RepositoryError(
+            "record_click", short_code="abc1234"
+        )
 
+        with patch(
+            "apps.analytics.api.views.click_ingest_view.build_click_repository",
+            return_value=mock_repository,
+        ):
             response = api_client.post(
                 "/api/v1/internal/clicks/",
                 {"short_code": "abc1234"},

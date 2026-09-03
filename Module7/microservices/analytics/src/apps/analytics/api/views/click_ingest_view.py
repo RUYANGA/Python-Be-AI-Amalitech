@@ -24,7 +24,7 @@ from rest_framework.views import APIView
 from apps.analytics.api.exceptions import RepositoryError
 from apps.analytics.api.geo import GeoIP2FastLocator
 from apps.analytics.api.permissions import HasInternalServiceToken
-from apps.analytics.api.repositories.analytics_repository import DjangoClickAnalyticsRepository
+from apps.analytics.api.services.factory import build_click_repository
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ class ClickIngestView(APIView):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._repository = DjangoClickAnalyticsRepository()
+        self._repository = build_click_repository()
         self._geo_locator = GeoIP2FastLocator()
 
     @extend_schema(exclude=True)
