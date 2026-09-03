@@ -1,0 +1,11 @@
+[project]
+name = "shortener-service"
+version = "1.0.0"
+description = "Shortener microservice: URL creation, resolution, RBAC, tier rules"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
+pythonpath = ["src"]
+testpaths = ["src/apps"]
+python_files = ["test_*.py"]

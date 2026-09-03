@@ -1,0 +1,116 @@
+
+# auth/shortener/analytics behind one nginx gateway (../gateway) — the
+# only published port. Postgres and Redis are NOT containerized: all
+# three connect to the host's own Postgres (host.docker.internal) and
+# Redis (host.docker.internal:6380, adjust if yours differs) — create
+# the three databases first with `createdb -U <role> auth shortener
+# analytics`. One shared Dockerfile (./Dockerfile) builds all three.
+#
+# Quick start:
+#   cp .env.example .env   # fill in real secrets + DB_PASSWORD
+#   docker compose up --build
+#   -> http://localhost:8080/
+
+x-host-db: &host-db
+  DB_HOST: host.docker.internal
+  DB_PORT: 5432
+  DB_USER: ${DB_USER:-postgres}
+  DB_PASSWORD: ${DB_PASSWORD:?set in .env}
+
+x-extra-hosts: &extra-hosts
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+
+x-analytics-env: &analytics-env
+  SECRET_KEY: ${ANALYTICS_SECRET_KEY:?set in .env}
+  DEBUG: ${DEBUG:-True}
+  DB_NAME: ${ANALYTICS_DB_NAME:-analytics}
+  <<: *host-db
+  REDIS_URL: redis://host.docker.internal:6380/0
+  SHORTENER_SERVICE_URL: http://shortener:8000
+  INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
+
+services:
+  # No host port on any of these three — reachable only via the gateway
+  # or from other containers on this network.
+  auth:
+    build:
+      context: ./auth
+      dockerfile: ../Dockerfile
+    image: msvc-auth:latest
+    container_name: msvc-auth
+    restart: unless-stopped
+    <<: *extra-hosts
+    environment:
+      SECRET_KEY: ${AUTH_SECRET_KEY:?set in .env}
+      DEBUG: ${DEBUG:-True}
+      ALLOWED_HOSTS: "*"
+      DB_NAME: ${AUTH_DB_NAME:-auth}
+      <<: *host-db
+      REDIS_URL: redis://host.docker.internal:6380/0
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
+    volumes:
+      - ./auth/logs:/app/logs
+
+  shortener:
+    build:
+      context: ./shortener
+      dockerfile: ../Dockerfile
+    image: msvc-shortener:latest
+    container_name: msvc-shortener
+    restart: unless-stopped
+    <<: *extra-hosts
+    environment:
+      SECRET_KEY: ${SHORTENER_SECRET_KEY:?set in .env}
+      DEBUG: ${DEBUG:-True}
+      ALLOWED_HOSTS: "*"
+      DB_NAME: ${SHORTENER_DB_NAME:-shortener}
+      <<: *host-db
+      REDIS_URL: redis://host.docker.internal:6380/0
+      ANALYTICS_SERVICE_URL: http://analytics:8000
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
+    volumes:
+      - ./shortener/logs:/app/logs
+    depends_on:
+      auth:
+        condition: service_started
+
+  analytics:
+    build:
+      context: ./analytics
+      dockerfile: ../Dockerfile
+    image: msvc-analytics:latest
+    container_name: msvc-analytics
+    restart: unless-stopped
+    <<: *extra-hosts
+    environment:
+      <<: *analytics-env
+      ALLOWED_HOSTS: "*"
+    volumes:
+      - ./analytics/logs:/app/logs
+    depends_on:
+      shortener:
+        condition: service_started
+      auth:
+        condition: service_started
+
+  # See ../gateway — the only published port.
+  gateway:
+    image: nginx:1.27-alpine
+    container_name: msvc-gateway
+    restart: unless-stopped
+    environment:
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
+    # Mounted as default.conf.template so it replaces nginx's own demo
+    # config instead of running alongside it — see ../gateway/README.md.
+    volumes:
+      - ../gateway/nginx.conf:/etc/nginx/templates/default.conf.template:ro
+    ports:
+      - "8080:80"
+    depends_on:
+      auth:
+        condition: service_started
+      shortener:
+        condition: service_started
+      analytics:
+        condition: service_started
