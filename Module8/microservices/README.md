@@ -86,17 +86,22 @@ internal network, not through the gateway — see
    tokens are short-lived — 15 minutes — specifically to bound that
    staleness).
 
-2. **Click tracking: fire-and-forget REST, not a synchronous write.** The
-   redirect endpoint (`GET /{short_code}/`) is the highest-traffic,
-   unauthenticated, latency-critical path in the system. It must never
-   block on — or fail because of — analytics being slow or down. So
-   `shortener` dispatches a `POST /api/v1/internal/clicks/` directly to
-   `analytics` (`ANALYTICS_SERVICE_URL=http://analytics:8000`, not through
-   the gateway) on a background thread (`ClickEventPublisher`, backed by a
-   small `ThreadPoolExecutor`) and returns immediately; a delivery failure
-   is logged and swallowed, never raised back to the caller. `analytics`
-   receives the click synchronously on that endpoint and does the geo
-   lookup + write in the same request.
+2. **Click tracking: fire-and-forget REST, then write-behind via Celery —
+   two separate hops, neither of them a synchronous write.** The redirect
+   endpoint (`GET /{short_code}/`) is the highest-traffic, unauthenticated,
+   latency-critical path in the system. It must never block on — or fail
+   because of — analytics being slow or down. So `shortener` dispatches a
+   `POST /api/v1/internal/clicks/` directly to `analytics`
+   (`ANALYTICS_SERVICE_URL=http://analytics:8000`, not through the gateway)
+   on a background thread (`ClickEventPublisher`, backed by a small
+   `ThreadPoolExecutor`) and returns immediately; a delivery failure is
+   logged and swallowed, never raised back to the caller. `analytics`
+   doesn't write the `Click` row (or do the geo lookup) in that request
+   either — `ClickIngestView` just validates the payload and enqueues
+   `track_click_task` onto its own Celery worker
+   (`apps.analytics.tasks`), returning `202 Accepted` immediately. The
+   actual database write happens on `analytics-worker`, off both request
+   paths.
 
 3. **Ownership lookup: the other synchronous REST call.** `analytics` has no
    `urls` table, so "does this short code exist, and is it owned by the
@@ -108,6 +113,37 @@ internal network, not through the gateway — see
    found"), so a down shortener service can't leak anyone's analytics — it
    just makes analytics briefly unavailable too. Neither of these two calls
    goes through the gateway — see [`../gateway`](../gateway) for why.
+
+### Background processing, logging, and health
+
+- **Celery workers, one per service that needs one.** `shortener-worker` +
+  `shortener-beat` run the nightly `archive_expired_urls` job
+  (`CELERY_BEAT_SCHEDULE`, 02:00) that deactivates any URL past its
+  `expires_at` — going through the same cached repository a normal edit
+  would, so the cache is invalidated the same way. `analytics-worker` runs
+  the write-behind click task described above. Each service's Celery
+  broker lives on its **own Redis DB index** on the shared Redis instance
+  (`/1` for shortener, `/2` for analytics) — deliberately *not* the same DB
+  as the `REDIS_URL` cache, and not shared between the two services either:
+  Celery's redis transport consumes an entire queue with a plain `BRPOP` on
+  a fixed key (`celery` by default) with no per-app prefix, so two services
+  sharing one DB would each `BRPOP` the *other's* tasks off the same list —
+  and a message popped by the wrong worker is simply dropped, not requeued.
+- **Structured JSON logging.** Every service's `LOGGING` config
+  (`config/json_logging.py`) renders one JSON object per line — to both
+  stdout (`docker compose logs -f`) and the rotating `logs/<service>.log`
+  file — instead of free text, with `django.request` (500s) and
+  `django.security.*` (disallowed hosts, CSRF failures, ...) wired to
+  explicit loggers so neither is silently dropped.
+- **`GET /health/`, per service.** Checks a real database round-trip and a
+  Redis `PING`, returning `200 {"status": "ok", "checks": {...}}` or `503`
+  with the failing check named. No authentication — called by
+  `docker-compose`'s own `healthcheck:` blocks (which is what gates
+  `depends_on: condition: service_healthy` between services, and why
+  `analytics`/`shortener-worker`/etc. only start once their dependencies
+  have actually finished migrating, not just booted) and by external
+  monitoring. The gateway has its own, unrelated `GET /health` — a plain
+  liveness check that nginx itself is up, nothing about any backend.
 
 ## Running it
 
@@ -147,6 +183,8 @@ All paths below are relative to the gateway (`http://localhost:8080`) — see
 | `GET` | `/api/v1/{short_code}/` | shortener (JSON resolve) |
 | `GET` | `/{short_code}/` | shortener (302 redirect — the actual short link) |
 | `GET` | `/api/v1/analytics/{short_code}/` | analytics (premium only) |
+| `GET` | `/health/` | each service (auth/shortener/analytics) — DB + Redis check |
+| `GET` | `/health` | gateway — nginx liveness only |
 
 Three more endpoints exist purely for service-to-service calls, gated by the
 shared `X-Internal-Token` header rather than a user's JWT, excluded from the
@@ -195,21 +233,29 @@ as an oversight:
   in the model/API shape for compatibility but will read `0`/`null`. The
   authoritative count is `GET /api/v1/analytics/{short_code}/`'s
   `stats.total_clicks` (premium-gated).
-- **One shared Redis** backs the login rate limiter and the URL cache — two
-  unrelated per-service concerns. True isolation would give each service its
-  own instance; this is the common, pragmatic middle ground as long as key
-  namespaces don't collide (`auth:*`, `url:*`).
-- **Click delivery has no retry or durability.** `ClickEventPublisher` fires
-  a single REST request on a background thread and gives up on failure —
-  there's no queue, no at-least-once redelivery, and a click can be silently
-  lost if analytics is down at the exact moment of the request. A real
-  deployment that needed a durability guarantee here would put a message
-  broker back in front of this seam.
-- **No observability stack.** A request that spans all three services has
-  no distributed tracing here — `docker compose logs -f` per-service, plus
-  each service's own `logs/<service>.log` on disk (rotated, 10MB × 5 files),
-  is the debugging story. Adding OpenTelemetry + Jaeger/Tempo would be the
-  natural next step, not a redesign.
+- **One shared Redis** backs the login rate limiter, the URL/analytics
+  caches, and both services' Celery brokers — several unrelated per-service
+  concerns on one instance. True isolation would give each its own
+  instance; this is the common, pragmatic middle ground as long as they
+  don't collide — the caches by key namespace (`auth:*`, `url:*`,
+  `analytics:*`), the two Celery brokers by DB index (`/1`, `/2`, see
+  above) since queue keys aren't namespaced at all.
+- **Click delivery still has one fire-and-forget hop.** The write side is
+  now durable from the moment `analytics` accepts a click — `track_click_task`
+  sits on a Celery/Redis queue until `analytics-worker` processes it, so a
+  slow or momentarily-restarting analytics process no longer loses it. What's
+  *not* durable is the hop before that: `ClickEventPublisher`'s `POST` from
+  `shortener` to `analytics` is still a single REST request on a background
+  thread with no retry, so a click can still be silently lost if `analytics`
+  is unreachable at the exact moment `shortener` tries to deliver it. Closing
+  that gap too would mean putting a message broker in front of that seam as
+  well, not just behind analytics' own endpoint.
+- **Structured logs, but no distributed tracing.** Every service now emits
+  one JSON log line per event (see above) instead of free text, but a
+  request that spans all three services still has no correlation ID tying
+  its log lines together across process boundaries — `docker compose logs
+  -f` per-service is still how you'd follow one. Adding OpenTelemetry +
+  Jaeger/Tempo would be the natural next step, not a redesign.
 - **Docs/schema are multiplexed via `rewrite`, not natively.** Each service's
   own drf-spectacular Swagger UI still assumes it's the only thing on the
   host — all three define docs/schema at the same literal `/api/v1/docs/`

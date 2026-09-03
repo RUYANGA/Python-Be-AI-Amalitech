@@ -28,8 +28,13 @@ Dockerfile for it, and no other config file in this folder.
 | `/api/v1/urls/` | shortener | **Yes** |
 | `/api/v1/analytics/` | analytics | **Yes** |
 | `/api/v1/internal/`, `/internal/` | — | Blocked (`404`) — see below |
+| `/health` | — | No — nginx's own liveness check, doesn't reach any backend |
 | `/api/v1/` (everything else — resolve) | shortener | No |
 | `/` (the short link itself, e.g. `/abc123`) | shortener | No |
+
+`/health` here is unrelated to each service's own `GET /health/` (checked
+directly by that service's own `docker-compose` healthcheck, not through
+this gateway) — this one only proves nginx itself is up.
 
 Backend hostnames (`auth`, `shortener`, `analytics`) are resolved per
 request via Docker's embedded DNS (`resolver 127.0.0.11`) combined with

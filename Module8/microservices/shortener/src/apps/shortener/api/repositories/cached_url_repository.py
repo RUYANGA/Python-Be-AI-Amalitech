@@ -102,6 +102,7 @@ class CachedURLRepository(IURLRepository):
         title: str | None = None,
         tags: list[str] | None = None,
         expires_at=None,
+        is_active: bool | None = None,
     ) -> URL:
         updated = self._orm.update(
             url,
@@ -109,6 +110,7 @@ class CachedURLRepository(IURLRepository):
             title=title,
             tags=tags,
             expires_at=expires_at,
+            is_active=is_active,
         )
         self._invalidate(updated.short_code, updated.id, updated.owner_id)
         return updated

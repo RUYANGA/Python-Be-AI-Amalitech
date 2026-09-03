@@ -82,6 +82,13 @@ class RedisClient:
             logger.warning("redis.ttl_failed key=%s error=%s", key, exc)
             return 0
 
+    def ping(self) -> bool:
+        """Health check. Returns ``True`` if Redis is reachable."""
+        try:
+            return self._client.ping()
+        except (redis.ConnectionError, redis.TimeoutError):
+            return False
+
 
 def get_redis_client() -> RedisClient:
     """Return the singleton :class:`RedisClient` instance."""

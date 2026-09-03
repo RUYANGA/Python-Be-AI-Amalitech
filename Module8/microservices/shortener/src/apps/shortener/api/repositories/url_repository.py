@@ -76,11 +76,13 @@ class DjangoURLRepository(IURLRepository):
         title: str | None = None,
         tags: list[str] | None = None,
         expires_at=None,
+        is_active: bool | None = None,
     ) -> URL:
         """Apply optional partial fields to ``url``.
 
-        Any of ``original_url``, ``title``, ``tags`` and ``expires_at`` that is
-        provided is persisted; omitted fields are left unchanged.
+        Any of ``original_url``, ``title``, ``tags``, ``expires_at`` and
+        ``is_active`` that is provided is persisted; omitted fields are
+        left unchanged.
         """
         try:
             if original_url is not None:
@@ -89,6 +91,8 @@ class DjangoURLRepository(IURLRepository):
                 url.title = title
             if expires_at is not None:
                 url.expires_at = expires_at
+            if is_active is not None:
+                url.is_active = is_active
             if tags is not None:
                 url.tags.set(self._get_or_create_tags(tags))
             url.save()

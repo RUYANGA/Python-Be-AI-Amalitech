@@ -44,6 +44,7 @@ directly; reachable through the gateway on **:8080**).
 | `GET` | `/api/v1/{short_code}/` | Public | JSON resolve — `{"original_url": ...}`, records a click |
 | `GET` | `/{short_code}/` | Public | **The actual short link** — 302 redirect, records a click |
 | `GET` | `/api/v1/internal/urls/{short_code}/owner/` | `X-Internal-Token` | Existence/ownership lookup — called by analytics only |
+| `GET` | `/health/` | Public | Liveness/readiness — DB + Redis check, `200`/`503` |
 
 A non-owner touching someone else's `{short_code}` gets `404`, not `403` —
 deliberately, so a write attempt can't be used to probe whether a code
@@ -95,6 +96,14 @@ protocol.
   thread on every redirect/resolve. Publish failures are logged and
   swallowed, never raised — the highest-traffic path in the system must
   never fail because `analytics` is slow or down.
+- **Nightly URL archival** (`apps.shortener.tasks.archive_expired_urls_task`):
+  a Celery Beat job, scheduled for 02:00 (`CELERY_BEAT_SCHEDULE` in
+  `settings.py`), that deactivates (`is_active=False`) every URL whose
+  `expires_at` has passed. Goes through the same cached repository a manual
+  edit would, so each archived URL's cache entry is invalidated the same
+  way — a stale `url:code:*` entry can't keep redirecting past expiry. Runs
+  on the `shortener-worker`/`shortener-beat` containers, never inline with
+  a request.
 
 ## Environment variables
 
@@ -105,13 +114,17 @@ protocol.
 | `ALLOWED_HOSTS` | `*` | Comma-separated allowed hosts |
 | `DB_NAME` / `DB_USER` / `DB_PASSWORD` / `DB_HOST` / `DB_PORT` | *(required)* | Postgres connection |
 | `REDIS_URL` | `redis://127.0.0.1:6379/0` | Backs the read-through URL cache |
+| `CELERY_BROKER_URL` | `redis://127.0.0.1:6379/1` | Broker for the nightly archive job — a **different Redis DB** than `REDIS_URL`, and different from analytics' own broker DB, so the two services' workers never `BRPOP` each other's tasks off the same queue key |
 | `ANALYTICS_SERVICE_URL` | `http://analytics:8000` | Where to publish click events — called directly, not through the gateway |
 | `INTERNAL_SERVICE_TOKEN` | `""` | Shared secret for the click-event REST call, and for verifying the inbound ownership lookup from analytics — must match all three services' copies |
 
 ## Logs
 
-Written to stdout (`docker compose logs -f shortener`) and, alongside that,
-to `logs/shortener.log` on disk — rotated at 10MB, keeping 5 backups.
+One structured JSON object per line (`config/json_logging.py`), written to
+stdout (`docker compose logs -f shortener`) and, alongside that, to
+`logs/shortener.log` on disk — rotated at 10MB, keeping 5 backups. `500`s
+(`django.request`) and security warnings (`django.security.*`) are logged
+explicitly so neither is silently dropped.
 
 ## Running it
 
@@ -139,4 +152,6 @@ docker compose run --rm shortener sh -c "pip install -r requirements-dev.txt && 
 create sets the correct `owner_id` (201); the redirect endpoint 302s to the
 original URL; a non-owner's `PATCH` returns 404; the owner's `PATCH`
 succeeds; an 11th URL from a free user is rejected (403); a premium user can
-use a custom alias while a free user cannot.
+use a custom alias while a free user cannot. `test_tasks.py` covers the
+nightly archive job directly (expired URLs get deactivated, unexpired and
+already-archived ones are left alone, the cache is invalidated).

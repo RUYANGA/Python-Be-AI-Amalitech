@@ -32,3 +32,16 @@ def _clear_analytics_cache():
     client.flush_pattern("analytics:*")
     yield
     client.flush_pattern("analytics:*")
+
+
+@pytest.fixture(autouse=True)
+def _celery_eager(settings):
+    """Run Celery tasks synchronously, in-process, for the test suite.
+
+    ``track_click_task.delay(...)`` would otherwise just enqueue onto
+    Redis and return, so tests asserting on a ``Click`` row right after a
+    request need the task to execute (and any exception to propagate)
+    before ``.delay()`` returns — exactly what ``task_always_eager`` does.
+    """
+    settings.CELERY_TASK_ALWAYS_EAGER = True
+    settings.CELERY_TASK_EAGER_PROPAGATES = True

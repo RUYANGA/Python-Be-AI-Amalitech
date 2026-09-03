@@ -1,8 +1,11 @@
 """Tests for the internal click-ingestion endpoint.
 
 Covers the REST contract that replaced the Kafka ``clicks`` topic and
-``consume_clicks``: authenticated with ``X-Internal-Token``, resolves
-geo from the IP, and persists a ``Click`` row synchronously.
+``consume_clicks``: authenticated with ``X-Internal-Token``, then
+write-behind via Celery (``track_click_task``) — the ``_celery_eager``
+fixture in ``conftest.py`` runs that task synchronously so a ``Click``
+row is visible immediately after the request in these tests, exactly as
+it will be, asynchronously, in production.
 """
 
 from __future__ import annotations
@@ -56,7 +59,7 @@ class TestClickIngestView:
             HTTP_X_INTERNAL_TOKEN="shared-secret",
         )
 
-        assert response.status_code == 204
+        assert response.status_code == 202
         click = Click.objects.get(short_code="abc1234")
         assert click.ip_address == "8.8.8.8"
         assert click.user_agent == "pytest"
@@ -73,7 +76,7 @@ class TestClickIngestView:
             HTTP_X_INTERNAL_TOKEN="shared-secret",
         )
 
-        assert response.status_code == 204
+        assert response.status_code == 202
         click = Click.objects.get(short_code="abc1234")
         assert click.ip_address is None
         assert click.country == ""
@@ -100,7 +103,7 @@ class TestClickIngestView:
         )
 
         with patch(
-            "apps.analytics.api.views.click_ingest_view.build_click_repository",
+            "apps.analytics.tasks.build_click_repository",
             return_value=mock_repository,
         ):
             response = api_client.post(

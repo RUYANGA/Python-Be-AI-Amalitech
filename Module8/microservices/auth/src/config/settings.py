@@ -143,26 +143,30 @@ LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
-        "verbose": {
-            "format": "[{asctime}] {levelname} {name} {message}",
-            "style": "{",
-            "datefmt": "%Y-%m-%d %H:%M:%S",
-        },
-        "simple": {"format": "{levelname} {message}", "style": "{"},
+        "json": {"()": "config.json_logging.JSONFormatter"},
     },
     "handlers": {
-        "console": {"class": "logging.StreamHandler", "formatter": "simple"},
+        "console": {"class": "logging.StreamHandler", "formatter": "json"},
         "file": {
             "class": "logging.handlers.RotatingFileHandler",
             "filename": LOG_DIR / "auth.log",
             "maxBytes": 10 * 1024 * 1024,  # 10 MB
             "backupCount": 5,
-            "formatter": "verbose",
+            "formatter": "json",
         },
     },
     "root": {"handlers": ["console", "file"], "level": "INFO"},
     "loggers": {
         "django": {"handlers": ["console", "file"], "level": "INFO", "propagate": False},
+        # Django logs a 500 here at ERROR — kept explicit so it's never
+        # silently dropped regardless of the "django" logger's level above.
+        "django.request": {"handlers": ["console", "file"], "level": "ERROR", "propagate": False},
+        # DisallowedHost, SuspiciousOperation, CSRF failures, etc.
+        "django.security": {
+            "handlers": ["console", "file"],
+            "level": "WARNING",
+            "propagate": False,
+        },
         "apps.users": {"handlers": ["console", "file"], "level": "INFO", "propagate": False},
     },
 }

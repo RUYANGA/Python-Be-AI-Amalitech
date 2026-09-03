@@ -6,6 +6,15 @@
 # the three databases first with `createdb -U <role> auth shortener
 # analytics`. One shared Dockerfile (./Dockerfile) builds all three.
 #
+# shortener-worker/-beat and analytics-worker are Celery containers:
+# shortener runs the nightly archive-expired-URLs job (worker + beat),
+# analytics runs the write-behind click-ingestion queue (worker only —
+# it has no periodic tasks). Both use the same Redis instance as the
+# cache/rate-limiter, but each service's broker gets its own DB index
+# (CELERY_BROKER_URL below) — Celery's redis transport has no per-app
+# key prefix, so two services' workers sharing one DB would each BRPOP
+# the *other's* tasks off the same queue key.
+#
 # Quick start:
 #   cp .env.example .env   # fill in real secrets + DB_PASSWORD
 #   docker compose up --build
@@ -21,12 +30,35 @@ x-extra-hosts: &extra-hosts
   extra_hosts:
     - "host.docker.internal:host-gateway"
 
+# Every container hits the DB migration/health check the same way, so a
+# plain "is the process still running" check isn't enough — this is what
+# docker-compose's `healthcheck:` actually calls into.
+x-healthcheck: &healthcheck
+  interval: 30s
+  timeout: 5s
+  retries: 3
+  start_period: 15s
+
+x-shortener-env: &shortener-env
+  SECRET_KEY: ${SHORTENER_SECRET_KEY:?set in .env}
+  DEBUG: ${DEBUG:-True}
+  DB_NAME: ${SHORTENER_DB_NAME:-shortener}
+  <<: *host-db
+  REDIS_URL: redis://host.docker.internal:6380/0
+  # A different Redis *DB index* than REDIS_URL above, not just a
+  # different key namespace — see the comment on CELERY_BROKER_URL in
+  # settings.py for why sharing a DB across services' brokers is unsafe.
+  CELERY_BROKER_URL: redis://host.docker.internal:6380/1
+  ANALYTICS_SERVICE_URL: http://analytics:8000
+  INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
+
 x-analytics-env: &analytics-env
   SECRET_KEY: ${ANALYTICS_SECRET_KEY:?set in .env}
   DEBUG: ${DEBUG:-True}
   DB_NAME: ${ANALYTICS_DB_NAME:-analytics}
   <<: *host-db
   REDIS_URL: redis://host.docker.internal:6380/0
+  CELERY_BROKER_URL: redis://host.docker.internal:6380/2
   SHORTENER_SERVICE_URL: http://shortener:8000
   INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
 
@@ -51,6 +83,9 @@ services:
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
     volumes:
       - ./auth/logs:/app/logs
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/health/', timeout=3)"]
 
   shortener:
     build:
@@ -61,19 +96,58 @@ services:
     restart: unless-stopped
     <<: *extra-hosts
     environment:
-      SECRET_KEY: ${SHORTENER_SECRET_KEY:?set in .env}
-      DEBUG: ${DEBUG:-True}
+      <<: *shortener-env
       ALLOWED_HOSTS: "*"
-      DB_NAME: ${SHORTENER_DB_NAME:-shortener}
-      <<: *host-db
-      REDIS_URL: redis://host.docker.internal:6380/0
-      ANALYTICS_SERVICE_URL: http://analytics:8000
-      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
     volumes:
       - ./shortener/logs:/app/logs
     depends_on:
       auth:
-        condition: service_started
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/health/', timeout=3)"]
+
+  # Runs shortener's own Celery tasks (currently just the nightly
+  # archive job — see shortener-beat below). Waits on `shortener` being
+  # healthy so migrations have already run against the same database.
+  shortener-worker:
+    build:
+      context: ./shortener
+      dockerfile: ../Dockerfile
+    image: msvc-shortener-worker:latest
+    container_name: msvc-shortener-worker
+    restart: unless-stopped
+    command: celery -A config worker -l info --concurrency=4
+    <<: *extra-hosts
+    environment:
+      <<: *shortener-env
+      ALLOWED_HOSTS: "*"
+    volumes:
+      - ./shortener/logs:/app/logs
+    depends_on:
+      shortener:
+        condition: service_healthy
+
+  # Celery's scheduler: fires archive_expired_urls onto shortener-worker's
+  # queue every night at 02:00 (see CELERY_BEAT_SCHEDULE in settings.py).
+  # Only ever one of these — Celery Beat is not safe to run more than once.
+  shortener-beat:
+    build:
+      context: ./shortener
+      dockerfile: ../Dockerfile
+    image: msvc-shortener-beat:latest
+    container_name: msvc-shortener-beat
+    restart: unless-stopped
+    command: celery -A config beat -l info --schedule=/tmp/celerybeat-schedule
+    <<: *extra-hosts
+    environment:
+      <<: *shortener-env
+      ALLOWED_HOSTS: "*"
+    volumes:
+      - ./shortener/logs:/app/logs
+    depends_on:
+      shortener:
+        condition: service_healthy
 
   analytics:
     build:
@@ -90,9 +164,33 @@ services:
       - ./analytics/logs:/app/logs
     depends_on:
       shortener:
-        condition: service_started
+        condition: service_healthy
       auth:
-        condition: service_started
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/health/', timeout=3)"]
+
+  # Write-behind click ingestion: consumes the queue ClickIngestView
+  # enqueues onto (track_click_task). No beat here — analytics has no
+  # periodic tasks of its own.
+  analytics-worker:
+    build:
+      context: ./analytics
+      dockerfile: ../Dockerfile
+    image: msvc-analytics-worker:latest
+    container_name: msvc-analytics-worker
+    restart: unless-stopped
+    command: celery -A config worker -l info --concurrency=4
+    <<: *extra-hosts
+    environment:
+      <<: *analytics-env
+      ALLOWED_HOSTS: "*"
+    volumes:
+      - ./analytics/logs:/app/logs
+    depends_on:
+      analytics:
+        condition: service_healthy
 
   # See ../gateway — the only published port.
   gateway:
@@ -109,8 +207,15 @@ services:
       - "8080:80"
     depends_on:
       auth:
-        condition: service_started
+        condition: service_healthy
       shortener:
-        condition: service_started
+        condition: service_healthy
       analytics:
-        condition: service_started
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      # 127.0.0.1, not localhost: busybox wget doesn't fall back from
+      # ::1 to 127.0.0.1 the way Python's urllib (used by the three
+      # Django services' own healthchecks) does, and nginx here only
+      # binds the IPv4 wildcard.
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/health"]

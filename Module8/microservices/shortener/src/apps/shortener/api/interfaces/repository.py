@@ -72,6 +72,7 @@ class IURLRepository(ABC):
         title: str | None = None,
         tags: list[str] | None = None,
         expires_at=None,
+        is_active: bool | None = None,
     ) -> URL:
         """Apply optional partial fields to ``url`` and return it.
 

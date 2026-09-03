@@ -35,6 +35,9 @@ Interactive docs: `/api/v1/docs/` (Swagger UI), `/api/v1/redoc/`. Both
 internal-endpoint methods are excluded from both — they're not for
 browser/client use.
 
+Also, outside the `/api/v1/auth/` base path above: `GET /health/` — public,
+liveness/readiness (DB + Redis check), `200`/`503`.
+
 ## Internal token validation
 
 `/api/v1/auth/internal/token/validate/` verifies an access token and returns
@@ -92,10 +95,13 @@ need to know about the caller without a database lookup.
 
 ## Logs
 
-Written to stdout (`docker compose logs -f auth`) and, alongside that, to
-`logs/auth.log` on disk — rotated at 10MB, keeping 5 backups. When running
-via Docker, `logs/` is a bind mount (`./logs:/app/logs`), so it lands in
-this directory on the host, not just inside the container.
+One structured JSON object per line (`config/json_logging.py`), written to
+stdout (`docker compose logs -f auth`) and, alongside that, to
+`logs/auth.log` on disk — rotated at 10MB, keeping 5 backups. `500`s
+(`django.request`) and security warnings (`django.security.*`) are logged
+explicitly so neither is silently dropped. When running via Docker, `logs/`
+is a bind mount (`./logs:/app/logs`), so it lands in this directory on the
+host, not just inside the container.
 
 ## Running it
 

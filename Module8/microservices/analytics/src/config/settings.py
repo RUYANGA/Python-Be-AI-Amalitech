@@ -112,28 +112,51 @@ LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
-        "verbose": {
-            "format": "[{asctime}] {levelname} {name} {message}",
-            "style": "{",
-            "datefmt": "%Y-%m-%d %H:%M:%S",
-        },
-        "simple": {"format": "{levelname} {message}", "style": "{"},
+        "json": {"()": "config.json_logging.JSONFormatter"},
     },
     "handlers": {
-        "console": {"class": "logging.StreamHandler", "formatter": "simple"},
+        "console": {"class": "logging.StreamHandler", "formatter": "json"},
         "file": {
             "class": "logging.handlers.RotatingFileHandler",
             "filename": LOG_DIR / "analytics.log",
             "maxBytes": 10 * 1024 * 1024,  # 10 MB
             "backupCount": 5,
-            "formatter": "verbose",
+            "formatter": "json",
         },
     },
     "root": {"handlers": ["console", "file"], "level": "INFO"},
     "loggers": {
         "django": {"handlers": ["console", "file"], "level": "INFO", "propagate": False},
+        # Django logs a 500 here at ERROR — kept explicit so it's never
+        # silently dropped regardless of the "django" logger's level above.
+        "django.request": {"handlers": ["console", "file"], "level": "ERROR", "propagate": False},
+        # DisallowedHost, SuspiciousOperation, CSRF failures, etc.
+        "django.security": {
+            "handlers": ["console", "file"],
+            "level": "WARNING",
+            "propagate": False,
+        },
         "apps.analytics": {"handlers": ["console", "file"], "level": "INFO", "propagate": False},
+        "celery": {"handlers": ["console", "file"], "level": "INFO", "propagate": False},
     },
 }
+
+# ─── Celery (write-behind click ingestion: see apps.analytics.tasks) ──
+# A *different Redis DB* than REDIS_URL/the cache — not just a
+# different key namespace. Celery's redis transport consumes an entire
+# queue with a plain BRPOP on a fixed key ("celery" by default), with no
+# per-app prefix, so if this shared Redis' cache DB were reused as the
+# broker DB for more than one service, each service's worker would also
+# BRPOP the *other* service's tasks off the same list — a message
+# consumed by the wrong worker is simply dropped, not requeued. Own DB
+# index per service's broker avoids that entirely (shortener uses /1).
+CELERY_BROKER_URL = config("CELERY_BROKER_URL", default="redis://127.0.0.1:6379/2")
+CELERY_RESULT_BACKEND = None
+CELERY_TASK_ALWAYS_EAGER = config("CELERY_TASK_ALWAYS_EAGER", default=False, cast=bool)
+CELERY_TASK_EAGER_PROPAGATES = True
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = TIME_ZONE
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

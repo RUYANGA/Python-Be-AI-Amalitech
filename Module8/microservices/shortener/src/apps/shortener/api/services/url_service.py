@@ -177,11 +177,13 @@ class URLShortenerService:
         title: str | None = None,
         tags: list[str] | None = None,
         expires_at=None,
+        is_active: bool | None = None,
     ) -> URL:
         """Update only the provided fields on ``url``.
 
-        Any of ``original_url``, ``title``, ``tags`` and ``expires_at`` that is
-        provided is persisted; omitted fields are left unchanged.
+        Any of ``original_url``, ``title``, ``tags``, ``expires_at`` and
+        ``is_active`` that is provided is persisted; omitted fields are
+        left unchanged.
         """
         updated = self._repository.update(
             url,
@@ -189,6 +191,7 @@ class URLShortenerService:
             title=title,
             tags=tags,
             expires_at=expires_at,
+            is_active=is_active,
         )
         self._repository.invalidate(updated)
         logger.info(
