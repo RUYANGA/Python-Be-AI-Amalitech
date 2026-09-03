@@ -10,7 +10,7 @@ from drf_spectacular.views import (
 from apps.shortener.api.views import URLRedirectView, URLResolveView
 
 urlpatterns = [
-    path("api/v1/", include("apps.shortener.api.urls")),
+    path("", include("apps.shortener.api.urls")),
     path("api/v1/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
         "api/v1/docs/",

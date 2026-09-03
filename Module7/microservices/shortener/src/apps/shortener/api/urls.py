@@ -18,12 +18,12 @@ from apps.shortener.api.views import (
 )
 
 urlpatterns = [
-    path("urls/", URLCreateView.as_view(), name="url-create"),
-    path("urls/mine/", URLListView.as_view(), name="url-list-mine"),
+    path("api/v1/urls/", URLCreateView.as_view(), name="url-create"),
+    path("api/v1/urls/mine/", URLListView.as_view(), name="url-list-mine"),
     path(
-        "internal/urls/<str:short_code>/owner/",
+        "api/v1/internal/urls/<str:short_code>/owner/",
         URLOwnershipView.as_view(),
         name="internal-url-owner",
     ),
-    path("urls/<str:short_code>/", URLShortCodeDetailView.as_view(), name="url-by-code"),
+    path("api/v1/urls/<str:short_code>/", URLShortCodeDetailView.as_view(), name="url-by-code"),
 ]
