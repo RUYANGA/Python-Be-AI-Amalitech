@@ -2,11 +2,16 @@
 
 A three-way split of the [Module7](../README.md) monolith into independently
 deployable services: **auth**, **shortener**, and **analytics**, each with its
-own database. There is no unified gateway in front of them — clients call
-each service directly on its own port — and every service-to-service call is
-plain REST (JSON over HTTP), authenticated with a shared internal token. This
-lives alongside the monolith (`../src/`) as a separate, self-contained
-implementation — nothing here touches or depends on it.
+own database, sitting behind a single nginx **API gateway**
+([`../gateway`](../gateway)) — the only container reachable from outside the
+Docker network. Every *client* request goes through it, which centralizes JWT
+verification in one place instead of each service doing it independently.
+Service-to-service calls are a separate concern: they go directly,
+container-to-container, over the same internal network, still plain REST
+(JSON over HTTP) authenticated with a shared internal token — the gateway
+has nothing to do with them. This lives alongside the monolith (`../src/`) as
+a separate, self-contained implementation — nothing here touches or depends
+on it.
 
 ## Why split it this way
 
@@ -22,114 +27,116 @@ service owns one bounded context's data and nothing else:
 ## Architecture
 
 ```
-        clients ──▶ auth :8001    shortener :8002    analytics :8003
-                        │               │                  │
-                    ┌───▼───┐       ┌───▼───┐          ┌───▼───┐
-                    │auth-db│       │shortener│        │analytics│
-                    │  pg   │       │  -db pg │        │  -db pg │
-                    └───────┘       └────┬────┘        └────┬────┘
-                                          │                  │
-                                          │   POST /internal/ │
-                                          │   clicks/ (REST)  │
-                                          └────────▶──────────┘
+                              clients
+                                 │
+                                 ▼
+                      ┌─────────────────────┐
+                      │   gateway  :8080     │   nginx (../gateway)
+                      │  (only published     │   auth_request → auth,
+                      │   port in the stack) │   then path-based routing
+                      └───┬───────┬───────┬──┘
+                          │       │       │
+                     ┌────▼──┐ ┌──▼────┐ ┌▼─────────┐
+                     │ auth  │ │shortener│ │analytics │   internal-only —
+                     └───┬───┘ └───┬────┘ └────┬─────┘   no host ports
+                         │         │           │
+                     ┌───▼───┐ ┌───▼─────┐ ┌───▼──────┐
+                     │auth-db│ │shortener│ │analytics │
+                     │  pg   │ │ -db  pg │ │  -db  pg │
+                     └───────┘ └─────────┘ └──────────┘
 
-        auth :8001         ◀── REST ──  shortener, analytics
-        POST /api/v1/auth/internal/token/validate/
-        "is this access token valid, and whose is it?"
+        At the gateway, for every client request to a protected route:
 
-        shortener :8002    ◀── REST ──  analytics
-        GET /api/v1/internal/urls/{short_code}/owner/
+        gateway ◀── auth_request ──  every /api/v1/urls/ and
+                                      /api/v1/analytics/ request
+        GET /api/v1/auth/internal/token/validate/
+        "is this access token valid, and whose is it?" (asked once, here)
+
+        Service-to-service, bypassing the gateway entirely:
+
+        shortener ──▶ analytics   POST /api/v1/internal/clicks/
+        "record this click" (fire-and-forget, off shortener's hot path)
+
+        analytics ──▶ shortener   GET /api/v1/internal/urls/{short_code}/owner/
         "does this short code exist, and who owns it?"
 ```
 
-Each service is also reachable directly on its own port — there is no
-gateway/reverse proxy in front of them. There is no separate broker or
-internal-only port either: every cross-service call is a normal HTTP request
-against the same web process (`:8000` inside each container) that serves
-public traffic, distinguished only by the `X-Internal-Token` header.
+`auth`, `shortener`, and `analytics` publish no host ports at all — the
+gateway is the only container reachable from outside the Docker network.
+That's specifically about *client* traffic, though: the two service-to-service
+calls above go straight from one container to the other over the same
+internal network, not through the gateway — see
+[`../gateway`](../gateway#service-to-service-traffic) for why.
 
 ### The three cross-service seams, and why each is shaped the way it is
 
-1. **Identity: a REST call, not a shared key or a database join.** `auth` is
-   the only service that ever signs or verifies a JWT — it uses its own
-   `SECRET_KEY` (HS256), which never leaves that process. `shortener` and
-   `analytics` have no signing/verification key at all: every authenticated
-   request calls `auth`'s internal endpoint
-   (`POST /api/v1/auth/internal/token/validate/`, authenticated with a shared
-   `INTERNAL_SERVICE_TOKEN` header) to verify the token and get back its claims
-   (`apps/common/jwt_auth.py`, `RemoteJWTAuthentication`), then build a
-   `RemoteUser` from the response — no local `users` table. The trade-off:
-   this adds one HTTP round-trip to every authenticated request (in exchange
-   for auth being able to rotate its signing key, or revoke tokens, without
-   redeploying the other two services). A user's premium upgrade still
-   doesn't take effect until their token refreshes (access tokens are
-   short-lived — 15 minutes — specifically to bound that staleness).
+1. **Identity: centralized at the gateway, not re-verified per service.**
+   `auth` is the only service that ever signs or verifies a JWT — it uses its
+   own `SECRET_KEY` (HS256), which never leaves that process. `shortener` and
+   `analytics` have no signing/verification key, and don't call auth
+   themselves either: the gateway verifies the token **once**, via nginx's
+   `auth_request` module (a subrequest to auth's internal endpoint,
+   authenticated with the shared `INTERNAL_SERVICE_TOKEN` header — see
+   [`../gateway`](../gateway)), then forwards the claims it got back as
+   trusted `X-User-*` headers. Each service just reads those headers
+   (`apps/<service>/api/authentication.py`, `GatewayAuthentication`) and
+   builds a `RemoteUser` from them — no network call, no local `users` table,
+   on every request. The trade-off is the same as before: this still adds one
+   HTTP round-trip on the way in (auth being able to rotate its signing key,
+   or revoke tokens, without redeploying the other two services), it just
+   happens once at the edge instead of once per service. A user's premium
+   upgrade still doesn't take effect until their token refreshes (access
+   tokens are short-lived — 15 minutes — specifically to bound that
+   staleness).
 
 2. **Click tracking: fire-and-forget REST, not a synchronous write.** The
    redirect endpoint (`GET /{short_code}/`) is the highest-traffic,
    unauthenticated, latency-critical path in the system. It must never
    block on — or fail because of — analytics being slow or down. So
-   `shortener` dispatches a `POST /api/v1/internal/clicks/` to analytics on a
-   background thread (`ClickEventPublisher`, backed by a small
-   `ThreadPoolExecutor`) and returns immediately; a delivery failure is
-   logged and swallowed, never raised back to the caller. `analytics`
+   `shortener` dispatches a `POST /api/v1/internal/clicks/` directly to
+   `analytics` (`ANALYTICS_SERVICE_URL=http://analytics:8000`, not through
+   the gateway) on a background thread (`ClickEventPublisher`, backed by a
+   small `ThreadPoolExecutor`) and returns immediately; a delivery failure
+   is logged and swallowed, never raised back to the caller. `analytics`
    receives the click synchronously on that endpoint and does the geo
    lookup + write in the same request.
 
 3. **Ownership lookup: the other synchronous REST call.** `analytics` has no
    `urls` table, so "does this short code exist, and is it owned by the
    caller?" (needed for `GET /api/v1/analytics/{short_code}/`) is answered by
-   calling shortener's internal endpoint
-   (`GET /api/v1/internal/urls/{short_code}/owner/`), also authenticated with
+   calling shortener's internal endpoint directly
+   (`SHORTENER_SERVICE_URL=http://shortener:8000`,
+   `GET /api/v1/internal/urls/{short_code}/owner/`), also authenticated with
    `INTERNAL_SERVICE_TOKEN`. A failed lookup fails *closed* (treated as "not
    found"), so a down shortener service can't leak anyone's analytics — it
-   just makes analytics briefly unavailable too.
+   just makes analytics briefly unavailable too. Neither of these two calls
+   goes through the gateway — see [`../gateway`](../gateway) for why.
 
 ## Running it
 
-Two ways to run this, and they're genuinely alternatives — pick one:
-
-**All three services together** (this top-level `docker-compose.yml`), for
-integration testing or demoing the whole system:
+One way to run this — the whole stack, behind the gateway, via the one
+`docker-compose.yml` in this directory (and the one `Dockerfile`, shared by
+all three Django services):
 
 ```bash
 cp .env.example .env              # then fill in real secrets
 docker compose up --build
 ```
 
-**Each service completely on its own** — its own `docker-compose.yml`, own
-database, own Redis, nothing else required to start it. This is the
-"one team, one service, one checkout" way to run it, and it's how you'd work
-on just one service without needing the others up at all:
+`auth`, `shortener`, and `analytics` publish no host ports — everything goes
+through the gateway on **`:8080`**:
 
-```bash
-cd auth                           # or shortener/, or analytics/
-cp .env.example .env              # fill in real secrets
-docker compose up --build
-```
-
-Each standalone service reuses the same container names/ports as its
-counterpart in the combined stack, so the two are mutually exclusive —
-`docker compose down` whichever is up before starting the other. Verified
-this actually works end to end: a token issued by standalone `auth`
-validates against standalone `shortener` over REST
-(`AUTH_SERVICE_URL=http://host.docker.internal:8001`), and standalone
-`analytics` reaches standalone `shortener`'s ownership endpoint over
-`SHORTENER_SERVICE_URL=http://host.docker.internal:8002`. Click delivery
-works the same way in reverse — point standalone `shortener`'s
-`ANALYTICS_SERVICE_URL` at a reachable `analytics`, or leave it unset and
-publish attempts just fail closed (logged, swallowed; redirects keep working).
-
-Each service and its docs, called directly — there is no gateway in front of
-them:
-
-| Service | Docs |
+| What | URL |
 |---|---|
-| auth | http://localhost:8001/api/v1/docs/ |
-| shortener | http://localhost:8002/api/v1/docs/ |
-| analytics | http://localhost:8003/api/v1/docs/ |
+| Gateway (everything) | http://localhost:8080/ |
+| Auth docs | http://localhost:8080/api/docs/auth/ |
+| Shortener docs | http://localhost:8080/api/docs/shortener/ |
+| Analytics docs | http://localhost:8080/api/docs/analytics/ |
 
 ### Endpoints
+
+All paths below are relative to the gateway (`http://localhost:8080`) — see
+[`../gateway`](../gateway) for the full routing table.
 
 | Method | Path | Service |
 |---|---|---|
@@ -145,8 +152,10 @@ them:
 | `GET` | `/api/v1/analytics/{short_code}/` | analytics (premium only) |
 
 Three more endpoints exist purely for service-to-service calls, gated by the
-shared `X-Internal-Token` header rather than a user's JWT, and excluded from
-the public Swagger docs:
+shared `X-Internal-Token` header rather than a user's JWT, excluded from the
+public Swagger docs, and (except auth's, which shares its host with the
+public auth endpoints) called directly container-to-container — not through
+the gateway, which blocks `/api/v1/internal/` entirely:
 
 | Method | Path | Service | Called by |
 |---|---|---|---|
@@ -200,12 +209,20 @@ as an oversight:
   each service's own `logs/<service>.log` on disk (rotated, 10MB × 5 files),
   is the debugging story. Adding OpenTelemetry + Jaeger/Tempo would be the
   natural next step, not a redesign.
-- **No unified entry point.** There is no gateway/reverse proxy in front of
-  the three services — a client talks to whichever one it needs on that
-  service's own port. That also means no shared CORS/rate-limiting layer;
-  each service still enforces its own auth and the login rate limiter
-  independently. A real deployment fronting a browser client would want an
-  API gateway (or at least a reverse proxy) back in front of this.
+- **The gateway's upstream hostnames are resolved once, at nginx startup.**
+  `auth`/`shortener`/`analytics` are addressed by Docker Compose service name
+  in nginx `upstream {}` blocks, which nginx resolves once when it starts —
+  not re-resolved if a backend container is recreated independently mid-run.
+  Fine for `docker compose up`; a rolling redeploy of one service alone would
+  need an `nginx -s reload` (or a `resolver` + variable-based `proxy_pass`)
+  to pick up its new IP. See [`../gateway`](../gateway).
+- **Docs/schema aren't multiplexed behind the gateway.** Each service's own
+  drf-spectacular Swagger UI still assumes it's the only thing on the host —
+  fine for shortener/analytics (routed to the fallback `/api/v1/` location),
+  but auth's own `/api/v1/docs/` isn't reachable through the gateway at all
+  without colliding with shortener's. A real deployment would give each
+  service its own subdomain, or run drf-spectacular with an
+  `X-Forwarded-Prefix`-aware `SCRIPT_NAME`.
 - **Single-host Docker Compose, not Kubernetes.** Enough to prove out
   independent databases and independent deploys. A move to Kubernetes would
   change *how* these run, not the service boundaries themselves.

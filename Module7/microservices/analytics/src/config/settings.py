@@ -1,14 +1,17 @@
 """Django settings for the **analytics** microservice.
 
 Owns click data and the "detailed analytics" endpoint. Has no ``users``
-or ``urls`` table of its own: identity comes from an access token
-verified by the auth service over REST (see
-``apps.common.jwt_auth.RemoteJWTAuthentication``), and ownership of a
-short code is confirmed by calling the shortener service's internal
+or ``urls`` table of its own, and never verifies a JWT itself — the
+nginx API gateway (``/gateway`` at the repo root) does that once, up
+front, via an ``auth_request`` call to the auth service, and forwards
+the verified claims as trusted headers (see
+``apps.analytics.api.authentication.GatewayAuthentication``). Ownership
+of a short code is confirmed by calling the shortener service's internal
 REST API (see ``apps.analytics.api.services.url_ownership_client``).
 Click events themselves arrive over REST too, at
 ``POST /api/v1/internal/clicks/`` (see
-``apps.analytics.api.views.ClickIngestView``).
+``apps.analytics.api.views.ClickIngestView``). This service is only
+ever reached through the gateway.
 """
 
 from pathlib import Path
@@ -34,7 +37,7 @@ INSTALLED_APPS = [
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ("rest_framework.renderers.JSONRenderer",),
     "DEFAULT_PARSER_CLASSES": ("rest_framework.parsers.JSONParser",),
-    "DEFAULT_AUTHENTICATION_CLASSES": ("apps.common.jwt_auth.RemoteJWTAuthentication",),
+    "DEFAULT_AUTHENTICATION_CLASSES": ("apps.analytics.api.authentication.GatewayAuthentication",),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     # DRF's default for an unauthenticated request is Django's
     # AnonymousUser, which needs django.contrib.auth installed — this
@@ -50,11 +53,12 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
 }
 
-# ─── Cross-service JWT verification (REST call to auth) ────────────
-AUTH_SERVICE_URL = config("AUTH_SERVICE_URL", default="http://localhost:8001")
-
 # ─── Shortener service (for the ownership lookup, over REST) ───────
-SHORTENER_SERVICE_URL = config("SHORTENER_SERVICE_URL", default="http://localhost:8002")
+# Called directly over the internal Docker network, not through the
+# gateway — the gateway's job is centralizing client-facing auth
+# (see /gateway), which has nothing to do with this internal,
+# X-Internal-Token-authenticated call.
+SHORTENER_SERVICE_URL = config("SHORTENER_SERVICE_URL", default="http://shortener:8000")
 INTERNAL_SERVICE_TOKEN = config("INTERNAL_SERVICE_TOKEN", default="")
 
 # Backs CachedClickAnalyticsRepository's read-through cache over the

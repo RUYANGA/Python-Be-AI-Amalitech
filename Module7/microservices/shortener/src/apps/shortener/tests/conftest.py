@@ -3,8 +3,8 @@
 There's no local ``users`` table here, so "authenticating as a user" in
 a test means handing DRF's test client a ``RemoteUser`` directly via
 ``force_authenticate`` — the same shape a real request would get from
-``RemoteJWTAuthentication`` after verifying a JWT, just without needing
-a real token or a running auth service.
+``GatewayAuthentication`` after the gateway verifies a JWT, just without
+needing a real token or a running gateway/auth service.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from __future__ import annotations
 import pytest
 from rest_framework.test import APIClient
 
-from apps.common.jwt_auth import RemoteUser
+from apps.shortener.api.authentication import RemoteUser
 
 
 @pytest.fixture

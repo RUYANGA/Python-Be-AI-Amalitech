@@ -11,16 +11,16 @@ table itself.
 
 ## How other services depend on this one
 
-`shortener` and `analytics` both verify a caller's access token by calling
-this service's internal REST endpoint
-(`POST /api/v1/auth/internal/token/validate/`) and building an identity from
-the claims it returns — neither holds a signing or verification key of its
-own. This service calls nothing else; it is the leaf of the dependency graph.
+Neither `shortener` nor `analytics` calls this service directly anymore —
+the API gateway (`../gateway`) does, once per request, via nginx's
+`auth_request` module, then forwards the claims as trusted headers. This
+service holds the only signing/verification key in the system and calls
+nothing else itself; it is the leaf of the dependency graph.
 
 ## API
 
-Base path: `/api/v1/auth/` (web process, port 8000 in-container / **8001**
-published).
+Base path: `/api/v1/auth/` (web process, port 8000 in-container — not
+published directly; reachable through the gateway on **:8080**).
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
@@ -28,18 +28,23 @@ published).
 | `POST` | `/login/` | Public | Exchange username/password for an `access`/`refresh` token pair; rate-limited |
 | `POST` | `/logout/` | Authenticated | Blacklist a refresh token |
 | `POST` | `/token/refresh/` | Public | Exchange a refresh token for a new access token |
-| `POST` | `/internal/token/validate/` | `X-Internal-Token` | Verify an access token, return its identity claims — called by shortener/analytics only |
+| `POST` | `/internal/token/validate/` | `X-Internal-Token` | Body-based verification contract: `{"token": "..."}` → JSON claims |
+| `GET` | `/internal/token/validate/` | `X-Internal-Token` | Header-based contract used by the gateway's `auth_request` — `Authorization: Bearer <token>` in, claims as response headers out |
 
-Interactive docs: `/api/v1/docs/` (Swagger UI), `/api/v1/redoc/`. The internal
-endpoint is excluded from both — it's not for browser/client use.
+Interactive docs: `/api/v1/docs/` (Swagger UI), `/api/v1/redoc/`. Both
+internal-endpoint methods are excluded from both — they're not for
+browser/client use.
 
 ## Internal token validation
 
-`POST /api/v1/auth/internal/token/validate/` verifies an access token and
-returns the claims embedded in it (`user_id`, `username`, `is_premium`,
-`tier`). Authenticated with a shared secret (`INTERNAL_SERVICE_TOKEN`) sent
-as the `X-Internal-Token` header — the same web process that serves public
-traffic on `:8000`, no separate port or protocol.
+`/api/v1/auth/internal/token/validate/` verifies an access token and returns
+the claims embedded in it (`user_id`, `username`, `is_premium`, `tier`) —
+either as a JSON body (`POST`, for direct/manual calls) or as response
+headers (`GET`, what the gateway's `auth_request` actually uses — see
+[`../../gateway`](../../gateway)). Authenticated with a shared secret
+(`INTERNAL_SERVICE_TOKEN`) sent as the `X-Internal-Token` header — the same
+web process that serves public traffic on `:8000`, no separate port or
+protocol.
 
 ## Data model
 
@@ -92,25 +97,23 @@ Written to stdout (`docker compose logs -f auth`) and, alongside that, to
 via Docker, `logs/` is a bind mount (`./logs:/app/logs`), so it lands in
 this directory on the host, not just inside the container.
 
-## Running it standalone
+## Running it
+
+Part of the single combined stack — see [`../README.md`](../README.md):
 
 ```bash
-cp .env.example .env   # fill in real secrets
+cd ..                              # microservices/
+cp .env.example .env               # fill in real secrets
 docker compose up --build
 ```
 
-Brings up its own Postgres, Redis, and the web process (`:8001`) — the same
-process serves both public traffic and the internal token-validation
-endpoint. Docs at http://localhost:8001/api/v1/docs/.
-
-This is one of two ways to run this service — see
-[../README.md](../README.md) for running all three services together
-instead. The two are mutually exclusive (same container names/ports);
-`docker compose down` whichever is up before starting the other.
+Publishes no host port of its own; reachable through the gateway on
+`http://localhost:8080/api/v1/auth/...`.
 
 ## Tests
 
 ```bash
+cd ..                              # microservices/
 docker compose run --rm auth sh -c "pip install -r requirements-dev.txt && pytest -q"
 ```
 

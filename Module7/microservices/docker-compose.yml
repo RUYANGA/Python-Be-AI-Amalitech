@@ -1,11 +1,18 @@
 
-# Microservices split of the Module7 URL shortener: auth, shortener,
-# and analytics as three independently deployable Django services, each
-# with its own database. Clients talk to each service directly — there
-# is no unified gateway/reverse proxy in front of them. Service-to-service
-# calls (auth token verification, the shortener ownership lookup, click
-# ingestion) all go over plain REST, authenticated with a shared
-# INTERNAL_SERVICE_TOKEN header.
+# Microservices split of the Module7 URL shortener: auth, shortener, and
+# analytics as three independently deployable Django services, each with
+# its own database, sitting behind a single nginx API gateway (../gateway)
+# — the only container with a host port published. auth/shortener/analytics
+# are reachable only from inside this compose network. The gateway is for
+# client-facing traffic only (it centralizes JWT verification via
+# auth_request); service-to-service calls — the shortener ownership
+# lookup, click ingestion — go directly over this same internal network,
+# container-to-container, bypassing the gateway.
+#
+# One shared Dockerfile (./Dockerfile) builds all three Django services —
+# each just points `dockerfile:` at it with its own directory as the build
+# context, since they all have the same shape (manage.py, requirements.txt,
+# src/).
 #
 # Databases are NOT containerized here — all three services connect to
 # Postgres running on the host machine (three separate databases: auth,
@@ -16,13 +23,18 @@
 # beyond what already allows password auth from localhost, since Docker
 # reaches the host via the `host.docker.internal` alias below.
 #
+# Redis is NOT containerized either — all three services connect to a
+# Redis instance already running on the host machine, at
+# host.docker.internal:6380 (adjust REDIS_URL below if yours is on a
+# different port). Nothing here starts or manages that Redis; it must
+# already be running and reachable before `docker compose up`.
+#
 # Quick start:
 #   cp .env.example .env                # fill in real secrets + DB_PASSWORD
 #   docker compose up --build
 #
-#   auth        http://localhost:8001/api/v1/docs/
-#   shortener   http://localhost:8002/api/v1/docs/
-#   analytics   http://localhost:8003/api/v1/docs/
+#   gateway   http://localhost:8080/            (auth, shortener, analytics
+#                                                 all live behind this)
 
 # Reusable fragments (YAML anchors) — Compose ignores top-level `x-*`
 # keys, so this is the standard place to park them.
@@ -41,30 +53,18 @@ x-analytics-env: &analytics-env
   DEBUG: ${DEBUG:-True}
   DB_NAME: ${ANALYTICS_DB_NAME:-analytics}
   <<: *host-db
-  REDIS_URL: redis://127.0.0.1:6380/0
-  AUTH_SERVICE_URL: http://auth:8000
+  REDIS_URL: redis://host.docker.internal:6380/0
   SHORTENER_SERVICE_URL: http://shortener:8000
   INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
 
 services:
-  # ── Shared infrastructure ────────────────────────────────────────
-  redis:
-    image: redis:7-alpine
-    container_name: msvc-redis
-    restart: unless-stopped
-    ports:
-      - "6380:6379"
-    volumes:
-      - msvc_redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
   # ── Auth service ─────────────────────────────────────────────────
+  # No host port — reachable only via the gateway or from other
+  # containers on this network.
   auth:
-    build: ./auth
+    build:
+      context: ./auth
+      dockerfile: ../Dockerfile
     image: msvc-auth:latest
     container_name: msvc-auth
     restart: unless-stopped
@@ -75,18 +75,18 @@ services:
       ALLOWED_HOSTS: "*"
       DB_NAME: ${AUTH_DB_NAME:-auth}
       <<: *host-db
-      REDIS_URL: redis://127.0.0.1:6380/0
+      REDIS_URL: redis://host.docker.internal:6380/0
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
     volumes:
       - ./auth/logs:/app/logs
-    ports:
-      - "8001:8000"
-    depends_on:
-      redis:
-        condition: service_healthy
 
   # ── Shortener service ────────────────────────────────────────────
+  # No host port — reachable only via the gateway or from other
+  # containers on this network.
   shortener:
-    build: ./shortener
+    build:
+      context: ./shortener
+      dockerfile: ../Dockerfile
     image: msvc-shortener:latest
     container_name: msvc-shortener
     restart: unless-stopped
@@ -97,23 +97,22 @@ services:
       ALLOWED_HOSTS: "*"
       DB_NAME: ${SHORTENER_DB_NAME:-shortener}
       <<: *host-db
-      REDIS_URL: redis://127.0.0.1:6380/0
-      AUTH_SERVICE_URL: http://auth:8000
+      REDIS_URL: redis://host.docker.internal:6380/0
       ANALYTICS_SERVICE_URL: http://analytics:8000
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
     volumes:
       - ./shortener/logs:/app/logs
-    ports:
-      - "8002:8000"
     depends_on:
-      redis:
-        condition: service_healthy
       auth:
         condition: service_started
 
   # ── Analytics service ────────────────────────────────────────────
+  # No host port — reachable only via the gateway or from other
+  # containers on this network.
   analytics:
-    build: ./analytics
+    build:
+      context: ./analytics
+      dockerfile: ../Dockerfile
     image: msvc-analytics:latest
     container_name: msvc-analytics
     restart: unless-stopped
@@ -123,15 +122,35 @@ services:
       ALLOWED_HOSTS: "*"
     volumes:
       - ./analytics/logs:/app/logs
-    ports:
-      - "8003:8000"
     depends_on:
-      redis:
-        condition: service_healthy
       shortener:
         condition: service_started
       auth:
         condition: service_started
 
-volumes:
-  msvc_redis_data:
+  # ── API gateway ──────────────────────────────────────────────────
+  # The only container with a published port — see ../gateway. Routes
+  # client and inter-service traffic to auth/shortener/analytics, and
+  # centralizes JWT verification via nginx's auth_request module.
+  gateway:
+    image: nginx:1.27-alpine
+    container_name: msvc-gateway
+    restart: unless-stopped
+    environment:
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
+    # Bind-mounted as default.conf.template (not nginx.conf) so the
+    # official image's own envsubst step writes it to
+    # /etc/nginx/conf.d/default.conf — replacing the base image's demo
+    # server block instead of running alongside it as a second,
+    # competing one on the same port. See ../gateway/README.md.
+    volumes:
+      - ../gateway/nginx.conf:/etc/nginx/templates/default.conf.template:ro
+    ports:
+      - "8080:80"
+    depends_on:
+      auth:
+        condition: service_started
+      shortener:
+        condition: service_started
+      analytics:
+        condition: service_started

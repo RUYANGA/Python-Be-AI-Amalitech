@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from rest_framework.test import APIClient
 
-from apps.common.jwt_auth import RemoteUser
+from apps.analytics.api.authentication import RemoteUser
 
 
 @pytest.fixture

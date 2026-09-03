@@ -1,10 +1,12 @@
 """Django settings for the **shortener** microservice.
 
 Owns URL shortening, tagging, and RBAC/tier rules for URLs. Has no
-``users`` table of its own — every request is authenticated by asking
-the auth service to verify the access token over REST (see
-``apps.common.jwt_auth.RemoteJWTAuthentication``), never by a local
-database lookup.
+``users`` table of its own, and never verifies a JWT itself — the nginx
+API gateway (``/gateway`` at the repo root) does that once, up front, via
+an ``auth_request`` call to the auth service, and forwards the verified
+claims as trusted headers (see
+``apps.shortener.api.authentication.GatewayAuthentication``). This
+service is only ever reached through the gateway.
 """
 
 from pathlib import Path
@@ -35,7 +37,7 @@ REST_FRAMEWORK = {
         "rest_framework.parsers.JSONParser",
         "rest_framework.parsers.MultiPartParser",
     ),
-    "DEFAULT_AUTHENTICATION_CLASSES": ("apps.common.jwt_auth.RemoteJWTAuthentication",),
+    "DEFAULT_AUTHENTICATION_CLASSES": ("apps.shortener.api.authentication.GatewayAuthentication",),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     # DRF's default for an unauthenticated request is Django's
     # AnonymousUser, which needs django.contrib.auth installed — this
@@ -55,17 +57,17 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
 }
 
-# ─── Cross-service JWT verification (REST call to auth) ────────────
-AUTH_SERVICE_URL = config("AUTH_SERVICE_URL", default="http://localhost:8001")
-
 # ─── Analytics service (click-event delivery, over REST) ───────────
-ANALYTICS_SERVICE_URL = config("ANALYTICS_SERVICE_URL", default="http://localhost:8003")
+# Called directly over the internal Docker network, not through the
+# gateway — the gateway's job is centralizing client-facing auth
+# (see /gateway), which has nothing to do with this internal,
+# X-Internal-Token-authenticated call.
+ANALYTICS_SERVICE_URL = config("ANALYTICS_SERVICE_URL", default="http://analytics:8000")
 
 # Shared secret for internal (service-to-service) REST calls, sent as
-# the X-Internal-Token header — the auth token-validation lookup this
-# service makes, the click events it publishes to analytics, and the
-# ownership lookup the analytics service makes here. Never sent to
-# browsers/clients.
+# the X-Internal-Token header — the click events this service publishes
+# to analytics, and the ownership lookup the analytics service makes
+# here. Never sent to browsers/clients.
 INTERNAL_SERVICE_TOKEN = config("INTERNAL_SERVICE_TOKEN", default="")
 
 MIDDLEWARE = [

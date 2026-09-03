@@ -84,7 +84,7 @@ class TestTierLimits:
         assert response.status_code == 403
 
     def test_premium_user_can_use_a_custom_alias(self, api_client):
-        from apps.common.jwt_auth import RemoteUser
+        from apps.shortener.api.authentication import RemoteUser
 
         premium = RemoteUser(id=3, username="carol", is_premium=True)
         api_client.force_authenticate(user=premium)

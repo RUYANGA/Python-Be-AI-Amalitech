@@ -1,8 +1,9 @@
 # Shortener Service
 
 Owns URL shortening, tagging, RBAC, and tier limits for the URL shortener
-microservices split. Has no `users` table of its own — every request is
-authenticated by asking `auth` to verify the caller's token.
+microservices split. Has no `users` table of its own, and never verifies a
+JWT itself — the API gateway (`../gateway`) does that once, up front, and
+forwards the verified identity as trusted headers.
 
 | Owns | Never touches |
 |---|---|
@@ -10,23 +11,28 @@ authenticated by asking `auth` to verify the caller's token.
 
 ## How this service depends on / is depended on by others
 
-- **Calls `auth`**: every authenticated request verifies its JWT by calling
-  `auth`'s internal REST endpoint
-  (`POST /api/v1/auth/internal/token/validate/`) — this service holds no
-  signing/verification key of its own.
-- **Calls `analytics`**: on every redirect/resolve, this service dispatches a
-  `POST /api/v1/internal/clicks/` to `analytics` on a background thread and
-  moves on immediately (`ClickEventPublisher`) — a failed or slow delivery is
-  logged and swallowed, never raised back to the caller.
-- **Is called by `analytics`**: `analytics` has no `urls` table, so it asks
-  this service's internal endpoint
+- **Trusts the gateway for identity**: every authenticated request arrives
+  with `X-User-*` headers already set by the gateway's `auth_request` check
+  against `auth` (`apps.shortener.api.authentication.GatewayAuthentication`)
+  — this service holds no signing/verification key, and makes no network
+  call to authenticate a request.
+- **Calls `analytics` directly**: on every redirect/resolve, this service
+  dispatches a `POST /api/v1/internal/clicks/` straight to `analytics`
+  (`ANALYTICS_SERVICE_URL=http://analytics:8000` — not through the gateway,
+  which has nothing to do with internal, `X-Internal-Token`-authenticated
+  calls) on a background thread and moves on immediately
+  (`ClickEventPublisher`) — a failed or slow delivery is logged and
+  swallowed, never raised back to the caller.
+- **Is called by `analytics` directly**: `analytics` has no `urls` table, so
+  it asks this service's internal endpoint
   (`GET /api/v1/internal/urls/{short_code}/owner/`) "does this short code
-  exist, and who owns it?" for its premium analytics endpoint.
+  exist, and who owns it?" for its premium analytics endpoint — also
+  directly, not through the gateway.
 
 ## API
 
-Base path: `/api/v1/` (web process, port 8000 in-container / **8002**
-published).
+Base path: `/api/v1/` (web process, port 8000 in-container — not published
+directly; reachable through the gateway on **:8080**).
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
@@ -99,38 +105,33 @@ protocol.
 | `ALLOWED_HOSTS` | `*` | Comma-separated allowed hosts |
 | `DB_NAME` / `DB_USER` / `DB_PASSWORD` / `DB_HOST` / `DB_PORT` | *(required)* | Postgres connection |
 | `REDIS_URL` | `redis://127.0.0.1:6379/0` | Backs the read-through URL cache |
-| `AUTH_SERVICE_URL` | `http://localhost:8001` | Where to verify JWTs — auth's REST endpoint |
-| `ANALYTICS_SERVICE_URL` | `http://localhost:8003` | Where to publish click events |
-| `INTERNAL_SERVICE_TOKEN` | `""` | Shared secret for REST calls in both directions (to auth and analytics, from analytics) — must match all three services' copies |
+| `ANALYTICS_SERVICE_URL` | `http://analytics:8000` | Where to publish click events — called directly, not through the gateway |
+| `INTERNAL_SERVICE_TOKEN` | `""` | Shared secret for the click-event REST call, and for verifying the inbound ownership lookup from analytics — must match all three services' copies |
 
 ## Logs
 
 Written to stdout (`docker compose logs -f shortener`) and, alongside that,
 to `logs/shortener.log` on disk — rotated at 10MB, keeping 5 backups.
 
-## Running it standalone
+## Running it
+
+Part of the single combined stack — see [`../README.md`](../README.md):
 
 ```bash
-cp .env.example .env   # fill in real secrets
+cd ..                              # microservices/
+cp .env.example .env               # fill in real secrets
 docker compose up --build
 ```
 
-Brings up its own Postgres, Redis, and the web process (`:8002`). Needs a
-reachable `auth` service to verify tokens (`AUTH_SERVICE_URL`, defaults to a
-standalone `auth`'s `http://host.docker.internal:8001`) — without one, every
-authenticated request fails with `401`. Without a reachable `analytics`
+Publishes no host port of its own; reachable through the gateway on
+`http://localhost:8080/`. Without a reachable `analytics`
 (`ANALYTICS_SERVICE_URL`), published click events just fail closed (logged,
-swallowed) — redirects and resolves keep working normally. Docs at
-http://localhost:8002/api/v1/docs/.
-
-This is one of two ways to run this service — see
-[../README.md](../README.md) for running all three services together
-instead. The two are mutually exclusive (same container names/ports);
-`docker compose down` whichever is up before starting the other.
+swallowed) — redirects and resolves keep working normally.
 
 ## Tests
 
 ```bash
+cd ..                              # microservices/
 docker compose run --rm shortener sh -c "pip install -r requirements-dev.txt && pytest -q"
 ```
 
