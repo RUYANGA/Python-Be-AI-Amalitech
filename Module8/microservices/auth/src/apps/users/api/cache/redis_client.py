@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import Any, cast
 
 import redis
 from django.conf import settings
@@ -65,7 +65,10 @@ class RedisClient:
     def incr(self, key: str, ttl: int | None = None) -> int:
         """Atomically increment a counter, applying ``ttl`` only when the key is new."""
         try:
-            value = self._client.incr(key)
+            # redis-py types this as the union it also uses for its async
+            # client; this instance is always the sync one (no `await`
+            # anywhere here), so the runtime value is always a plain int.
+            value = cast(int, self._client.incr(key))
             if value == 1 and ttl:
                 self._client.expire(key, ttl)
             return value
@@ -76,7 +79,7 @@ class RedisClient:
     def ttl(self, key: str) -> int:
         """Return the remaining TTL in seconds for ``key``, or ``0`` if unset/unreachable."""
         try:
-            value = self._client.ttl(key)
+            value = cast(int, self._client.ttl(key))
             return value if value > 0 else 0
         except (redis.ConnectionError, redis.TimeoutError) as exc:
             logger.warning("redis.ttl_failed key=%s error=%s", key, exc)
@@ -85,7 +88,7 @@ class RedisClient:
     def ping(self) -> bool:
         """Health check. Returns ``True`` if Redis is reachable."""
         try:
-            return self._client.ping()
+            return cast(bool, self._client.ping())
         except (redis.ConnectionError, redis.TimeoutError):
             return False
 

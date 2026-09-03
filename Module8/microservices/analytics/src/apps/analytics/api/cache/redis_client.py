@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import Any, cast
 
 import redis
 from django.conf import settings
@@ -57,7 +57,10 @@ class RedisClient:
     def get(self, key: str) -> Any | None:
         """Retrieve a value by key. Returns ``None`` on miss or error."""
         try:
-            raw = self._client.get(key)
+            # redis-py types this as the union it also uses for its async
+            # client; this instance is always the sync one (no `await`
+            # anywhere here), so the runtime value is always str or None.
+            raw = cast("str | None", self._client.get(key))
             if raw is None:
                 return None
             return json.loads(raw)
@@ -97,7 +100,7 @@ class RedisClient:
     def ping(self) -> bool:
         """Health check. Returns ``True`` if Redis is reachable."""
         try:
-            return self._client.ping()
+            return cast(bool, self._client.ping())
         except (redis.ConnectionError, redis.TimeoutError):
             return False
 
@@ -106,7 +109,7 @@ class RedisClient:
         try:
             keys = list(self._client.scan_iter(match=pattern, count=100))
             if keys:
-                return self._client.delete(*keys)
+                return cast(int, self._client.delete(*keys))
             return 0
         except (redis.ConnectionError, redis.TimeoutError) as exc:
             logger.warning("redis.flush_pattern_failed pattern=%s error=%s", pattern, exc)

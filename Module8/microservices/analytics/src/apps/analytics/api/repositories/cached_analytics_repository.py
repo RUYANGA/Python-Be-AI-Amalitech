@@ -86,7 +86,7 @@ class CachedClickAnalyticsRepository(IClickAnalyticsRepository):
     def get_aggregate_stats(self, short_code: str) -> URLAggregateStats:
         cache_key = f"analytics:{short_code}:stats"
 
-        cached: dict = self._cache.get(cache_key)
+        cached: dict | None = self._cache.get(cache_key)
         if cached is not None:
             logger.debug("cache.hit key=%s", cache_key)
             return URLAggregateStats(
@@ -119,7 +119,7 @@ class CachedClickAnalyticsRepository(IClickAnalyticsRepository):
     def get_country_breakdown(self, short_code: str, limit: int = 10) -> list[CountryStats]:
         cache_key = f"analytics:{short_code}:countries:{limit}"
 
-        cached: list[dict] = self._cache.get(cache_key)
+        cached: list[dict] | None = self._cache.get(cache_key)
         if cached is not None:
             logger.debug("cache.hit key=%s", cache_key)
             return [CountryStats(**row) for row in cached]
@@ -132,7 +132,7 @@ class CachedClickAnalyticsRepository(IClickAnalyticsRepository):
     def get_referrer_breakdown(self, short_code: str, limit: int = 10) -> list[ReferrerStats]:
         cache_key = f"analytics:{short_code}:referrers:{limit}"
 
-        cached: list[dict] = self._cache.get(cache_key)
+        cached: list[dict] | None = self._cache.get(cache_key)
         if cached is not None:
             logger.debug("cache.hit key=%s", cache_key)
             return [ReferrerStats(**row) for row in cached]
@@ -145,7 +145,7 @@ class CachedClickAnalyticsRepository(IClickAnalyticsRepository):
     def get_hourly_distribution(self, short_code: str) -> list[HourlyDistribution]:
         cache_key = f"analytics:{short_code}:hourly"
 
-        cached: list[dict] = self._cache.get(cache_key)
+        cached: list[dict] | None = self._cache.get(cache_key)
         if cached is not None:
             logger.debug("cache.hit key=%s", cache_key)
             return [HourlyDistribution(**row) for row in cached]
@@ -158,7 +158,7 @@ class CachedClickAnalyticsRepository(IClickAnalyticsRepository):
     def get_recent_clicks(self, short_code: str, limit: int = 20) -> list[dict]:
         cache_key = f"analytics:{short_code}:recent:{limit}"
 
-        cached: list[dict] = self._cache.get(cache_key)
+        cached: list[dict] | None = self._cache.get(cache_key)
         if cached is not None:
             logger.debug("cache.hit key=%s", cache_key)
             return [
@@ -177,7 +177,7 @@ class CachedClickAnalyticsRepository(IClickAnalyticsRepository):
     def get_click_time_series(self, short_code: str, days: int = 30) -> list[tuple[str, int]]:
         cache_key = f"analytics:{short_code}:timeseries:{days}"
 
-        cached: list[list] = self._cache.get(cache_key)
+        cached: list[list] | None = self._cache.get(cache_key)
         if cached is not None:
             logger.debug("cache.hit key=%s", cache_key)
             return [tuple(row) for row in cached]
