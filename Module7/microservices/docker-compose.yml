@@ -1,43 +1,16 @@
 
-# Microservices split of the Module7 URL shortener: auth, shortener, and
-# analytics as three independently deployable Django services, each with
-# its own database, sitting behind a single nginx API gateway (../gateway)
-# — the only container with a host port published. auth/shortener/analytics
-# are reachable only from inside this compose network. The gateway is for
-# client-facing traffic only (it centralizes JWT verification via
-# auth_request); service-to-service calls — the shortener ownership
-# lookup, click ingestion — go directly over this same internal network,
-# container-to-container, bypassing the gateway.
-#
-# One shared Dockerfile (./Dockerfile) builds all three Django services —
-# each just points `dockerfile:` at it with its own directory as the build
-# context, since they all have the same shape (manage.py, requirements.txt,
-# src/).
-#
-# Databases are NOT containerized here — all three services connect to
-# Postgres running on the host machine (three separate databases: auth,
-# shortener, analytics, under one role). Create them once with:
-#   createdb -U <role> auth shortener analytics
-# and make sure Postgres is listening for TCP connections (listen_addresses
-# includes the docker bridge, or '*') — no pg_hba.conf change is needed
-# beyond what already allows password auth from localhost, since Docker
-# reaches the host via the `host.docker.internal` alias below.
-#
-# Redis is NOT containerized either — all three services connect to a
-# Redis instance already running on the host machine, at
-# host.docker.internal:6380 (adjust REDIS_URL below if yours is on a
-# different port). Nothing here starts or manages that Redis; it must
-# already be running and reachable before `docker compose up`.
+# auth/shortener/analytics behind one nginx gateway (../gateway) — the
+# only published port. Postgres and Redis are NOT containerized: all
+# three connect to the host's own Postgres (host.docker.internal) and
+# Redis (host.docker.internal:6380, adjust if yours differs) — create
+# the three databases first with `createdb -U <role> auth shortener
+# analytics`. One shared Dockerfile (./Dockerfile) builds all three.
 #
 # Quick start:
-#   cp .env.example .env                # fill in real secrets + DB_PASSWORD
+#   cp .env.example .env   # fill in real secrets + DB_PASSWORD
 #   docker compose up --build
-#
-#   gateway   http://localhost:8080/            (auth, shortener, analytics
-#                                                 all live behind this)
+#   -> http://localhost:8080/
 
-# Reusable fragments (YAML anchors) — Compose ignores top-level `x-*`
-# keys, so this is the standard place to park them.
 x-host-db: &host-db
   DB_HOST: host.docker.internal
   DB_PORT: 5432
@@ -58,9 +31,8 @@ x-analytics-env: &analytics-env
   INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
 
 services:
-  # ── Auth service ─────────────────────────────────────────────────
-  # No host port — reachable only via the gateway or from other
-  # containers on this network.
+  # No host port on any of these three — reachable only via the gateway
+  # or from other containers on this network.
   auth:
     build:
       context: ./auth
@@ -80,9 +52,6 @@ services:
     volumes:
       - ./auth/logs:/app/logs
 
-  # ── Shortener service ────────────────────────────────────────────
-  # No host port — reachable only via the gateway or from other
-  # containers on this network.
   shortener:
     build:
       context: ./shortener
@@ -106,9 +75,6 @@ services:
       auth:
         condition: service_started
 
-  # ── Analytics service ────────────────────────────────────────────
-  # No host port — reachable only via the gateway or from other
-  # containers on this network.
   analytics:
     build:
       context: ./analytics
@@ -128,21 +94,15 @@ services:
       auth:
         condition: service_started
 
-  # ── API gateway ──────────────────────────────────────────────────
-  # The only container with a published port — see ../gateway. Routes
-  # client and inter-service traffic to auth/shortener/analytics, and
-  # centralizes JWT verification via nginx's auth_request module.
+  # See ../gateway — the only published port.
   gateway:
     image: nginx:1.27-alpine
     container_name: msvc-gateway
     restart: unless-stopped
     environment:
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
-    # Bind-mounted as default.conf.template (not nginx.conf) so the
-    # official image's own envsubst step writes it to
-    # /etc/nginx/conf.d/default.conf — replacing the base image's demo
-    # server block instead of running alongside it as a second,
-    # competing one on the same port. See ../gateway/README.md.
+    # Mounted as default.conf.template so it replaces nginx's own demo
+    # config instead of running alongside it — see ../gateway/README.md.
     volumes:
       - ../gateway/nginx.conf:/etc/nginx/templates/default.conf.template:ro
     ports:
