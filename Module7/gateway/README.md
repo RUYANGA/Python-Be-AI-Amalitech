@@ -24,7 +24,6 @@ Dockerfile for it, and no other config file in this folder.
 | Path prefix | Routed to | Gated by `auth_request`? |
 |---|---|---|
 | `/api/v1/auth/` | auth | No — this *is* how you get a token |
-| `/admin/` | auth (Django admin) | No |
 | `/api/docs/<service>/`, `/api/schema/<service>/` | that service | No |
 | `/api/v1/urls/` | shortener | **Yes** |
 | `/api/v1/analytics/` | analytics | **Yes** |
