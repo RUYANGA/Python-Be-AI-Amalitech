@@ -24,7 +24,7 @@ Dockerfile for it, and no other config file in this folder.
 | Path prefix | Routed to | Gated by `auth_request`? |
 |---|---|---|
 | `/api/v1/auth/` | auth | No — this *is* how you get a token |
-| `/api/docs/<service>/`, `/api/schema/<service>/` | that service | No |
+| `/api/v1/docs/<service>/`, `/api/v1/schema/<service>/` | that service | No |
 | `/api/v1/urls/` | shortener | **Yes** |
 | `/api/v1/analytics/` | analytics | **Yes** |
 | `/api/v1/internal/`, `/internal/` | — | Blocked (`404`) — see below |
@@ -87,8 +87,8 @@ to some other service's routes by accident.
 Docs/schema aren't multiplexed under a single path for each service the way
 `/api/v1/urls/`, etc. are — each service's own drf-spectacular Swagger UI
 assumes it's the only thing on the host, so all three define docs at the
-same literal `/api/v1/docs/` path. The `/api/docs/<service>/` and
-`/api/schema/<service>/` routes work around that with a `rewrite`, but a
+same literal `/api/v1/docs/` path. The `/api/v1/docs/<service>/` and
+`/api/v1/schema/<service>/` routes work around that with a `rewrite`, but a
 generated schema that references *other* absolute paths (rare, but
 possible) could still point at the wrong place. A real deployment fronting
 a browser client heavily would give each service its own subdomain instead.

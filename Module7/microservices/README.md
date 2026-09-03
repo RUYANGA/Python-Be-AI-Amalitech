@@ -1,17 +1,14 @@
 # URL Shortener — Microservices Edition
 
-A three-way split of the [Module7](../README.md) monolith into independently
-deployable services: **auth**, **shortener**, and **analytics**, each with its
-own database, sitting behind a single nginx **API gateway**
-([`../gateway`](../gateway)) — the only container reachable from outside the
-Docker network. Every *client* request goes through it, which centralizes JWT
-verification in one place instead of each service doing it independently.
-Service-to-service calls are a separate concern: they go directly,
-container-to-container, over the same internal network, still plain REST
-(JSON over HTTP) authenticated with a shared internal token — the gateway
-has nothing to do with them. This lives alongside the monolith (`../src/`) as
-a separate, self-contained implementation — nothing here touches or depends
-on it.
+A URL shortener split into three independently deployable services —
+**auth**, **shortener**, and **analytics** — each with its own database,
+sitting behind a single nginx **API gateway** ([`../gateway`](../gateway)) —
+the only container reachable from outside the Docker network. Every *client*
+request goes through it, which centralizes JWT verification in one place
+instead of each service doing it independently. Service-to-service calls are
+a separate concern: they go directly, container-to-container, over the same
+internal network, still plain REST (JSON over HTTP) authenticated with a
+shared internal token — the gateway has nothing to do with them.
 
 ## Why split it this way
 
@@ -129,9 +126,9 @@ through the gateway on **`:8080`**:
 | What | URL |
 |---|---|
 | Gateway (everything) | http://localhost:8080/ |
-| Auth docs | http://localhost:8080/api/docs/auth/ |
-| Shortener docs | http://localhost:8080/api/docs/shortener/ |
-| Analytics docs | http://localhost:8080/api/docs/analytics/ |
+| Auth docs | http://localhost:8080/api/v1/docs/auth/ |
+| Shortener docs | http://localhost:8080/api/v1/docs/shortener/ |
+| Analytics docs | http://localhost:8080/api/v1/docs/analytics/ |
 
 ### Endpoints
 
@@ -163,9 +160,12 @@ the gateway, which blocks `/api/v1/internal/` entirely:
 | `GET` | `/api/v1/internal/urls/{short_code}/owner/` | shortener | analytics |
 | `POST` | `/api/v1/internal/clicks/` | analytics | shortener |
 
-RBAC, tier limits (10 active URLs / custom aliases / detailed analytics),
-and login rate-limiting all carry over unchanged from the monolith — see its
-[README](../README.md) for the exact behavior.
+RBAC, tier limits (10 active URLs / custom aliases / detailed analytics), and
+login rate-limiting are documented in each owning service's own README, under
+"Business logic worth knowing about":
+[`auth`](auth/README.md#business-logic-worth-knowing-about) for
+rate-limiting, [`shortener`](shortener/README.md#business-logic-worth-knowing-about)
+for RBAC and tier limits.
 
 ### Running each service's tests
 
@@ -175,11 +175,12 @@ docker compose run --rm shortener  sh -c "pip install -r requirements-dev.txt &&
 docker compose run --rm analytics  sh -c "pip install -r requirements-dev.txt && pytest -q"
 ```
 
-These are deliberately *not* a full re-test of every case already covered in
-the monolith's suite — each service's `test_smoke.py` proves the things that
-are genuinely new about the split (JWT verification without a local user
-table, the plain-integer `owner_id`, the ownership round-trip, the
-publish/ingest path), not business logic that hasn't changed.
+Each service's `test_smoke.py` covers its own business logic end to end
+(auth's rate limiter, shortener's tier limits, analytics' aggregation) —
+see each service's own README for exactly what it proves. The other test
+files (ownership lookup, click ingest/publish) cover the pieces that are
+genuinely new about the split: JWT verification without a local user table,
+the plain-integer `owner_id`, and the cross-service REST calls.
 
 ## Known simplifications
 
@@ -193,7 +194,7 @@ as an oversight:
   atomically (or at all, without a second cross-service call). They're kept
   in the model/API shape for compatibility but will read `0`/`null`. The
   authoritative count is `GET /api/v1/analytics/{short_code}/`'s
-  `stats.total_clicks` (premium-gated, same as the monolith).
+  `stats.total_clicks` (premium-gated).
 - **One shared Redis** backs the login rate limiter and the URL cache — two
   unrelated per-service concerns. True isolation would give each service its
   own instance; this is the common, pragmatic middle ground as long as key
@@ -209,20 +210,16 @@ as an oversight:
   each service's own `logs/<service>.log` on disk (rotated, 10MB × 5 files),
   is the debugging story. Adding OpenTelemetry + Jaeger/Tempo would be the
   natural next step, not a redesign.
-- **The gateway's upstream hostnames are resolved once, at nginx startup.**
-  `auth`/`shortener`/`analytics` are addressed by Docker Compose service name
-  in nginx `upstream {}` blocks, which nginx resolves once when it starts —
-  not re-resolved if a backend container is recreated independently mid-run.
-  Fine for `docker compose up`; a rolling redeploy of one service alone would
-  need an `nginx -s reload` (or a `resolver` + variable-based `proxy_pass`)
-  to pick up its new IP. See [`../gateway`](../gateway).
-- **Docs/schema aren't multiplexed behind the gateway.** Each service's own
-  drf-spectacular Swagger UI still assumes it's the only thing on the host —
-  fine for shortener/analytics (routed to the fallback `/api/v1/` location),
-  but auth's own `/api/v1/docs/` isn't reachable through the gateway at all
-  without colliding with shortener's. A real deployment would give each
-  service its own subdomain, or run drf-spectacular with an
-  `X-Forwarded-Prefix`-aware `SCRIPT_NAME`.
+- **Docs/schema are multiplexed via `rewrite`, not natively.** Each service's
+  own drf-spectacular Swagger UI still assumes it's the only thing on the
+  host — all three define docs/schema at the same literal `/api/v1/docs/`
+  and `/api/v1/schema/` paths. The gateway gives each an unambiguous address
+  (`/api/v1/docs/<service>/`, `/api/v1/schema/<service>/`) with an nginx
+  `rewrite` + `sub_filter`, rather than each service knowing its own mount
+  prefix — see [`../gateway`](../gateway#known-simplification) for the one
+  edge case that doesn't cover. A real deployment would give each service
+  its own subdomain, or run drf-spectacular with an `X-Forwarded-Prefix`-aware
+  `SCRIPT_NAME`.
 - **Single-host Docker Compose, not Kubernetes.** Enough to prove out
   independent databases and independent deploys. A move to Kubernetes would
   change *how* these run, not the service boundaries themselves.
