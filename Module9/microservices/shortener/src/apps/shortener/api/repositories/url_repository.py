@@ -74,21 +74,27 @@ class DjangoURLRepository(IURLRepository):
         url: URL,
         original_url: str | None = None,
         title: str | None = None,
+        description: str | None = None,
+        favicon_url: str | None = None,
         tags: list[str] | None = None,
         expires_at=None,
         is_active: bool | None = None,
     ) -> URL:
         """Apply optional partial fields to ``url``.
 
-        Any of ``original_url``, ``title``, ``tags``, ``expires_at`` and
-        ``is_active`` that is provided is persisted; omitted fields are
-        left unchanged.
+        Any of ``original_url``, ``title``, ``description``,
+        ``favicon_url``, ``tags``, ``expires_at`` and ``is_active`` that is
+        provided is persisted; omitted fields are left unchanged.
         """
         try:
             if original_url is not None:
                 url.original_url = original_url
             if title is not None:
                 url.title = title
+            if description is not None:
+                url.description = description
+            if favicon_url is not None:
+                url.favicon_url = favicon_url
             if expires_at is not None:
                 url.expires_at = expires_at
             if is_active is not None:

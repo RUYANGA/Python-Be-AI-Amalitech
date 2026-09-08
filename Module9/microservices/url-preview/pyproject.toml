@@ -1,0 +1,11 @@
+[project]
+name = "url-preview-service"
+version = "1.0.0"
+description = "URL preview microservice: title/description/favicon fetching with retry+backoff and a circuit breaker"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
+pythonpath = ["src"]
+testpaths = ["src/apps"]
+python_files = ["test_*.py"]

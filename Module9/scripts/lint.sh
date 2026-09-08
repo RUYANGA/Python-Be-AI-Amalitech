@@ -20,7 +20,7 @@ echo "==> ruff"
 echo "==> black --check"
 .venv/bin/black --check microservices
 
-for service in auth shortener analytics; do
+for service in auth shortener analytics url-preview; do
   echo "==> mypy ($service)"
   .venv/bin/mypy --config-file=pyproject.toml "microservices/$service/src"
 done

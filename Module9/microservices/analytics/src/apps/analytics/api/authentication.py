@@ -6,10 +6,15 @@ subrequest to the auth service — before a request ever reaches this
 container, then forwards the claims it got back as trusted headers
 (``X-User-Id``, ``X-Username``, ``X-User-Tier``, ``X-User-Is-Premium``).
 This class only reads those headers; it makes no network call and does
-no decoding of its own. Trusting them is safe because this service is
-never reachable except through the gateway (no host port is published
-for it), so a request that reaches this process already had its headers
-set by nginx, not by the original caller.
+no decoding of its own. Trusting them is safe **only** for a request that
+came through the gateway, which overwrites whatever a client sent under
+these header names with its own verified claims before proxying here.
+This service's own host port (``docker-compose.yml``, loopback-only,
+debugging only — see ``../README.md#direct-per-service-access-debugging-only``)
+does *not* go through the gateway, so nothing strips or verifies these
+headers on that path: a request straight to this port could set its own
+``X-User-Id`` and be trusted outright. Never point real client traffic at
+this service's own port — only at the gateway.
 """
 
 from __future__ import annotations

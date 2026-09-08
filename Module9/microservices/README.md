@@ -1,14 +1,20 @@
 # URL Shortener — Microservices Edition
 
-A URL shortener split into three independently deployable services —
-**auth**, **shortener**, and **analytics** — each with its own database,
-sitting behind a single nginx **API gateway** ([`../gateway`](../gateway)) —
-the only container reachable from outside the Docker network. Every *client*
-request goes through it, which centralizes JWT verification in one place
-instead of each service doing it independently. Service-to-service calls are
-a separate concern: they go directly, container-to-container, over the same
-internal network, still plain REST (JSON over HTTP) authenticated with a
-shared internal token — the gateway has nothing to do with them.
+A URL shortener split into four independently deployable services —
+**auth**, **shortener**, **analytics**, and **url-preview** — each with its
+own database, sitting behind a single nginx **API gateway**
+([`../gateway`](../gateway)). Every *client* request should go through it,
+which centralizes JWT verification and CORS (see
+[`../gateway`](../gateway#cors-frontend-interaction)) in one place instead of
+each service doing it independently. Each service also publishes its own
+loopback-only host port for local debugging (`auth`:8000, `shortener`:8001,
+`analytics`:8002, `url-preview`:8003, gateway:**8080**) — see
+[Direct per-service access](#direct-per-service-access-debugging-only) for
+why those bypass the gateway's auth/CORS entirely and must never be used for
+real client traffic. Service-to-service calls are a separate concern: they go
+directly, container-to-container, over the same internal network, still
+plain REST (JSON over HTTP) authenticated with a shared internal token — the
+gateway has nothing to do with them.
 
 ## Why split it this way
 
@@ -20,6 +26,7 @@ service owns one bounded context's data and nothing else:
 | **auth** | `users` table, JWT issuance | URLs, clicks |
 | **shortener** | `urls`/`tags` tables, RBAC, tier limits | users, click data |
 | **analytics** | `clicks` table, aggregate reporting | users, URL metadata |
+| **url-preview** | Fetching a destination page's title/description/favicon, with its own retry/circuit-breaker resiliency | users, URLs, clicks — it doesn't even know a `short_code` exists, only the raw destination URL it's handed |
 
 ## Architecture
 
@@ -29,18 +36,25 @@ service owns one bounded context's data and nothing else:
                                  ▼
                       ┌─────────────────────┐
                       │   gateway  :8080     │   nginx (../gateway)
-                      │  (only published     │   auth_request → auth,
-                      │   port in the stack) │   then path-based routing
+                      │  (recommended entry   │   auth_request → auth,
+                      │   point for clients)  │   CORS, path-based routing
                       └───┬───────┬───────┬──┘
                           │       │       │
-                     ┌────▼──┐ ┌──▼────┐ ┌▼─────────┐
-                     │ auth  │ │shortener│ │analytics │   internal-only —
-                     └───┬───┘ └───┬────┘ └────┬─────┘   no host ports
-                         │         │           │
-                     ┌───▼───┐ ┌───▼─────┐ ┌───▼──────┐
-                     │auth-db│ │shortener│ │analytics │
-                     │  pg   │ │ -db  pg │ │  -db  pg │
-                     └───────┘ └─────────┘ └──────────┘
+                     ┌────▼──┐ ┌──▼────┐ ┌▼─────────┐        ┌────────────┐
+                     │ auth  │ │shortener│ │analytics │        │url-preview │
+                     │ :8000 │ │  :8001  │ │  :8002   │        │   :8003    │
+                     └───┬───┘ └─┬──────┘ └────┬─────┘        └─────┬──────┘
+                         │       │  ▲          │            127.0.0.1-only
+                     ┌───▼───┐ ┌─▼──▼────┐ ┌───▼──────┐    debug port, and no
+                     │auth-db│ │shortener│ │analytics │    client route at all
+                     │  pg   │ │ -db  pg │ │  -db  pg │    (unlike the other
+                     └───────┘ └─────────┘ └──────────┘    three, who at least
+                                                             share a host with
+                                                             public endpoints)
+
+        Every port above except :8080 is bound to 127.0.0.1 only — reachable
+        from the host machine for debugging, never from outside it, and
+        never gateway-authenticated (see the section on this below).
 
         At the gateway, for every client request to a protected route:
 
@@ -51,21 +65,51 @@ service owns one bounded context's data and nothing else:
 
         Service-to-service, bypassing the gateway entirely:
 
-        shortener ──▶ analytics   POST /api/v1/internal/clicks/
+        shortener ──▶ analytics    POST /api/v1/internal/clicks/
         "record this click" (fire-and-forget, off shortener's hot path)
 
-        analytics ──▶ shortener   GET /api/v1/internal/urls/{short_code}/owner/
+        analytics ──▶ shortener    GET /api/v1/internal/urls/{short_code}/owner/
         "does this short code exist, and who owns it?"
+
+        shortener ──▶ url-preview  POST /api/v1/internal/preview/
+        "fetch this page's title/description/favicon" (async, via Celery,
+        never inline with the create request)
 ```
 
-`auth`, `shortener`, and `analytics` publish no host ports at all — the
-gateway is the only container reachable from outside the Docker network.
-That's specifically about *client* traffic, though: the two service-to-service
-calls above go straight from one container to the other over the same
-internal network, not through the gateway — see
+The three service-to-service calls above go straight from one container to
+the other over the internal Docker network by container name/port
+(`http://shortener:8000`, etc.) — never through the gateway, and never
+through the loopback debug ports either (those don't even resolve from
+inside another container). See
 [`../gateway`](../gateway#service-to-service-traffic) for why.
 
-### The three cross-service seams, and why each is shaped the way it is
+### Direct per-service access (debugging only)
+
+Each service also publishes its own host port, bound to `127.0.0.1` only
+(`docker-compose.yml`'s `ports: ["127.0.0.1:<port>:8000"]`) — `auth`:8000,
+`shortener`:8001, `analytics`:8002, `url-preview`:8003:
+
+```bash
+curl http://localhost:8001/health/                    # shortener's own health check
+curl http://localhost:8001/api/v1/docs/                # its Swagger UI, unrewritten
+```
+
+This is strictly a local-debugging convenience — `curl`ing a service
+directly, or opening its own (non-multiplexed) Swagger UI without the
+gateway's `/api/v1/docs/<service>/` rewrite. **It is not a second, equivalent
+way to reach the API.** Going around the gateway also goes around
+`auth_request` and CORS entirely: `shortener`/`analytics` trust the
+`X-User-Id`/`X-User-Tier`/`X-User-Is-Premium` headers on an incoming request
+(`GatewayAuthentication`) because the gateway's `proxy_set_header` is what
+normally *overwrites* whatever a client sent under those names with the
+verified claims — hit `shortener` on `:8001` directly and nothing strips or
+verifies those headers first, so a request that sets its own `X-User-Id`
+would be trusted outright. The loopback-only binding keeps that risk
+confined to the host machine itself, not the network — but a browser
+frontend, a mobile app, or anything client-facing should only ever be
+pointed at the gateway on **:8080**.
+
+### The cross-service seams, and why each is shaped the way it is
 
 1. **Identity: centralized at the gateway, not re-verified per service.**
    `auth` is the only service that ever signs or verifies a JWT — it uses its
@@ -114,13 +158,34 @@ internal network, not through the gateway — see
    just makes analytics briefly unavailable too. Neither of these two calls
    goes through the gateway — see [`../gateway`](../gateway) for why.
 
+4. **URL preview: async, off the create request, with its own resiliency
+   boundary.** Fetching an arbitrary destination page's title/description/
+   favicon can be slow (a laggy site) or fail outright (a dead domain) — the
+   URL create endpoint must never wait on that, and must never fail because
+   of it. So `shortener` dispatches `fetch_url_preview_task` (Celery,
+   fire-and-forget) right after creating the URL, which calls url-preview's
+   `POST /api/v1/internal/preview/` (`PreviewClient`,
+   `URL_PREVIEW_SERVICE_URL=http://url-preview:8000`, not through the
+   gateway) and backfills `description`/`favicon_url` (and `title`, if the
+   caller left it blank) once it comes back. Two independent resiliency
+   layers, deliberately not compounded: Celery retries *this task's own hop*
+   to url-preview (connection failure/timeout only, exponential backoff);
+   url-preview's *own* fetch of the destination site has its own
+   retry-with-backoff and a per-domain circuit breaker (opens after
+   repeated failures, so a dead domain stops being retried for a cooldown
+   window) — see [`url-preview`](url-preview/README.md#business-logic-worth-knowing-about).
+   A definitive failure from url-preview (circuit open, site unreachable
+   after its own retries) is *not* retried again at the Celery layer — the
+   fields just stay blank, exactly like a dropped click event.
+
 ### Background processing, logging, and health
 
 - **Celery workers, one per service that needs one.** `shortener-worker` +
   `shortener-beat` run the nightly `archive_expired_urls` job
   (`CELERY_BEAT_SCHEDULE`, 02:00) that deactivates any URL past its
   `expires_at` — going through the same cached repository a normal edit
-  would, so the cache is invalidated the same way. `analytics-worker` runs
+  would, so the cache is invalidated the same way — plus the fire-and-forget
+  `fetch_url_preview_task` described in seam 4 above. `analytics-worker` runs
   the write-behind click task described above. Each service's Celery
   broker lives on its **own Redis DB index** on the shared Redis instance
   (`/1` for shortener, `/2` for analytics) — deliberately *not* the same DB
@@ -129,6 +194,8 @@ internal network, not through the gateway — see
   a fixed key (`celery` by default) with no per-app prefix, so two services
   sharing one DB would each `BRPOP` the *other's* tasks off the same list —
   and a message popped by the wrong worker is simply dropped, not requeued.
+  `url-preview` has no Celery worker of its own — its retry-with-backoff runs
+  synchronously inside the request it's handling, not as a background job.
 - **Structured JSON logging.** Every service's `LOGGING` config
   (`config/json_logging.py`) renders one JSON object per line — to both
   stdout (`docker compose logs -f`) and the rotating `logs/<service>.log`
@@ -149,15 +216,16 @@ internal network, not through the gateway — see
 
 One way to run this — the whole stack, behind the gateway, via the one
 `docker-compose.yml` in this directory (and the one `Dockerfile`, shared by
-all three Django services):
+all four Django services):
 
 ```bash
 cp .env.example .env              # then fill in real secrets
 docker compose up --build
 ```
 
-`auth`, `shortener`, and `analytics` publish no host ports — everything goes
-through the gateway on **`:8080`**:
+Client traffic should go through the gateway on **`:8080`**; each service's
+own port (below) is loopback-only and for debugging — see
+[Direct per-service access](#direct-per-service-access-debugging-only):
 
 | What | URL |
 |---|---|
@@ -165,6 +233,11 @@ through the gateway on **`:8080`**:
 | Auth docs | http://localhost:8080/api/v1/docs/auth/ |
 | Shortener docs | http://localhost:8080/api/v1/docs/shortener/ |
 | Analytics docs | http://localhost:8080/api/v1/docs/analytics/ |
+| url-preview docs | http://localhost:8080/api/v1/docs/url-preview/ |
+| Auth (direct, debug only) | http://localhost:8000/ |
+| Shortener (direct, debug only) | http://localhost:8001/ |
+| Analytics (direct, debug only) | http://localhost:8002/ |
+| url-preview (direct, debug only) | http://localhost:8003/ |
 
 ### Endpoints
 
@@ -183,10 +256,15 @@ All paths below are relative to the gateway (`http://localhost:8080`) — see
 | `GET` | `/api/v1/{short_code}/` | shortener (JSON resolve) |
 | `GET` | `/{short_code}/` | shortener (302 redirect — the actual short link) |
 | `GET` | `/api/v1/analytics/{short_code}/` | analytics (premium only) |
-| `GET` | `/health/` | each service (auth/shortener/analytics) — DB + Redis check |
+| `GET` | `/health/` | each service (auth/shortener/analytics/url-preview) — DB + Redis check |
 | `GET` | `/health` | gateway — nginx liveness only |
 
-Three more endpoints exist purely for service-to-service calls, gated by the
+A created/retrieved URL's `description`/`favicon_url` fields are populated
+asynchronously by url-preview — blank immediately after `POST /api/v1/urls/`
+returns `201`, filled in a moment later once the fetch completes (or left
+blank if it fails — see seam 4 above).
+
+Four more endpoints exist purely for service-to-service calls, gated by the
 shared `X-Internal-Token` header rather than a user's JWT, excluded from the
 public Swagger docs, and (except auth's, which shares its host with the
 public auth endpoints) called directly container-to-container — not through
@@ -197,6 +275,7 @@ the gateway, which blocks `/api/v1/internal/` entirely:
 | `POST` | `/api/v1/auth/internal/token/validate/` | auth | shortener, analytics |
 | `GET` | `/api/v1/internal/urls/{short_code}/owner/` | shortener | analytics |
 | `POST` | `/api/v1/internal/clicks/` | analytics | shortener |
+| `POST` | `/api/v1/internal/preview/` | url-preview | shortener |
 
 RBAC, tier limits (10 active URLs / custom aliases / detailed analytics), and
 login rate-limiting are documented in each owning service's own README, under
@@ -208,17 +287,19 @@ for RBAC and tier limits.
 ### Running each service's tests
 
 ```bash
-docker compose run --rm auth       sh -c "pip install -r requirements-dev.txt && pytest -q"
-docker compose run --rm shortener  sh -c "pip install -r requirements-dev.txt && pytest -q"
-docker compose run --rm analytics  sh -c "pip install -r requirements-dev.txt && pytest -q"
+docker compose run --rm auth         sh -c "pip install -r requirements-dev.txt && pytest -q"
+docker compose run --rm shortener    sh -c "pip install -r requirements-dev.txt && pytest -q"
+docker compose run --rm analytics    sh -c "pip install -r requirements-dev.txt && pytest -q"
+docker compose run --rm url-preview  sh -c "pip install -r requirements-dev.txt && pytest -q"
 ```
 
 Each service's `test_smoke.py` covers its own business logic end to end
-(auth's rate limiter, shortener's tier limits, analytics' aggregation) —
-see each service's own README for exactly what it proves. The other test
-files (ownership lookup, click ingest/publish) cover the pieces that are
-genuinely new about the split: JWT verification without a local user table,
-the plain-integer `owner_id`, and the cross-service REST calls.
+(auth's rate limiter, shortener's tier limits, analytics' aggregation,
+url-preview's internal endpoint) — see each service's own README for exactly
+what it proves. The other test files (ownership lookup, click ingest/publish,
+preview fetch/retry/circuit-breaker) cover the pieces that are genuinely new
+about the split: JWT verification without a local user table, the
+plain-integer `owner_id`, and the cross-service REST calls.
 
 ## Known simplifications
 
@@ -250,15 +331,29 @@ as an oversight:
   is unreachable at the exact moment `shortener` tries to deliver it. Closing
   that gap too would mean putting a message broker in front of that seam as
   well, not just behind analytics' own endpoint.
+- **A URL create doesn't re-trigger a preview fetch on edit.** `PATCH
+  /api/v1/urls/{short_code}/` can change `original_url`, but only the
+  original create dispatches `fetch_url_preview_task` — an edited URL keeps
+  whatever `description`/`favicon_url` (or blank) it had before. Scoped this
+  way deliberately to keep the change to what was asked (preview on
+  shorten); wiring the same dispatch into the update path would be a small,
+  separate addition.
+- **`url-preview` has a provisioned Postgres database it doesn't use yet.**
+  It's there for parity with the other three services (the shared
+  `Dockerfile`'s `CMD` unconditionally runs `manage.py migrate`), but the
+  service has no domain tables of its own today — it's stateless beyond its
+  Redis-backed result cache and circuit-breaker state. A natural next step
+  would be persisting fetch history/failure counts there instead of (or in
+  addition to) Redis.
 - **Structured logs, but no distributed tracing.** Every service now emits
   one JSON log line per event (see above) instead of free text, but a
-  request that spans all three services still has no correlation ID tying
+  request that spans multiple services still has no correlation ID tying
   its log lines together across process boundaries — `docker compose logs
   -f` per-service is still how you'd follow one. Adding OpenTelemetry +
   Jaeger/Tempo would be the natural next step, not a redesign.
 - **Docs/schema are multiplexed via `rewrite`, not natively.** Each service's
   own drf-spectacular Swagger UI still assumes it's the only thing on the
-  host — all three define docs/schema at the same literal `/api/v1/docs/`
+  host — all four define docs/schema at the same literal `/api/v1/docs/`
   and `/api/v1/schema/` paths. The gateway gives each an unambiguous address
   (`/api/v1/docs/<service>/`, `/api/v1/schema/<service>/`) with an nginx
   `rewrite` + `sub_filter`, rather than each service knowing its own mount

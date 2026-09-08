@@ -37,8 +37,9 @@ traffic only.
 
 ## API
 
-Base path: `/api/v1/` (web process, port 8000 in-container — not published
-directly; reachable through the gateway on **:8080**):
+Base path: `/api/v1/` (web process, port 8000 in-container; reachable
+through the gateway on **:8080**, or directly at `localhost:8002` — loopback
+only, debugging only, see below):
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
@@ -119,10 +120,12 @@ cp .env.example .env               # fill in real secrets
 docker compose up --build
 ```
 
-Publishes no host port of its own; reachable through the gateway on
-`http://localhost:8080/api/v1/analytics/...`. Needs a reachable `shortener`
-for the ownership check — without it, `GET /api/v1/analytics/{short_code}/`
-fails closed (`404`) for everything.
+Reachable through the gateway on `http://localhost:8080/api/v1/analytics/...`
+(the recommended way), or directly on `http://localhost:8002/` for debugging
+only (loopback-only host port — bypasses the gateway's auth/CORS entirely,
+see [`../README.md`](../README.md#direct-per-service-access-debugging-only)).
+Needs a reachable `shortener` for the ownership check — without it,
+`GET /api/v1/analytics/{short_code}/` fails closed (`404`) for everything.
 
 ## Tests
 

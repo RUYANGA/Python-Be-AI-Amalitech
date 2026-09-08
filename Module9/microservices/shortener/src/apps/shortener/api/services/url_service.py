@@ -175,20 +175,24 @@ class URLShortenerService:
         *,
         original_url: str | None = None,
         title: str | None = None,
+        description: str | None = None,
+        favicon_url: str | None = None,
         tags: list[str] | None = None,
         expires_at=None,
         is_active: bool | None = None,
     ) -> URL:
         """Update only the provided fields on ``url``.
 
-        Any of ``original_url``, ``title``, ``tags``, ``expires_at`` and
-        ``is_active`` that is provided is persisted; omitted fields are
-        left unchanged.
+        Any of ``original_url``, ``title``, ``description``,
+        ``favicon_url``, ``tags``, ``expires_at`` and ``is_active`` that is
+        provided is persisted; omitted fields are left unchanged.
         """
         updated = self._repository.update(
             url,
             original_url=original_url,
             title=title,
+            description=description,
+            favicon_url=favicon_url,
             tags=tags,
             expires_at=expires_at,
             is_active=is_active,

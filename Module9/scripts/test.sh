@@ -13,7 +13,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/../microservices"
 
-for service in auth shortener analytics; do
+for service in auth shortener analytics url-preview; do
   echo "==> pytest ($service)"
   docker compose run --rm "$service" sh -c "pip install -q -r requirements-dev.txt && pytest -q"
 done

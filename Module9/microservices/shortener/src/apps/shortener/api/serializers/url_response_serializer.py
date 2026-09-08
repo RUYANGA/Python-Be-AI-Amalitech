@@ -14,6 +14,8 @@ class URLResponseSerializer(serializers.Serializer):
     short_code = serializers.CharField(max_length=10, read_only=True)
     short_url = serializers.SerializerMethodField()
     title = serializers.CharField(max_length=255, default="")
+    description = serializers.CharField(default="")
+    favicon_url = serializers.URLField(max_length=2048, default="")
     tags = serializers.SerializerMethodField()
     click_count = serializers.IntegerField(read_only=True)
     is_active = serializers.BooleanField(read_only=True)

@@ -28,11 +28,22 @@ forwards the verified identity as trusted headers.
   (`GET /api/v1/internal/urls/{short_code}/owner/`) "does this short code
   exist, and who owns it?" for its premium analytics endpoint — also
   directly, not through the gateway.
+- **Calls `url-preview` directly**: right after a URL is created, a Celery
+  task (`apps.shortener.tasks.fetch_url_preview_task`) dispatches a
+  `POST /api/v1/internal/preview/` to url-preview
+  (`URL_PREVIEW_SERVICE_URL=http://url-preview:8000` — not through the
+  gateway) to fetch the destination page's title/description/favicon and
+  backfill them onto the `URL` row. Fire-and-forget from the create
+  response's point of view (`PreviewClient`) — a failure just leaves
+  `description`/`favicon_url` blank, never surfaces as a create-time error.
+  See [`../url-preview/README.md`](../url-preview/README.md) for the
+  retry/backoff/circuit-breaker resiliency this hides behind.
 
 ## API
 
-Base path: `/api/v1/` (web process, port 8000 in-container — not published
-directly; reachable through the gateway on **:8080**).
+Base path: `/api/v1/` (web process, port 8000 in-container; reachable
+through the gateway on **:8080**, or directly at `localhost:8001` — loopback
+only, debugging only, see below).
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
@@ -67,7 +78,9 @@ protocol.
 |---|---|---|
 | `original_url` | `str` (≤2048) | |
 | `short_code` | `str` (≤10) | unique, indexed |
-| `title` | `str` | optional |
+| `title` | `str` | optional; user-supplied, or backfilled from the fetched page title if left blank — see below |
+| `description` | `str` | populated asynchronously by url-preview; blank until the fetch completes (or fails) |
+| `favicon_url` | `str` | same as `description` |
 | `owner_id` | `int` | **plain integer, not a FK** — the owning user lives in `auth`'s database; enforced via the JWT `user_id` claim, not a database join |
 | `click_count` | `int` | no longer live — see [Known simplifications](../README.md#known-simplifications) |
 | `is_active` | `bool` | default `True` |
@@ -96,6 +109,14 @@ protocol.
   thread on every redirect/resolve. Publish failures are logged and
   swallowed, never raised — the highest-traffic path in the system must
   never fail because `analytics` is slow or down.
+- **URL preview backfill** (`apps.shortener.tasks.fetch_url_preview_task`):
+  dispatched via `.delay()` right after a URL is created — never inline with
+  the create request. Celery retries *this task's own hop* to url-preview
+  (connection failure/timeout, exponential backoff, up to 3 retries); a
+  *definitive* failure from url-preview (its own circuit breaker open for
+  that domain, or the destination site unreachable after url-preview's own
+  retries) is not retried again here — the fields just stay blank. Never
+  overwrites a user-supplied `title`.
 - **Nightly URL archival** (`apps.shortener.tasks.archive_expired_urls_task`):
   a Celery Beat job, scheduled for 02:00 (`CELERY_BEAT_SCHEDULE` in
   `settings.py`), that deactivates (`is_active=False`) every URL whose
@@ -116,7 +137,8 @@ protocol.
 | `REDIS_URL` | `redis://127.0.0.1:6379/0` | Backs the read-through URL cache |
 | `CELERY_BROKER_URL` | `redis://127.0.0.1:6379/1` | Broker for the nightly archive job — a **different Redis DB** than `REDIS_URL`, and different from analytics' own broker DB, so the two services' workers never `BRPOP` each other's tasks off the same queue key |
 | `ANALYTICS_SERVICE_URL` | `http://analytics:8000` | Where to publish click events — called directly, not through the gateway |
-| `INTERNAL_SERVICE_TOKEN` | `""` | Shared secret for the click-event REST call, and for verifying the inbound ownership lookup from analytics — must match all three services' copies |
+| `URL_PREVIEW_SERVICE_URL` | `http://url-preview:8000` | Where to fetch title/description/favicon previews — called directly, not through the gateway |
+| `INTERNAL_SERVICE_TOKEN` | `""` | Shared secret for the click-event and preview-fetch REST calls, and for verifying the inbound ownership lookup from analytics — must match all services' copies |
 
 ## Logs
 
@@ -136,10 +158,13 @@ cp .env.example .env               # fill in real secrets
 docker compose up --build
 ```
 
-Publishes no host port of its own; reachable through the gateway on
-`http://localhost:8080/`. Without a reachable `analytics`
-(`ANALYTICS_SERVICE_URL`), published click events just fail closed (logged,
-swallowed) — redirects and resolves keep working normally.
+Reachable through the gateway on `http://localhost:8080/` (the recommended
+way), or directly on `http://localhost:8001/` for debugging only
+(loopback-only host port — bypasses the gateway's auth/CORS entirely, see
+[`../README.md`](../README.md#direct-per-service-access-debugging-only)).
+Without a reachable `analytics` (`ANALYTICS_SERVICE_URL`), published click
+events just fail closed (logged, swallowed) — redirects and resolves keep
+working normally.
 
 ## Tests
 
@@ -153,5 +178,10 @@ create sets the correct `owner_id` (201); the redirect endpoint 302s to the
 original URL; a non-owner's `PATCH` returns 404; the owner's `PATCH`
 succeeds; an 11th URL from a free user is rejected (403); a premium user can
 use a custom alias while a free user cannot. `test_tasks.py` covers the
-nightly archive job directly (expired URLs get deactivated, unexpired and
-already-archived ones are left alone, the cache is invalidated).
+nightly archive job (expired URLs get deactivated, unexpired and
+already-archived ones are left alone, the cache is invalidated) and the
+url-preview backfill task (fields get populated, a user-supplied title is
+never overwritten, a failed fetch leaves fields blank, the cache is
+invalidated). `test_preview_client.py` covers `PreviewClient`'s REST call
+directly — payload/timeout, a connection failure/timeout re-raising for
+Celery to retry, and a definitive non-2xx response being swallowed instead.

@@ -65,6 +65,13 @@ SPECTACULAR_SETTINGS = {
 # X-Internal-Token-authenticated call.
 ANALYTICS_SERVICE_URL = config("ANALYTICS_SERVICE_URL", default="http://analytics:8000")
 
+# ─── URL Preview service (title/description/favicon lookup) ────────
+# Also called directly, not through the gateway, same rationale as
+# ANALYTICS_SERVICE_URL above. Dispatched from a Celery task
+# (apps.shortener.tasks.fetch_url_preview_task), never inline with the
+# create request — see apps.shortener.api.services.preview_client.
+URL_PREVIEW_SERVICE_URL = config("URL_PREVIEW_SERVICE_URL", default="http://url-preview:8000")
+
 # Shared secret for internal (service-to-service) REST calls, sent as
 # the X-Internal-Token header — the click events this service publishes
 # to analytics, and the ownership lookup the analytics service makes

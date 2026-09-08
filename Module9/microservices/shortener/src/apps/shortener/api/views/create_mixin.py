@@ -17,6 +17,7 @@ from apps.shortener.api.exceptions import (
     URLLimitExceededError,
 )
 from apps.shortener.api.serializers import URLCreateSerializer, URLResponseSerializer
+from apps.shortener.tasks import fetch_url_preview_task
 
 if TYPE_CHECKING:
     from apps.shortener.api.services.url_service import URLShortenerService
@@ -80,6 +81,14 @@ class URLCreateMixin:
                 {"detail": "Could not allocate a short code. Please retry."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+        # Fire-and-forget: fetching the destination page's title/description/
+        # favicon can be slow (a dead or slow site) or fail outright, so it
+        # must never delay this response. See fetch_url_preview_task.
+        try:
+            fetch_url_preview_task.delay(url.id, url.original_url)
+        except Exception:
+            logger.exception("url.preview_enqueue_failed id=%s", url.id)
 
         response = URLResponseSerializer(url, context={"request": request})
         return Response(response.data, status=status.HTTP_201_CREATED)

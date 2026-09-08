@@ -70,6 +70,8 @@ class IURLRepository(ABC):
         url: URL,
         original_url: str | None = None,
         title: str | None = None,
+        description: str | None = None,
+        favicon_url: str | None = None,
         tags: list[str] | None = None,
         expires_at=None,
         is_active: bool | None = None,
