@@ -1,0 +1,32 @@
+[tool.pytest.ini_options]
+# Each microservice has its own [tool.pytest.ini_options] with the correct
+# DJANGO_SETTINGS_MODULE and pythonpath. Running bare `pytest` from the root
+# can't work because Django settings are process-global and each service has
+# its own database/dependencies. Tests must be run per-service (via Docker
+# or by cd-ing into the service directory).
+norecursedirs = ["microservices"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["**/migrations/*"]
+src = [
+    "microservices/auth/src",
+    "microservices/shortener/src",
+    "microservices/analytics/src",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "ARG"]
+ignore = ["N818"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+extend-exclude = "/(migrations/)"
+
+[tool.mypy]
+python_version = "3.12"
+strict = false
+ignore_missing_imports = true
+exclude = [".*/migrations/.*\\.py"]

@@ -1,0 +1,6 @@
+# Local dev tooling only (linting/type-checking/IDE support) — never
+# installed inside the service containers, which each carry their own
+# requirements.txt / requirements-dev.txt.
+ruff==0.16.5
+black==26.5.1
+mypy==2.3.1
