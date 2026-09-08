@@ -18,7 +18,9 @@ pytestmark = pytest.mark.django_db
 
 class TestPreviewFetchView:
     def test_rejects_a_request_with_no_internal_token(self, api_client):
-        response = api_client.post("/api/v1/internal/preview/", {"url": "https://example.com/"})
+        response = api_client.post(
+            "/api/v1/internal/preview/", {"url": "https://example.com/"}, format="json"
+        )
 
         assert response.status_code == 403
 
@@ -38,6 +40,7 @@ class TestPreviewFetchView:
             response = api_client.post(
                 "/api/v1/internal/preview/",
                 {"url": "https://example.com/"},
+                format="json",
                 HTTP_X_INTERNAL_TOKEN="shared-secret",
             )
 
@@ -57,6 +60,7 @@ class TestPreviewFetchView:
         response = api_client.post(
             "/api/v1/internal/preview/",
             {"url": "https://example.com/"},
+            format="json",
             HTTP_X_INTERNAL_TOKEN="wrong-token",
         )
 
