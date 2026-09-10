@@ -123,6 +123,13 @@ LOGGING = {
             "backupCount": 5,
             "formatter": "json",
         },
+        "profile_file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": LOG_DIR / "profile.log",
+            "maxBytes": 10 * 1024 * 1024,  # 10 MB
+            "backupCount": 5,
+            "formatter": "json",
+        },
     },
     "root": {"handlers": ["console", "file"], "level": "INFO"},
     "loggers": {
@@ -138,6 +145,14 @@ LOGGING = {
         },
         "apps.analytics": {"handlers": ["console", "file"], "level": "INFO", "propagate": False},
         "celery": {"handlers": ["console", "file"], "level": "INFO", "propagate": False},
+        # @profiled/@timed results — split into their own file so profiling
+        # noise doesn't drown out analytics.log, while still reaching
+        # `docker logs` via console.
+        "apps.analytics.api.profiling": {
+            "handlers": ["console", "profile_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
     },
 }
 

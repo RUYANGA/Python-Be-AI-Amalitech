@@ -3,8 +3,10 @@
 Two opt-in helpers are provided:
 
 - ``@profiled`` runs the wrapped method under :mod:`cProfile` and logs the
-  top rows by cumulative time. Use it when you need to know not only how
-  long something took, but where the time went.
+  top rows by cumulative time as structured data (under the ``profile``
+  key), so log lines stay valid, parseable JSON instead of an embedded
+  text table. Use it when you need to know not only how long something
+  took, but where the time went.
 - ``@timed`` is the cheap, inline alternative: it logs a single
   elapsed-time line per call with no cProfile overhead. Suitable for hot
   paths where profiling would distort the measurement.
@@ -19,7 +21,6 @@ from __future__ import annotations
 
 import cProfile
 import functools
-import io
 import logging
 import pstats
 import time
@@ -42,6 +43,24 @@ def _is_enabled(enabled: bool | None) -> bool:
     return bool(getattr(settings, "PROFILING_ENABLED", getattr(settings, "DEBUG", False)))
 
 
+def _stats_rows(stats: pstats.Stats, top_rows: int) -> list[dict[str, Any]]:
+    """Return the ``top_rows`` heaviest functions, in ``stats``'s sorted order, as plain dicts."""
+    rows = []
+    for filename, lineno, funcname in stats.fcn_list[:top_rows]:
+        call_count, num_calls, tottime, cumtime = stats.stats[(filename, lineno, funcname)][:4]
+        rows.append(
+            {
+                "function": f"{filename}:{lineno}({funcname})",
+                "calls": num_calls if call_count == num_calls else f"{num_calls}/{call_count}",
+                "tottime": round(tottime, 6),
+                "percall_tottime": round(tottime / num_calls, 6) if num_calls else 0.0,
+                "cumtime": round(cumtime, 6),
+                "percall_cumtime": round(cumtime / call_count, 6) if call_count else 0.0,
+            }
+        )
+    return rows
+
+
 def profiled(
     enabled: bool | None = None,
     *,
@@ -50,8 +69,9 @@ def profiled(
 ) -> Callable[[F], F]:
     """Profile the decorated method with :mod:`cProfile`.
 
-    Logs ``func.__qualname__`` followed by the ``top_rows`` heaviest rows
-    (sorted by ``sort_by``) at INFO level.
+    Logs ``func.__qualname__`` at INFO level, with the ``top_rows`` heaviest
+    rows (sorted by ``sort_by``) attached as structured data under the
+    ``profile`` key — see :class:`config.json_logging.JSONFormatter`.
     """
 
     def decorator(func: F) -> F:
@@ -63,9 +83,21 @@ def profiled(
             try:
                 return profiler.runcall(func, *args, **kwargs)
             finally:
-                stream = io.StringIO()
-                pstats.Stats(profiler, stream=stream).sort_stats(sort_by).print_stats(top_rows)
-                logger.info("profile.%s\n%s", func.__qualname__, stream.getvalue())
+                stats = pstats.Stats(profiler).sort_stats(sort_by)
+                logger.info(
+                    "profile.%s",
+                    func.__qualname__,
+                    extra={
+                        "profile": {
+                            "function": func.__qualname__,
+                            "sort_by": sort_by,
+                            "total_calls": stats.total_calls,
+                            "primitive_calls": stats.prim_calls,
+                            "total_time_seconds": round(stats.total_tt, 6),
+                            "rows": _stats_rows(stats, top_rows),
+                        }
+                    },
+                )
 
         return cast(F, wrapper)
 
