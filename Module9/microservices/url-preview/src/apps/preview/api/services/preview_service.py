@@ -24,6 +24,7 @@ from apps.preview.api.exceptions import (
     URLNotAccessibleError,
 )
 from apps.preview.api.interfaces.fetcher import IPreviewFetcher, PreviewResult
+from apps.preview.api.profiling import timed
 from apps.preview.api.services.circuit_breaker import DomainCircuitBreaker
 from apps.preview.api.services.retry import call_with_backoff
 
@@ -51,6 +52,7 @@ class PreviewService:
         self._base_delay = base_delay
         self._cache_ttl = cache_ttl
 
+    @timed(enabled=True)
     def fetch(self, url: str) -> PreviewResult:
         """Return the :class:`PreviewResult` for ``url``.
 

@@ -18,6 +18,7 @@ from django.conf import settings
 
 from apps.preview.api.exceptions import PreviewFetchError
 from apps.preview.api.interfaces.fetcher import IPreviewFetcher, PreviewResult
+from apps.preview.api.profiling import profiled
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 class HTMLPreviewFetcher(IPreviewFetcher):
     """Fetches a page's HTML and extracts title/description/favicon from it."""
 
+    @profiled(enabled=True)
     def fetch(self, url: str) -> PreviewResult:
         try:
             response = requests.get(

@@ -24,6 +24,7 @@ from apps.shortener.api.interfaces.repository import (
     KeysetPage,
     URLListFilters,
 )
+from apps.shortener.api.profiling import profiled
 from apps.shortener.models import URL
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,7 @@ logger = logging.getLogger(__name__)
 class DjangoURLRepository(IURLRepository):
     # ── CRUD ──────────────────────────────────────────────────────────
 
+    @profiled(enabled=True)
     def create(
         self,
         original_url: str,
@@ -120,6 +122,7 @@ class DjangoURLRepository(IURLRepository):
 
     # ── Keyset pagination + dynamic filtering ─────────────────────────
 
+    @profiled(enabled=True)
     def list_with_filters(
         self, filters: URLListFilters, limit: int = 10, cursor: str | None = None
     ) -> KeysetPage:

@@ -21,6 +21,7 @@ from apps.analytics.api.interfaces.analytics import (
     ReferrerStats,
     URLAggregateStats,
 )
+from apps.analytics.api.profiling import profiled
 from apps.analytics.models import Click
 
 logger = logging.getLogger(__name__)
@@ -52,6 +53,7 @@ class DjangoClickAnalyticsRepository(IClickAnalyticsRepository):
             logger.exception("click.record_failed short_code=%s", short_code)
             raise RepositoryError("record_click", short_code=short_code) from exc
 
+    @profiled(enabled=True)
     def get_aggregate_stats(self, short_code: str) -> URLAggregateStats:
         try:
             clicks = Click.objects.filter(short_code=short_code)
@@ -157,6 +159,7 @@ class DjangoClickAnalyticsRepository(IClickAnalyticsRepository):
             logger.exception("click.recent_clicks_failed short_code=%s", short_code)
             raise RepositoryError("get_recent_clicks", short_code=short_code) from exc
 
+    @profiled(enabled=True)
     def get_click_time_series(self, short_code: str, days: int = 30) -> list[tuple[str, int]]:
         since = datetime.now(UTC) - timedelta(days=days)
         try:

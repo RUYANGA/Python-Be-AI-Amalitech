@@ -11,6 +11,7 @@ import logging
 
 from apps.analytics.api.exceptions import URLNotAccessibleError
 from apps.analytics.api.interfaces.analytics import IClickAnalyticsRepository
+from apps.analytics.api.profiling import timed
 from apps.analytics.api.services.url_ownership_client import URLOwnershipClient
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,7 @@ class AnalyticsService:
         self._repository = repository
         self._ownership = ownership_client
 
+    @timed(enabled=True)
     def get_summary_for_owner(self, short_code: str, requester_id: int, days: int = 30) -> dict:
         """Return the full analytics summary for ``short_code``.
 

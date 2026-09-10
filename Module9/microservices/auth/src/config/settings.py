@@ -154,6 +154,13 @@ LOGGING = {
             "backupCount": 5,
             "formatter": "json",
         },
+        "profile_file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": LOG_DIR / "profile.log",
+            "maxBytes": 10 * 1024 * 1024,  # 10 MB
+            "backupCount": 5,
+            "formatter": "json",
+        },
     },
     "root": {"handlers": ["console", "file"], "level": "INFO"},
     "loggers": {
@@ -168,6 +175,14 @@ LOGGING = {
             "propagate": False,
         },
         "apps.users": {"handlers": ["console", "file"], "level": "INFO", "propagate": False},
+        # @profiled/@timed results — split into their own file so profiling
+        # noise doesn't drown out auth.log, while still reaching `docker
+        # logs` via console.
+        "apps.users.api.profiling": {
+            "handlers": ["console", "profile_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
     },
 }
 
