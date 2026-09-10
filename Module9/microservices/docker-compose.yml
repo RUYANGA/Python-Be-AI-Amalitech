@@ -4,8 +4,7 @@
 # connect to the host's own Postgres (host.docker.internal) and Redis
 # (host.docker.internal:6380, adjust if yours differs) — create the
 # four databases first with `createdb -U <role> auth shortener
-# analytics url_preview`. One shared Dockerfile (./Dockerfile) builds
-# all four.
+# analytics url_preview`. Each service has its own Dockerfile.
 #
 # Ports: every service gets its own, so nothing collides whether you're
 # hitting it through the gateway, directly against its published port,
@@ -108,7 +107,7 @@ services:
   auth:
     build:
       context: ./auth
-      dockerfile: ../Dockerfile
+      dockerfile: Dockerfile
     image: msvc-auth:latest
     container_name: msvc-auth
     restart: unless-stopped
@@ -132,7 +131,7 @@ services:
   shortener:
     build:
       context: ./shortener
-      dockerfile: ../Dockerfile
+      dockerfile: Dockerfile
     image: msvc-shortener:latest
     container_name: msvc-shortener
     restart: unless-stopped
@@ -157,7 +156,7 @@ services:
   shortener-worker:
     build:
       context: ./shortener
-      dockerfile: ../Dockerfile
+      dockerfile: Dockerfile
     image: msvc-shortener-worker:latest
     container_name: msvc-shortener-worker
     restart: unless-stopped
@@ -178,7 +177,7 @@ services:
   shortener-beat:
     build:
       context: ./shortener
-      dockerfile: ../Dockerfile
+      dockerfile: Dockerfile
     image: msvc-shortener-beat:latest
     container_name: msvc-shortener-beat
     restart: unless-stopped
@@ -196,7 +195,7 @@ services:
   analytics:
     build:
       context: ./analytics
-      dockerfile: ../Dockerfile
+      dockerfile: Dockerfile
     image: msvc-analytics:latest
     container_name: msvc-analytics
     restart: unless-stopped
@@ -223,7 +222,7 @@ services:
   analytics-worker:
     build:
       context: ./analytics
-      dockerfile: ../Dockerfile
+      dockerfile: Dockerfile
     image: msvc-analytics-worker:latest
     container_name: msvc-analytics-worker
     restart: unless-stopped
@@ -249,7 +248,7 @@ services:
   url-preview:
     build:
       context: ./url-preview
-      dockerfile: ../Dockerfile
+      dockerfile: Dockerfile
     image: msvc-url-preview:latest
     container_name: msvc-url-preview
     restart: unless-stopped

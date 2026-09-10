@@ -1,11 +1,4 @@
 # syntax=docker/dockerfile:1
-#
-# Shared by all four Django services (auth, shortener, analytics,
-# url-preview) — they have an identical shape (manage.py, requirements.txt,
-# src/), so one Dockerfile builds all four, each with its own directory as
-# the build context (see the `build:` block for each service in
-# docker-compose.yml). There is deliberately no per-service Dockerfile
-# anymore.
 
 # ---- builder: install dependencies into a venv, with a cached pip download dir ----
 FROM python:3.12-slim AS builder
@@ -38,4 +31,4 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "python manage.py migrate --noinput && uvicorn config.asgi:application --host 0.0.0.0 --port ${PORT}"]
+CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn config.asgi:application --bind 0.0.0.0:${PORT} --workers ${WEB_CONCURRENCY:-4} --worker-class uvicorn.workers.UvicornWorker --access-logfile -"]
