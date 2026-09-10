@@ -102,7 +102,7 @@ internal endpoint is excluded from both — it's not for browser/client use.
 |---|---|---|
 | `DEBUG` | `True` | Django debug mode |
 | `SECRET_KEY` | *(required)* | Django secret key |
-| `ALLOWED_HOSTS` | `*` | Comma-separated allowed hosts |
+| `ALLOWED_HOSTS` | `localhost,127.0.0.1` | Comma-separated allowed hosts, set in `.env`; the `*` wildcard is not permitted |
 | `DB_NAME` / `DB_USER` / `DB_PASSWORD` / `DB_HOST` / `DB_PORT` | *(required)* | Postgres connection |
 | `REDIS_URL` | `redis://127.0.0.1:6379/0` | Backs the result cache and the circuit breaker |
 | `INTERNAL_SERVICE_TOKEN` | `""` | Shared secret gating the internal preview-fetch endpoint — must match shortener's copy |

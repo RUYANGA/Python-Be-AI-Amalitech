@@ -70,7 +70,7 @@ class IClickAnalyticsRepository(ABC):
 
     @abstractmethod
     def get_hourly_distribution(self, short_code: str) -> list[HourlyDistribution]:
-        """Return click distribution by hour of day (0-23)."""
+        """Return click distribution by hour of day (0-23), only for hours with clicks."""
         raise NotImplementedError
 
     @abstractmethod

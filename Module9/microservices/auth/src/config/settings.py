@@ -12,14 +12,21 @@ from datetime import timedelta
 from pathlib import Path
 
 from decouple import config
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = config("SECRET_KEY", default="django-insecure-dev-key")
 DEBUG = config("DEBUG", default=True, cast=bool)
 ALLOWED_HOSTS: list[str] = config(
-    "ALLOWED_HOSTS", default="*", cast=lambda v: [h.strip() for h in v.split(",")]
+    "ALLOWED_HOSTS",
+    default="localhost,127.0.0.1",
+    cast=lambda v: [h.strip() for h in v.split(",")],
 )
+if "*" in ALLOWED_HOSTS:
+    raise ImproperlyConfigured(
+        "ALLOWED_HOSTS must not be the '*' wildcard — set explicit hosts in .env"
+    )
 
 AUTH_USER_MODEL = "users.User"
 

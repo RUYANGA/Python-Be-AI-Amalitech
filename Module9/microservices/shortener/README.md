@@ -132,7 +132,7 @@ protocol.
 |---|---|---|
 | `DEBUG` | `True` | Django debug mode |
 | `SECRET_KEY` | *(required)* | Django secret key (not used for JWT here) |
-| `ALLOWED_HOSTS` | `*` | Comma-separated allowed hosts |
+| `ALLOWED_HOSTS` | `localhost,127.0.0.1` | Comma-separated allowed hosts, set in `.env`; the `*` wildcard is not permitted |
 | `DB_NAME` / `DB_USER` / `DB_PASSWORD` / `DB_HOST` / `DB_PORT` | *(required)* | Postgres connection |
 | `REDIS_URL` | `redis://127.0.0.1:6379/0` | Backs the read-through URL cache |
 | `CELERY_BROKER_URL` | `redis://127.0.0.1:6379/1` | Broker for the nightly archive job — a **different Redis DB** than `REDIS_URL`, and different from analytics' own broker DB, so the two services' workers never `BRPOP` each other's tasks off the same queue key |

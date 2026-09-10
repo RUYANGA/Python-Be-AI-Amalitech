@@ -133,11 +133,13 @@ class DjangoClickAnalyticsRepository(IClickAnalyticsRepository):
                 .annotate(hour=ExtractHour("clicked_at"))
                 .values("hour")
                 .annotate(clicks=Count("id"))
+                .order_by("hour")
             )
-            hourly_map = {
-                int(row["hour"]): row["clicks"] for row in rows if row["hour"] is not None
-            }
-            return [HourlyDistribution(hour=h, clicks=hourly_map.get(h, 0)) for h in range(24)]
+            return [
+                HourlyDistribution(hour=int(row["hour"]), clicks=row["clicks"])
+                for row in rows
+                if row["hour"] is not None
+            ]
         except Exception as exc:
             logger.exception("click.hourly_distribution_failed short_code=%s", short_code)
             raise RepositoryError("get_hourly_distribution", short_code=short_code) from exc

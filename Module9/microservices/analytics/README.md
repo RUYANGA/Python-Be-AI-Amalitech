@@ -96,7 +96,7 @@ use.
 |---|---|---|
 | `DEBUG` | `True` | Django debug mode |
 | `SECRET_KEY` | *(required)* | Django secret key |
-| `ALLOWED_HOSTS` | `*` | Comma-separated allowed hosts |
+| `ALLOWED_HOSTS` | `localhost,127.0.0.1` | Comma-separated allowed hosts, set in `.env`; the `*` wildcard is not permitted |
 | `DB_NAME` / `DB_USER` / `DB_PASSWORD` / `DB_HOST` / `DB_PORT` | *(required)* | Postgres connection |
 | `SHORTENER_SERVICE_URL` | `http://shortener:8000` | Where to look up URL ownership — called directly, not through the gateway |
 | `INTERNAL_SERVICE_TOKEN` | `""` | Shared secret for the ownership-lookup REST call, and for verifying inbound click-ingestion calls — must match all three services' copies |

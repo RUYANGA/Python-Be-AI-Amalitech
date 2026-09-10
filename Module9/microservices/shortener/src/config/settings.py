@@ -13,14 +13,21 @@ from pathlib import Path
 
 from celery.schedules import crontab
 from decouple import config
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = config("SECRET_KEY", default="django-insecure-dev-key")
 DEBUG = config("DEBUG", default=True, cast=bool)
 ALLOWED_HOSTS: list[str] = config(
-    "ALLOWED_HOSTS", default="*", cast=lambda v: [h.strip() for h in v.split(",")]
+    "ALLOWED_HOSTS",
+    default="localhost,127.0.0.1",
+    cast=lambda v: [h.strip() for h in v.split(",")],
 )
+if "*" in ALLOWED_HOSTS:
+    raise ImproperlyConfigured(
+        "ALLOWED_HOSTS must not be the '*' wildcard — set explicit hosts in .env"
+    )
 
 # No django.contrib.auth/admin/sessions here — this service has no
 # notion of a local Django user to log in as; identity is a JWT claim.

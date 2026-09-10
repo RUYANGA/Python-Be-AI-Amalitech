@@ -89,7 +89,7 @@ services:
     environment:
       SECRET_KEY: ${AUTH_SECRET_KEY:?set in .env}
       DEBUG: ${DEBUG:-True}
-      ALLOWED_HOSTS: "*"
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,auth,shortener,analytics,url-preview}
       DB_NAME: ${AUTH_DB_NAME:-auth}
       <<: *host-db
       REDIS_URL: redis://host.docker.internal:6380/0
@@ -112,7 +112,7 @@ services:
     <<: *extra-hosts
     environment:
       <<: *shortener-env
-      ALLOWED_HOSTS: "*"
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,auth,shortener,analytics,url-preview}
     volumes:
       - ./shortener/logs:/app/logs
     ports:
@@ -135,7 +135,7 @@ services:
     <<: *extra-hosts
     environment:
       <<: *shortener-env
-      ALLOWED_HOSTS: "*"
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,auth,shortener,analytics,url-preview}
     volumes:
       - ./shortener/logs:/app/logs
     depends_on:
@@ -154,7 +154,7 @@ services:
     <<: *extra-hosts
     environment:
       <<: *shortener-env
-      ALLOWED_HOSTS: "*"
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,auth,shortener,analytics,url-preview}
     volumes:
       - ./shortener/logs:/app/logs
     depends_on:
@@ -171,7 +171,7 @@ services:
     <<: *extra-hosts
     environment:
       <<: *analytics-env
-      ALLOWED_HOSTS: "*"
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,auth,shortener,analytics,url-preview}
     volumes:
       - ./analytics/logs:/app/logs
     ports:
@@ -196,7 +196,7 @@ services:
     <<: *extra-hosts
     environment:
       <<: *analytics-env
-      ALLOWED_HOSTS: "*"
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,auth,shortener,analytics,url-preview}
     volumes:
       - ./analytics/logs:/app/logs
     depends_on:
@@ -216,7 +216,7 @@ services:
     <<: *extra-hosts
     environment:
       <<: *url-preview-env
-      ALLOWED_HOSTS: "*"
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,auth,shortener,analytics,url-preview}
     volumes:
       - ./url-preview/logs:/app/logs
     ports:
