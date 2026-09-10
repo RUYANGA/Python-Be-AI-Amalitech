@@ -1,40 +1,23 @@
 
 # auth/shortener/analytics/url-preview behind one nginx gateway
-# (../gateway). Postgres and Redis are NOT containerized: all four
+# (../gateway). Postgres and Redis are NOT containerized — all four
 # connect to the host's own Postgres (host.docker.internal) and Redis
-# (host.docker.internal:6380, adjust if yours differs) — create the
-# four databases first with `createdb -U <role> auth shortener
-# analytics url_preview`. Each service has its own Dockerfile.
+# (host.docker.internal:6380) — create the four databases first with
+# `createdb -U <role> auth shortener analytics url_preview`. Each
+# service has its own Dockerfile.
 #
-# Ports: every service gets its own, so nothing collides whether you're
-# hitting it through the gateway, directly against its published port,
-# or running it bare with `manage.py runserver <port>` outside Docker
-# entirely. gateway=8080 (client traffic — the recommended entry point,
-# and the *only* one that verifies a JWT/applies CORS), auth=8000,
-# shortener=8001, analytics=8002, url-preview=8003. The four services'
-# host-port bindings are loopback-only (`127.0.0.1:<port>:8000`) and
-# exist for local debugging (`curl localhost:8001/health/`, Swagger UI
-# without the gateway's docs-multiplexing rewrite) — going around the
-# gateway also goes around its `auth_request` JWT check, so
-# shortener/analytics would trust whatever `X-User-*` headers a request
-# to their own port sends directly (see
-# `apps.<service>.api.authentication.GatewayAuthentication`) instead of
-# the gateway-verified ones. Never point a real client (browser, mobile
-# app) at a service's own port — only the gateway on :8080 is meant for
-# that.
+# Ports: gateway=8080 (client traffic — the only entry point that
+# verifies a JWT/applies CORS), auth=8000, shortener=8001,
+# analytics=8002, url-preview=8003. The four services' own host ports
+# are loopback-only, for local debugging — going around the gateway
+# also skips its JWT check, so never point a real client at a
+# service's own port.
 #
-# shortener-worker/-beat and analytics-worker are Celery containers:
-# shortener runs the nightly archive-expired-URLs job (worker + beat)
-# plus the fire-and-forget url-preview fetch dispatched on every URL
-# create, analytics runs the write-behind click-ingestion queue (worker
-# only — it has no periodic tasks). url-preview has no Celery worker of
-# its own — its retry-with-backoff runs synchronously inside the request
-# it's handling, not as a background job. All Celery-using services
-# share the same Redis instance as the cache/rate-limiter, but each
-# service's broker gets its own DB index (CELERY_BROKER_URL below) —
-# Celery's redis transport has no per-app key prefix, so two services'
-# workers sharing one DB would each BRPOP the *other's* tasks off the
-# same queue key.
+# shortener-worker/-beat and analytics-worker are Celery containers
+# (shortener: nightly archive job + url-preview fetch dispatch;
+# analytics: write-behind click ingestion). Each service's broker gets
+# its own Redis DB index (CELERY_BROKER_URL below) so their queues
+# never collide.
 #
 # Quick start:
 #   cp .env.example .env   # fill in real secrets + DB_PASSWORD
@@ -51,9 +34,6 @@ x-extra-hosts: &extra-hosts
   extra_hosts:
     - "host.docker.internal:host-gateway"
 
-# Every container hits the DB migration/health check the same way, so a
-# plain "is the process still running" check isn't enough — this is what
-# docker-compose's `healthcheck:` actually calls into.
 x-healthcheck: &healthcheck
   interval: 30s
   timeout: 5s
@@ -66,9 +46,6 @@ x-shortener-env: &shortener-env
   DB_NAME: ${SHORTENER_DB_NAME:-shortener}
   <<: *host-db
   REDIS_URL: redis://host.docker.internal:6380/0
-  # A different Redis *DB index* than REDIS_URL above, not just a
-  # different key namespace — see the comment on CELERY_BROKER_URL in
-  # settings.py for why sharing a DB across services' brokers is unsafe.
   CELERY_BROKER_URL: redis://host.docker.internal:6380/1
   ANALYTICS_SERVICE_URL: http://analytics:8000
   URL_PREVIEW_SERVICE_URL: http://url-preview:8000
@@ -84,8 +61,7 @@ x-analytics-env: &analytics-env
   SHORTENER_SERVICE_URL: http://shortener:8000
   INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
 
-# No CELERY_BROKER_URL here — url-preview has no Celery worker, unlike
-# shortener/analytics above (see the top-of-file comment).
+# No CELERY_BROKER_URL — url-preview has no Celery worker.
 x-url-preview-env: &url-preview-env
   SECRET_KEY: ${URL_PREVIEW_SECRET_KEY:?set in .env}
   DEBUG: ${DEBUG:-True}
@@ -102,8 +78,6 @@ x-url-preview-env: &url-preview-env
   PREVIEW_CACHE_TTL: ${PREVIEW_CACHE_TTL:-600}
 
 services:
-  # Loopback-only host port (see the top-of-file comment) — debugging
-  # only. Client traffic goes through the gateway.
   auth:
     build:
       context: ./auth
@@ -150,9 +124,6 @@ services:
       <<: *healthcheck
       test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/health/', timeout=3)"]
 
-  # Runs shortener's own Celery tasks (currently just the nightly
-  # archive job — see shortener-beat below). Waits on `shortener` being
-  # healthy so migrations have already run against the same database.
   shortener-worker:
     build:
       context: ./shortener
@@ -171,8 +142,6 @@ services:
       shortener:
         condition: service_healthy
 
-  # Celery's scheduler: fires archive_expired_urls onto shortener-worker's
-  # queue every night at 02:00 (see CELERY_BEAT_SCHEDULE in settings.py).
   # Only ever one of these — Celery Beat is not safe to run more than once.
   shortener-beat:
     build:
@@ -216,9 +185,6 @@ services:
       <<: *healthcheck
       test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/health/', timeout=3)"]
 
-  # Write-behind click ingestion: consumes the queue ClickIngestView
-  # enqueues onto (track_click_task). No beat here — analytics has no
-  # periodic tasks of its own.
   analytics-worker:
     build:
       context: ./analytics
@@ -237,14 +203,9 @@ services:
       analytics:
         condition: service_healthy
 
-  # The "external service" in this module: fetches title/description/
-  # favicon for a submitted URL, with its own retry-with-backoff and
-  # per-domain circuit breaker (see url-preview/README.md). No Celery
-  # worker — called directly by shortener over the internal network,
-  # and its own resiliency work runs synchronously inside that
-  # request, never as a background job. Its host port is loopback-only
-  # debugging access same as the others, not a client-facing route —
-  # it was never routed through the gateway either.
+  # Fetches title/description/favicon for a submitted URL (see
+  # url-preview/README.md). No Celery worker — called directly by
+  # shortener; its retry-with-backoff runs synchronously in-request.
   url-preview:
     build:
       context: ./url-preview
@@ -264,9 +225,7 @@ services:
       <<: *healthcheck
       test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/health/', timeout=3)"]
 
-  # See ../gateway — the recommended entry point for client traffic
-  # (:8080, publicly bindable, unlike the four loopback-only debug
-  # ports above): it's the only one that verifies a JWT and applies CORS.
+  # See ../gateway — the client-facing entry point (:8080).
   gateway:
     image: nginx:1.27-alpine
     container_name: msvc-gateway
