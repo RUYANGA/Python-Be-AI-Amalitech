@@ -127,6 +127,9 @@ services:
     depends_on:
       shortener:
         condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD-SHELL", "celery -A config inspect ping -d celery@$$HOSTNAME | grep -q OK"]
 
   # Celery's scheduler: fires archive_expired_urls onto shortener-worker's
   # queue every night at 02:00 (see CELERY_BEAT_SCHEDULE in settings.py).
@@ -191,6 +194,9 @@ services:
     depends_on:
       analytics:
         condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD-SHELL", "celery -A config inspect ping -d celery@$$HOSTNAME | grep -q OK"]
 
   # See ../gateway — the only published port.
   gateway:

@@ -31,4 +31,4 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn config.asgi:application --bind 0.0.0.0:${PORT} --workers ${WEB_CONCURRENCY:-4} --worker-class uvicorn.workers.UvicornWorker"]
+CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn config.asgi:application --bind 0.0.0.0:${PORT} --workers ${WEB_CONCURRENCY:-4} --worker-class uvicorn.workers.UvicornWorker --access-logfile -"]
