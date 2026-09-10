@@ -15,6 +15,7 @@ class URL(models.Model):
     original_url = models.URLField(max_length=2048)
     short_code = models.CharField(max_length=10, unique=True, db_index=True)
     title = models.CharField(max_length=255, blank=True, default="")
+    description = models.TextField(blank=True, default="")
     owner_id = models.PositiveIntegerField(null=True, blank=True, db_index=True)
     click_count = models.PositiveIntegerField(default=0, db_index=True)
     is_active = models.BooleanField(default=True)
