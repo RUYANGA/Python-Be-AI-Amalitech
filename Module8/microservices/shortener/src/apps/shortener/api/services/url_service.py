@@ -26,6 +26,7 @@ from apps.shortener.api.interfaces.repository import (
     URLListFilters,
 )
 from apps.shortener.api.interfaces.shortener import IShortCodeGenerator
+from apps.shortener.api.profiling import timed
 from apps.shortener.models import URL
 
 logger = logging.getLogger(__name__)
@@ -55,6 +56,7 @@ class URLShortenerService:
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+    @timed(enabled=True)
     def create(
         self,
         original_url: str,
@@ -122,6 +124,7 @@ class URLShortenerService:
         """Create and return a new shortened URL without optional fields."""
         return self.create(original_url, owner)
 
+    @timed(enabled=True)
     def resolve(self, short_code: str) -> URL:
         """Return the URL for ``short_code`` or raise :class:`URLNotFoundError`."""
         url: URL | None = self._repository.get_by_short_code(short_code)
@@ -131,6 +134,7 @@ class URLShortenerService:
         logger.debug("url.resolved short_code=%s", short_code)
         return url
 
+    @timed(enabled=True)
     def list_with_filters(
         self, filters: URLListFilters, limit: int = 10, cursor: str | None = None
     ) -> KeysetPage:

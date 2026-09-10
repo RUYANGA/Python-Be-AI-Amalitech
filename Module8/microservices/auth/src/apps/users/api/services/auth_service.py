@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 
 from apps.users.api.exceptions import AuthenticationError, InactiveAccountError
 from apps.users.api.interfaces import AuthService, LoginRateLimiter, TokenService
+from apps.users.api.profiling import timed
 from apps.users.api.services.login_rate_limiter import RedisLoginRateLimiter
 from apps.users.api.services.token_service import JWTTokenService
 
@@ -23,6 +24,7 @@ class UserAuthService(AuthService):
         self.token_service = token_service or JWTTokenService()
         self.rate_limiter = rate_limiter or RedisLoginRateLimiter()
 
+    @timed(enabled=True)
     def register(self, data):
         password = data.pop("password")
         user = User(**data)
@@ -31,6 +33,7 @@ class UserAuthService(AuthService):
         logger.info("Registered new user: %s", user.username)
         return user
 
+    @timed(enabled=True)
     def login(self, username, password):
         self.rate_limiter.check(username)
         user = User.objects.filter(username=username).first()
