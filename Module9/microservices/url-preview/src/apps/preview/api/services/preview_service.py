@@ -69,6 +69,7 @@ class PreviewService:
             return PreviewResult(**cached)
 
         if not self._breaker.allow(domain):
+            logger.warning("preview_service.circuit_blocked url=%s domain=%s", url, domain)
             raise CircuitOpenError(domain)
 
         try:

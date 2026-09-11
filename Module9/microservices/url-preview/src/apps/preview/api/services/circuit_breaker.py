@@ -41,24 +41,37 @@ class DomainCircuitBreaker:
 
     def allow(self, domain: str) -> bool:
         """Return ``True`` unless the circuit is currently open for ``domain``."""
-        return self._redis.get(self._open_key(domain)) is None
+        is_open = self._redis.get(self._open_key(domain)) is not None
+        if is_open:
+            logger.warning("circuit_breaker.blocked domain=%s", domain)
+        else:
+            logger.info("circuit_breaker.allowed domain=%s", domain)
+        return not is_open
 
     def record_success(self, domain: str) -> None:
         """Close the circuit for ``domain``, clearing any failure history."""
         self._redis.delete(self._open_key(domain))
         self._redis.delete(self._fail_key(domain))
+        logger.info("circuit_breaker.closed domain=%s", domain)
 
     def record_failure(self, domain: str) -> None:
         """Record a failure for ``domain``, opening the circuit past the threshold."""
         count = self._redis.incr(self._fail_key(domain), ttl=_FAIL_COUNTER_TTL_SECONDS)
         if count >= self._failure_threshold:
+            self._redis.set(self._open_key(domain), "1", ttl=self._open_seconds)
             logger.warning(
                 "circuit_breaker.opened domain=%s failure_count=%s open_seconds=%s",
                 domain,
                 count,
                 self._open_seconds,
             )
-            self._redis.set(self._open_key(domain), "1", ttl=self._open_seconds)
+        else:
+            logger.warning(
+                "circuit_breaker.failure_recorded domain=%s failure_count=%s threshold=%s",
+                domain,
+                count,
+                self._failure_threshold,
+            )
 
     @staticmethod
     def _open_key(domain: str) -> str:

@@ -153,6 +153,13 @@ LOGGING = {
             "backupCount": 5,
             "formatter": "json",
         },
+        "breaker_file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": LOG_DIR / "breaker.log",
+            "maxBytes": 10 * 1024 * 1024,  # 10 MB
+            "backupCount": 5,
+            "formatter": "json",
+        },
     },
     "root": {"handlers": ["console", "file"], "level": "INFO"},
     "loggers": {
@@ -167,6 +174,13 @@ LOGGING = {
             "propagate": False,
         },
         "apps.preview": {"handlers": ["console", "file"], "level": "INFO", "propagate": False},
+        # Circuit-breaker state transitions — split into their own file so
+        # they're easy to grep when triaging degraded domain fetch health.
+        "apps.preview.api.services.circuit_breaker": {
+            "handlers": ["console", "breaker_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
         # @profiled/@timed results — split into their own file so profiling
         # noise doesn't drown out url-preview.log, while still reaching
         # `docker logs` via console.
